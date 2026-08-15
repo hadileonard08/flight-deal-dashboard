@@ -427,7 +427,7 @@ export async function processFlights(rawFlights: any[]) {
       category: category as any,
       reasoning,
       itinerary: itineraryText,
-      occasion: occasion
+      occasion: occasion as any
     });
   }
 }

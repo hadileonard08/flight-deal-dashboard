@@ -43,13 +43,13 @@ export default function Dashboard() {
   if (!deals) return <div className="p-10">Loading deals...</div>;
 
   // Get unique filter options
-  const origins = Array.from(new Set(deals.map((d: any) => d.originCode)));
-  const destinations = Array.from(new Set(deals.map((d: any) => d.destinationCode)));
-  const cabins = Array.from(new Set(deals.map((d: any) => d.cabin)));
-  const categories = Array.from(new Set(deals.map((d: any) => d.category)));
-  const tripTypes = Array.from(new Set(deals.map((d: any) => d.tripType)));
-  const months = Array.from(new Set(deals.map((d: any) => new Date(d.departureDate).getMonth()))).sort((a, b) => a - b);
-  const years = Array.from(new Set(deals.map((d: any) => new Date(d.departureDate).getFullYear()))).sort((a, b) => a - b);
+  const origins = Array.from(new Set<string>(deals.map((d: any) => d.originCode)));
+  const destinations = Array.from(new Set<string>(deals.map((d: any) => d.destinationCode)));
+  const cabins = Array.from(new Set<string>(deals.map((d: any) => d.cabin)));
+  const categories = Array.from(new Set<string>(deals.map((d: any) => d.category)));
+  const tripTypes = Array.from(new Set<string>(deals.map((d: any) => d.tripType)));
+  const months = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getMonth()))).sort((a, b) => a - b);
+  const years = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getFullYear()))).sort((a, b) => a - b);
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
 
