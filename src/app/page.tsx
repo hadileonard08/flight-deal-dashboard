@@ -352,12 +352,12 @@ export default function Dashboard() {
       {/* Modal */}
       {selectedDeal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex md:items-center justify-center bg-black/60 md:p-4 backdrop-blur-sm"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedDeal(null);
           }}
         >
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row relative">
+          <div className="bg-white md:rounded-2xl shadow-2xl w-full h-[95dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-hidden flex flex-col md:flex-row relative">
             <button
               onClick={() => setSelectedDeal(null)}
               className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
@@ -367,16 +367,16 @@ export default function Dashboard() {
             </button>
 
             {/* Left: flight details & booking */}
-            <div className="w-full md:w-2/5 bg-gray-50 p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-center items-center text-center">
+            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-center items-center text-center shrink-0 overflow-y-auto max-h-[42%] md:max-h-full">
               <div className="w-full max-w-sm">
-                <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
+                <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
                   {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
                 </span>
 
-                <h2 className="text-3xl font-black mb-1">{selectedDeal.originCode} ➔ {selectedDeal.destinationCode}</h2>
-                <p className="text-gray-500 mb-6">{selectedDeal.airline} • {selectedDeal.cabin.replace('_', ' ')}</p>
+                <h2 className="text-2xl md:text-3xl font-black mb-1">{selectedDeal.originCode} ➔ {selectedDeal.destinationCode}</h2>
+                <p className="text-gray-500 mb-4 md:mb-6">{selectedDeal.airline} • {selectedDeal.cabin.replace('_', ' ')}</p>
 
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 mb-6 text-left">
+                <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 mb-4 md:mb-6 text-left">
                   <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                     <Calendar size={14} />
                     <span>{formatDate(selectedDeal.departureDate)}</span>
@@ -447,7 +447,7 @@ export default function Dashboard() {
             </div>
 
             {/* Right: itinerary */}
-            <div className="w-full md:w-3/5 p-6 md:p-8 overflow-y-auto bg-white">
+            <div className="w-full md:w-3/5 p-4 md:p-8 overflow-y-auto bg-white flex-1 min-h-0">
               {selectedDeal.itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
                   <ReactMarkdown
@@ -456,7 +456,7 @@ export default function Dashboard() {
                       img: (props: any) => (
                         <img
                           {...props}
-                          className="w-full h-auto max-h-96 object-cover rounded-xl my-4 shadow-sm"
+                          className="w-full h-auto max-h-56 md:max-h-96 object-cover rounded-xl my-4 shadow-sm"
                           alt={props.alt || 'Destination'}
                         />
                       )
