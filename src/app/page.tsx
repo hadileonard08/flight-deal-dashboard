@@ -367,7 +367,7 @@ export default function Dashboard() {
             </button>
 
             {/* Left: flight details & booking */}
-            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-center items-center text-center shrink-0 overflow-y-auto max-h-[42%] md:max-h-full">
+            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 overflow-y-auto max-h-[38%] md:max-h-full">
               <div className="w-full max-w-sm">
                 <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
                   {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
@@ -412,7 +412,7 @@ export default function Dashboard() {
                   href={getBookingUrl(selectedDeal)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
+                  className="hidden md:inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
                 >
                   <ExternalLink size={16} />
                   Book This Flight
@@ -447,7 +447,7 @@ export default function Dashboard() {
             </div>
 
             {/* Right: itinerary */}
-            <div className="w-full md:w-3/5 p-4 md:p-8 overflow-y-auto bg-white flex-1 min-h-0">
+            <div className="w-full md:w-3/5 p-4 md:p-8 overflow-y-auto bg-white flex-1 md:flex-none min-h-0">
               {selectedDeal.itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
                   <ReactMarkdown
@@ -470,6 +470,19 @@ export default function Dashboard() {
                   <p>No detailed itinerary for this deal.</p>
                 </div>
               )}
+            </div>
+
+            {/* Mobile sticky footer: Book This Flight */}
+            <div className="md:hidden w-full p-4 bg-gray-50 border-t border-gray-200 shrink-0">
+              <a
+                href={getBookingUrl(selectedDeal)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
+              >
+                <ExternalLink size={16} />
+                Book This Flight
+              </a>
             </div>
           </div>
         </div>
