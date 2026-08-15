@@ -5,6 +5,7 @@ import { deals, flights } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { resend, isEmailConfigured, getFromEmail } from '@/lib/email';
 import { getBookingUrl } from '@/lib/booking-url';
+import { styleItineraryImages } from '@/lib/email-formatting';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,9 +111,11 @@ Happy travels,
 Flight Deal Dashboard
 `.trim();
 
-    const htmlItinerary = deal.itinerary
+    const rawHtmlItinerary = deal.itinerary
       ? await marked(deal.itinerary, { gfm: true })
       : '<p>No detailed itinerary available for this deal.</p>';
+
+    const htmlItinerary = styleItineraryImages(rawHtmlItinerary);
 
     const html = `
 <!DOCTYPE html>

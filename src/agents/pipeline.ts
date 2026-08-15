@@ -4,7 +4,6 @@ import { scrapeFlightDealsFromWeb } from './web-scraper';
 import { scrapeRealFlightDeals } from './real-web-scraper';
 import { scrapeGoogleFlights } from './google-flights-scraper';
 import { processFlights } from './agent2-evaluator';
-import { notifyDiscord } from './agent3-notifier';
 
 export async function runPipeline() {
   console.log('🚀 Starting Deal Pipeline...');
@@ -65,7 +64,6 @@ export async function runPipeline() {
   console.log(`📊 Total: ${scrapedFlights.length} flight deals to process`);
 
   await processFlights(scrapedFlights);
-  await notifyDiscord();
   console.log('✅ Pipeline finished.');
 
   return { totalScraped: scrapedFlights.length };
