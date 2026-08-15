@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
-  const [priceView, setPriceView] = useState<'cash' | 'points'>('cash');
+  const [priceView, setPriceView] = useState<'cash' | 'points'>('points');
   const [sortBy, setSortBy] = useState<string>('price');
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
   const [email, setEmail] = useState('');
