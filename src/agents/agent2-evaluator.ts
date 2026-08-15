@@ -4,6 +4,7 @@ import { evaluateThreshold, getRegion, AIRPORT_NAMES } from '../lib/config';
 import { generateHoneymoonItinerary } from './graph';
 import { getLocalEvents, LocalEvent } from './event-scraper';
 import { searchDestinationNews } from './news-search';
+import { getWeatherForecast } from './weather';
 import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
@@ -25,6 +26,7 @@ function formatFlightDetailsSection(flight: any): string {
 - **Date:** ${dateStr}
 - **Airline & Cabin:** ${flight.airline} ${cabinLabel}
 - **Investment:** ${investment}
+- **Reality Check:** This is the actual booked cabin and airline. The itinerary does **not** include any upgrades, partner-airline re-routing, or premium-cabin services unless they are part of this exact booking.
 
 `;
 }
@@ -47,9 +49,20 @@ function formatNewsSection(news: string | null): string {
 }
 
 // Generate occasion-specific itineraries
-function generateOccasionItinerary(flight: any, occasion: string, events: LocalEvent[] = [], news: string | null = null): string {
+function generateOccasionItinerary(flight: any, occasion: string, events: LocalEvent[] = [], news: string | null = null, weatherForecast: string | null = null): string {
   const destination = flight.destinationCode;
   const origin = flight.originCode;
+  const cabin = flight.cabin || 'ECONOMY';
+
+  // Use a less luxury template for economy cabins
+  if (cabin === 'ECONOMY' && (occasion === 'HONEYMOON' || occasion === 'BUSINESS')) {
+    occasion = 'LEISURE';
+  }
+
+  let weatherSection = '';
+  if (weatherForecast) {
+    weatherSection = `\n\n## 🌤️ Weather Outlook\n\n${weatherForecast}`;
+  }
   
   const itineraries: Record<string, string> = {
     'HONEYMOON': `# 💕 Luxury Honeymoon Itinerary: ${origin} → ${destination}
@@ -325,7 +338,11 @@ function generateOccasionItinerary(flight: any, occasion: string, events: LocalE
 - **Evening**: Departure`
   };
   
-  return (itineraries[occasion] || itineraries['LEISURE']) + formatEventsSection(events) + formatNewsSection(news);
+  const baseItinerary = (itineraries[occasion] || itineraries['LEISURE']) + formatEventsSection(events) + formatNewsSection(news) + weatherSection;
+
+  const realityNote = `\n\n---\n\n*Reality Check: You are booked in **${cabin}** on **${flight.airline}**. This itinerary is planned to match that cabin tier — no upgrades, no partner-airline re-routing, and no premium-cabin services are included unless explicitly in your booking.*`;
+
+  return baseItinerary + realityNote;
 }
 
 export async function processFlights(rawFlights: any[]) {
@@ -382,21 +399,31 @@ export async function processFlights(rawFlights: any[]) {
     // 3. Generate occasion-specific itinerary using LangGraph (Only for Good Deals)
     let itineraryText = null;
     let occasion = 'LEISURE'; // Default occasion
-    
+
     if (category === 'GOOD_DEAL') {
+      const tripStart = new Date(flight.departureDate);
+      const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
+
+      let weatherForecast: string | null = null;
+      try {
+        weatherForecast = await getWeatherForecast(flight.destinationCode, tripStart, tripEnd);
+      } catch (error) {
+        console.log('Weather lookup failed, continuing without forecast');
+      }
+
       try {
         if (hasAIProvider) {
-          itineraryText = await generateHoneymoonItinerary(flight, localEvents, destinationNews);
+          itineraryText = await generateHoneymoonItinerary(flight, localEvents, destinationNews, weatherForecast);
           occasion = 'HONEYMOON';
         } else {
           // Generate occasion-specific fallback itinerary
           occasion = getRandomOccasion();
-          itineraryText = generateOccasionItinerary(flight, occasion, localEvents, destinationNews);
+          itineraryText = generateOccasionItinerary(flight, occasion, localEvents, destinationNews, weatherForecast);
         }
       } catch (error) {
         console.log('Using fallback itinerary due to API error');
         occasion = 'LEISURE';
-        itineraryText = generateOccasionItinerary(flight, 'LEISURE', localEvents, destinationNews);
+        itineraryText = generateOccasionItinerary(flight, 'LEISURE', localEvents, destinationNews, weatherForecast);
       }
 
       // Always prepend a deterministic, data-accurate flight summary - independent of
