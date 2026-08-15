@@ -1,6 +1,6 @@
 "use client";
 import useSWR from 'swr';
-import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail } from 'lucide-react';
+import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail, ArrowUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useEffect } from 'react';
@@ -357,17 +357,17 @@ export default function Dashboard() {
             if (e.target === e.currentTarget) setSelectedDeal(null);
           }}
         >
-          <div className="bg-white md:rounded-2xl shadow-2xl w-full h-[95dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-hidden flex flex-col md:flex-row relative">
+          <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[95dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative">
             <button
               onClick={() => setSelectedDeal(null)}
-              className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
+              className="fixed md:absolute top-4 right-4 z-50 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
               aria-label="Close"
             >
               <X size={20} />
             </button>
 
             {/* Left: flight details & booking */}
-            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 overflow-y-auto max-h-[38%] md:max-h-full">
+            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 md:max-h-full md:overflow-y-auto">
               <div className="w-full max-w-sm">
                 <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
                   {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
@@ -412,7 +412,7 @@ export default function Dashboard() {
                   href={getBookingUrl(selectedDeal)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hidden md:inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
+                  className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
                 >
                   <ExternalLink size={16} />
                   Book This Flight
@@ -447,7 +447,7 @@ export default function Dashboard() {
             </div>
 
             {/* Right: itinerary */}
-            <div className="w-full md:w-3/5 p-4 md:p-8 overflow-y-auto bg-white flex-1 md:flex-none min-h-0">
+            <div className="w-full md:w-3/5 p-4 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
               {selectedDeal.itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
                   <ReactMarkdown
@@ -472,17 +472,15 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Mobile sticky footer: Book This Flight */}
-            <div className="md:hidden w-full p-4 bg-gray-50 border-t border-gray-200 shrink-0">
-              <a
-                href={getBookingUrl(selectedDeal)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
+            {/* Mobile Go to top */}
+            <div className="md:hidden w-full p-6 text-center">
+              <button
+                onClick={() => document.getElementById('deal-modal')?.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
               >
-                <ExternalLink size={16} />
-                Book This Flight
-              </a>
+                <ArrowUp size={16} />
+                Go to top
+              </button>
             </div>
           </div>
         </div>
