@@ -1,4 +1,4 @@
-import { CITY_MAP } from './event-scraper';
+import { CITY_MAP } from '../lib/city-map';
 
 // Uses Gemini's built-in Google Search grounding tool to look up real, current
 // news/happenings for a destination city around the trip dates. This is a live

@@ -6,10 +6,6 @@ const llm = getChatModel(0.4);
 
 const ItineraryStateAnnotation = Annotation.Root({
   flightDeal: Annotation<any>(),
-  localEvents: Annotation<any[]>({
-    reducer: (curr, update) => update,
-    default: () => []
-  }),
   destinationNews: Annotation<string | null>({
     reducer: (curr, update) => update,
     default: () => null
@@ -36,7 +32,7 @@ const ItineraryStateAnnotation = Annotation.Root({
 async function architectNode(state: typeof ItineraryStateAnnotation.State) {
   if (!useRealAI) {
     return { 
-      draftItinerary: `# Luxury Honeymoon Itinerary for ${state.flightDeal.originCode} to ${state.flightDeal.destinationCode}
+      draftItinerary: `# Flight Deal Itinerary for ${state.flightDeal.originCode} to ${state.flightDeal.destinationCode}
 
 ## Day 1: Arrival & Luxury Check-in
 - Arrive at ${state.flightDeal.destinationCode} and transfer to 5-star hotel
@@ -78,7 +74,6 @@ async function architectNode(state: typeof ItineraryStateAnnotation.State) {
     You are a travel architect planning ${tone} for a couple.
     The actual booked flight cabin is **${actualCabin}**. You must NEVER claim the travelers have been upgraded, re-routed to a premium cabin, or flying on a different airline than booked. Do not invent lie-flat seats, business-class lounges, or first-class services unless the booked cabin is actually BUSINESS or FIRST.
     Flight Deal: ${JSON.stringify(state.flightDeal)}
-    Real local events happening in the destination during this trip (from Ticketmaster, use these if relevant - do not invent fake events): ${JSON.stringify(state.localEvents)}
     Real current news/happenings found via live web search for the destination during this trip window (weather, festivals, holidays, advisories - use if relevant, do not invent anything beyond this): ${state.destinationNews || 'None found.'}
     Weather forecast for the trip window: ${state.weatherForecast || 'Not available.'}
     Previous Critic Feedback (Must address!): ${state.criticFeedback.join("\n")}
@@ -93,7 +88,6 @@ async function architectNode(state: typeof ItineraryStateAnnotation.State) {
     - A **Flight & Arrival Reality** section that truthfully reflects the actual airline, route, and cabin. No upgrades, no re-routing to partners unless explicitly in the booking.
     - Daily markdown itinerary with practical activities that match the cabin tier. For each day, on the line immediately after the day heading, include exactly one image placeholder for a specific landmark or activity planned that day, formatted as ![IMAGE: landmark or activity name]. Choose a specific, well-known place (e.g. "Gyeongbokgung Palace", "Tokyo Skytree", "Senso-ji Temple"). Do not include an IMAGE line for the Flight & Arrival Reality or Weather sections.
     - A brief visa/immigration advisory ONLY for a US passport holder traveling to this destination.
-    - If real local events were provided and their dates fall within the trip, work at least one into the relevant day.
     - If real current news/happenings were provided, factor them into the plan or a practical note.
     - Do not use or invent traveler names - refer to them generically (e.g. "you" or "the couple").
 
@@ -158,10 +152,9 @@ export const itineraryGraph = new StateGraph(ItineraryStateAnnotation)
   .addConditionalEdges("critic", criticRouter)
   .compile();
 
-export async function generateHoneymoonItinerary(flightDeal: any, localEvents: any[] = [], destinationNews: string | null = null, weatherForecast: string | null = null) {
+export async function generateHoneymoonItinerary(flightDeal: any, destinationNews: string | null = null, weatherForecast: string | null = null) {
   const result = await itineraryGraph.invoke({
     flightDeal,
-    localEvents,
     destinationNews,
     weatherForecast,
     draftItinerary: "",
