@@ -1,5 +1,14 @@
 import { AIRPORT_NAMES } from '../lib/config';
 
+const WEATHER_CITIES: Record<string, string> = {
+  HND: 'Tokyo',
+  NRT: 'Tokyo',
+  HKG: 'Hong Kong',
+  ICN: 'Seoul',
+  SIN: 'Singapore',
+  BKK: 'Bangkok',
+};
+
 interface DailyWeather {
   date: string;
   maxTemp: number;
@@ -20,7 +29,7 @@ function wmoCodeToCondition(code: number): string {
 }
 
 export async function getWeatherForecast(destinationCode: string, startDate: Date, endDate: Date): Promise<string | null> {
-  const city = AIRPORT_NAMES[destinationCode] || destinationCode;
+  const city = WEATHER_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationCode;
 
   try {
     const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
