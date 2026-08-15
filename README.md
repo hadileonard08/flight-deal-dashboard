@@ -1,6 +1,6 @@
 # Autonomous Flight Deal & Itinerary Generator
 
-A full-stack, multi-agent flight tracking and itinerary generation system that continuously scrapes flight deals from major US gateways to Asia, evaluates them against regional baseline pricing, and triggers a LangGraph multi-agent loop to generate highly customized luxury honeymoon itineraries when top-tier deals are found.
+A full-stack, multi-agent flight tracking and itinerary generation system that continuously scrapes flight deals from major US gateways to Asia, evaluates them against regional baseline pricing, and triggers a LangGraph multi-agent loop to generate highly customized, cabin-aware itineraries when top-tier deals are found. The dashboard displays every deal, and a built-in email agent can send custom itineraries or a daily digest of the best finds.
 
 ## Live Demo
 
@@ -8,30 +8,36 @@ The dashboard is deployed at **https://flight-deals-dashboard.vercel.app**.
 
 ## Features
 
-- **Multi-Agent System**: LangGraph-powered AI agents for itinerary generation
-- **Real-time Deal Tracking**: Monitors flight deals from US to Asia
-- **AI-Powered Evaluation**: Uses GPT-4o to evaluate and categorize deals
-- **Auto-Generated Itineraries**: Creates luxury honeymoon itineraries for top deals
-- **Discord Notifications**: Instant alerts when good deals are found
-- **Web Dashboard**: Next.js UI to view deals and itineraries
+- **Multi-Agent System**: LangGraph-powered AI agents for itinerary generation with an architect/critic loop
+- **Real-time Deal Tracking**: Monitors award and cash flight deals from the US to Asia
+- **AI-Powered Evaluation**: Categorizes deals as `GOOD_DEAL`, `MAYBE_GOOD_DEAL`, `OKAY_DEAL`, or `BAD_DEAL` with natural-language reasoning
+- **Cabin-Aware Itineraries**: Luxury recommendations for Business/First, smart-budget suggestions for Economy, and no false upgrades or made-up services
+- **Destination & Daily Photos**: Wikipedia-sourced images for the destination and one landmark/activity photo for each day of the itinerary
+- **Weather & News**: 5-day Open-Meteo forecasts and live Google web-search news folded into every `GOOD_DEAL` itinerary
+- **Direct Airline Booking**: "Book This Flight" buttons link directly to airline websites when the carrier is recognized
+- **Web Dashboard**: Next.js UI with clickable cards, split-view modals, and filters
+- **Email Custom Itinerary**: Send any deal's full itinerary straight to an email address from the dashboard modal
+- **Daily Digest Cron**: Vercel cron sends an automated daily email with the top `GOOD_DEAL`(s) and a full featured itinerary
 - **Database Storage**: PostgreSQL with Drizzle ORM for persistence
 
 ## Tech Stack
 
-- **Frameworks**: Next.js 14+ (App Router), Node.js (TypeScript)
+- **Frameworks**: Next.js 14+ (App Router), Node.js 20+ (TypeScript)
 - **Database**: PostgreSQL + Drizzle ORM
-- **AI & Multi-Agent**: Gemini or OpenAI SDK (gpt-4o, gpt-4o-mini) via @langchain + @langchain/langgraph
+- **AI & Multi-Agent**: LangChain + LangGraph (Gemini or OpenAI)
 - **Styling & UI**: Tailwind CSS, Lucide React, SWR
-- **External APIs**: Duffel API (real flight data), AviationStack API, Seats.aero API, Ticketmaster API, Discord Webhooks
+- **Email**: Resend, marked (Markdown → HTML)
+- **External APIs**: Seats.aero, Duffel, AviationStack, Ticketmaster, Open-Meteo, Wikipedia
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL 16+
 - Gemini API Key or OpenAI API Key (for itinerary/reasoning generation)
-- Discord Webhook URL
+- Resend API Key (for email features)
+- Optional: a verified domain for real outbound email, or use `onboarding@resend.dev` for testing
 
 ### Installation
 
@@ -79,20 +85,22 @@ npm start
 
 ```
 src/
-├── agents/           # AI agent implementations
-├── app/             # Next.js app router pages and API routes
-├── db/              # Database schema and connection
-├── lib/             # Utility functions and configuration
-└── scripts/         # Standalone scripts (pipeline runner, etc.)
+├── agents/           # AI agent implementations (scraper, evaluator, weather, images, pipeline)
+├── app/              # Next.js app router pages and API routes
+│   └── api/          # /deals, /email-itinerary, /cron/email-deals
+├── db/               # Database schema and connection
+├── lib/              # Utility functions, config, email helpers
+├── scripts/          # Standalone scripts (pipeline runner, clear-db)
+└── app/              # Dashboard UI
 ```
 
 ## How It Works
 
 1. **Agent 1 (Scraper)**: Scrapes real award availability (points/miles) from the Seats.aero Partner API, falling back to Duffel/AviationStack/simulated cash data if not configured
-2. **Agent 2 (Evaluator)**: Evaluates deals against regional thresholds using AI
-3. **LangGraph System**: Generates luxury honeymoon itineraries for good deals
-4. **Agent 3 (Notifier)**: Sends Discord notifications for new deals
-5. **Dashboard**: Displays deals and itineraries in real-time
+2. **Agent 2 (Evaluator)**: Evaluates deals against regional thresholds, fetches weather, real events, live news, and destination/day images, and writes a cabin-consistent rationale
+3. **LangGraph System**: Generates and critiques a 5-day itinerary for every `GOOD_DEAL`, complete with weather outlook, reality check, and daily images
+4. **Email Agent**: Sends custom itineraries on demand via `/api/email-itinerary` and a daily digest via `/api/cron/email-deals`
+5. **Dashboard**: Displays all deals and full itineraries in a split-view modal
 
 ## Getting Real Flight Data
 
@@ -128,7 +136,7 @@ To get real *cash-priced* flight data instead of simulated data:
   AVIATIONSTACK_API_KEY="your_api_key"
   ```
 
-Note: Amadeus's free self-service developer program was discontinued in 2026, so it's no longer an option. Most flight-pricing APIs (Kiwi, Skyscanner, etc.) require an affiliate/commercial agreement since they monetize via booking commissions — Duffel is one of the few that doesn't.
+Note: Amadeus's free self-service developer program was discontinued in 2026, so it is no longer an option. Most flight-pricing APIs (Kiwi, Skyscanner, etc.) require an affiliate/commercial agreement since they monetize via booking commissions — Duffel is one of the few that doesn't.
 
 Once you add a Duffel live token, the pipeline will automatically use real flight data.
 
@@ -170,9 +178,44 @@ For every **GOOD_DEAL**, in addition to Ticketmaster events, the evaluator also 
 - **No extra setup needed** beyond having a working Gemini key
 - Note: Google Search grounding has its own separate, smaller quota from regular Gemini text generation. If you see `429` errors specifically for this feature while normal itinerary generation still works, it means the grounding-specific quota is exhausted (resets daily on the free tier, or is lifted with billing enabled) — this fails safe by skipping the news section, never blocking itinerary generation.
 
+## Weather & Images in Itineraries
+
+For every **GOOD_DEAL**:
+
+- **Weather**: a 5-day Open-Meteo forecast is fetched and included as a "Weather Outlook" section.
+- **Destination photo**: a hero image of the destination city is pulled from Wikipedia and embedded at the top.
+- **Daily photos**: each day of the itinerary includes a Wikipedia image of a specific landmark or activity planned for that day.
+
+These are added after the AI draft is generated so the itinerary stays accurate and the photos are real.
+
+## Email Setup
+
+Email features are powered by **Resend**.
+
+- **Free tier**: $0/mo, 3,000 emails/month, 100/day
+- **Sign up**: https://resend.com
+- **Add to .env**:
+  ```
+  RESEND_API_KEY="re_your_key_here"
+  FROM_EMAIL="Flight Deals <hello@yourdomain.com>"
+  NOTIFICATION_EMAIL="you@example.com"
+  ```
+
+### Sending to real recipients
+
+Resend's `onboarding@resend.dev` address can only be used to send to the email address associated with your Resend account (for testing). To send to anyone else, add and verify a domain at https://resend.com/domains, then use an address on that domain as `FROM_EMAIL`.
+
+### What you can do
+
+- **Send a custom itinerary**: open any deal in the dashboard, enter an email, and click **Send**. The email includes the flight summary, booking link, and full AI itinerary with resized images.
+- **Daily digest**: Vercel runs `/api/cron/email-deals` every day at 9am and emails a digest of the best `GOOD_DEAL`s to `NOTIFICATION_EMAIL`.
+
 ## API Endpoints
 
 - `GET /api/deals` - Retrieve all flight deals with itineraries
+- `POST /api/email-itinerary` - Send a specific deal's itinerary to an email address
+  - Body: `{ "email": "user@example.com", "dealId": "..." }`
+- `GET /api/cron/email-deals` - Trigger the daily digest (intended for Vercel cron, requires `NOTIFICATION_EMAIL` to be set)
 
 ## Configuration
 
@@ -193,15 +236,13 @@ Cash value estimates are rough per-destination/cabin figures (see `ONE_WAY_CASH_
 
 For **cash fares** (Duffel/AviationStack/simulated data), the same 4 tiers are used but based on fixed price thresholds by cabin class and origin region instead of CPP.
 
-All four tiers are saved and shown on the dashboard (nothing is silently dropped). To keep AI usage bounded, only `GOOD_DEAL`/`MAYBE_GOOD_DEAL` get an AI-generated rationale; `OKAY_DEAL`/`BAD_DEAL` use static copy instead. Only `GOOD_DEAL` gets a full AI-generated itinerary with local events and live news.
+All four tiers are saved and shown on the dashboard (nothing is silently dropped). To keep AI usage bounded, only `GOOD_DEAL`/`MAYBE_GOOD_DEAL` get an AI-generated rationale; `OKAY_DEAL`/`BAD_DEAL` use static copy instead. Only `GOOD_DEAL` gets a full AI-generated itinerary with local events, live news, weather, and images.
 
 ### Regional Thresholds (cash fares & fallback points thresholds)
 
 - **West Coast (LAX, SFO, SEA, SAN)**: 50,000 points for business class
 - **Central (ORD, DFW, DEN, MSP, MDW)**: 60,000 points for business class
 - **East Coast (JFK, EWR, IAD, ATL, MIA)**: 60,000 points for business class
-
-To keep AI usage bounded, only `GOOD_DEAL` and `MAYBE_GOOD_DEAL` get an AI-generated rationale; `OKAY_DEAL`/`BAD_DEAL` use clear static copy instead. Only `GOOD_DEAL` gets a full AI-generated itinerary with local events and live news.
 
 ## License
 
