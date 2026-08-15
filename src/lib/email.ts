@@ -5,7 +5,7 @@ const resendApiKey = process.env.RESEND_API_KEY;
 export const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export function isEmailConfigured(): boolean {
-  return Boolean(resend && process.env.FROM_EMAIL);
+  return Boolean(resend);
 }
 
 export function getFromEmail(): string {
