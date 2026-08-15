@@ -71,26 +71,6 @@ export default function Dashboard() {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
 
-  const filteredDeals = deals.filter((deal: any) => {
-    if (selectedOrigin !== 'all' && deal.originCode !== selectedOrigin) return false;
-    if (selectedDestination !== 'all' && deal.destinationCode !== selectedDestination) return false;
-    if (selectedCabin !== 'all' && deal.cabin !== selectedCabin) return false;
-    if (selectedCategory !== 'all' && deal.category !== selectedCategory) return false;
-    if (selectedMonth !== 'all' && new Date(deal.departureDate).getMonth() !== parseInt(selectedMonth)) return false;
-    if (selectedYear !== 'all' && new Date(deal.departureDate).getFullYear() !== parseInt(selectedYear)) return false;
-    if (selectedTripType !== 'all' && deal.tripType !== selectedTripType) return false;
-    return true;
-  });
-
-  const sortedDeals = [...filteredDeals].sort((a: any, b: any) => {
-    const categoryDiff = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
-    if (categoryDiff !== 0) return categoryDiff;
-
-    if (sortBy === 'price') return getDisplayPrice(a).value - getDisplayPrice(b).value;
-    if (sortBy === 'date') return new Date(a.departureDate).getTime() - new Date(b.departureDate).getTime();
-    return 0;
-  });
-
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', {
@@ -119,6 +99,26 @@ export default function Dashboard() {
     const cash = Number(deal.cashPrice || 0);
     return { value: Math.round(cash / 0.02), label: 'est.', suffix: 'pts at 2¢/pt', unit: 'points' };
   };
+
+  const filteredDeals = deals.filter((deal: any) => {
+    if (selectedOrigin !== 'all' && deal.originCode !== selectedOrigin) return false;
+    if (selectedDestination !== 'all' && deal.destinationCode !== selectedDestination) return false;
+    if (selectedCabin !== 'all' && deal.cabin !== selectedCabin) return false;
+    if (selectedCategory !== 'all' && deal.category !== selectedCategory) return false;
+    if (selectedMonth !== 'all' && new Date(deal.departureDate).getMonth() !== parseInt(selectedMonth)) return false;
+    if (selectedYear !== 'all' && new Date(deal.departureDate).getFullYear() !== parseInt(selectedYear)) return false;
+    if (selectedTripType !== 'all' && deal.tripType !== selectedTripType) return false;
+    return true;
+  });
+
+  const sortedDeals = [...filteredDeals].sort((a: any, b: any) => {
+    const categoryDiff = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
+    if (categoryDiff !== 0) return categoryDiff;
+
+    if (sortBy === 'price') return getDisplayPrice(a).value - getDisplayPrice(b).value;
+    if (sortBy === 'date') return new Date(a.departureDate).getTime() - new Date(b.departureDate).getTime();
+    return 0;
+  });
 
   const handleSendEmail = async () => {
     if (!email || !selectedDeal) return;
