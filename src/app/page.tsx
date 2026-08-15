@@ -153,7 +153,7 @@ export default function Dashboard() {
         {simulatedCount > 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4 text-sm text-yellow-800">
             <strong>⚠️ {simulatedCount === deals.length ? 'Simulated Data:' : `${simulatedCount} of ${deals.length} deals are simulated:`}</strong> Some flight prices, airlines, and dates shown are generated for demonstration purposes (marked with a badge on each card).
-            Add a <a href="https://duffel.com/" target="_blank" rel="noopener noreferrer" className="underline font-medium">free Duffel API token</a> (no affiliate program required) to get real cash-fare data, or a <a href="https://seats.aero/settings" target="_blank" rel="noopener noreferrer" className="underline font-medium">Seats.aero key</a> for real award data.
+            Add a <a href="https://seats.aero/settings" target="_blank" rel="noopener noreferrer" className="underline font-medium">Seats.aero key</a> for real award data.
           </div>
         ) : (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4 text-sm text-green-800">
