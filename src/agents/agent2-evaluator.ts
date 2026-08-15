@@ -5,7 +5,7 @@ import { generateHoneymoonItinerary } from './graph';
 import { getLocalEvents, LocalEvent } from './event-scraper';
 import { searchDestinationNews } from './news-search';
 import { getWeatherForecast } from './weather';
-import { getDestinationImageUrl } from './destination-images';
+import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
 import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
@@ -443,6 +443,13 @@ export async function processFlights(rawFlights: any[]) {
         : '';
 
       itineraryText = flightDetails + imageMarkdown + itineraryText;
+
+      // Replace per-day IMAGE placeholders with real Wikipedia photos
+      try {
+        itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
+      } catch (error) {
+        console.log('Itinerary image hydration failed, keeping placeholders');
+      }
     }
 
     // 4. Save to DB

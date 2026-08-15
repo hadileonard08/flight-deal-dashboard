@@ -91,7 +91,7 @@ async function architectNode(state: typeof ItineraryStateAnnotation.State) {
     Required sections:
     - A **Weather Outlook** section at the top using the provided weather forecast (or noting it's unavailable). Include a brief practical note on what to pack or how it may affect plans.
     - A **Flight & Arrival Reality** section that truthfully reflects the actual airline, route, and cabin. No upgrades, no re-routing to partners unless explicitly in the booking.
-    - Daily markdown itinerary with practical activities that match the cabin tier.
+    - Daily markdown itinerary with practical activities that match the cabin tier. For each day, on the line immediately after the day heading, include exactly one image placeholder for a specific landmark or activity planned that day, formatted as ![IMAGE: landmark or activity name]. Choose a specific, well-known place (e.g. "Gyeongbokgung Palace", "Tokyo Skytree", "Senso-ji Temple"). Do not include an IMAGE line for the Flight & Arrival Reality or Weather sections.
     - A brief visa/immigration advisory ONLY for a US passport holder traveling to this destination.
     - If real local events were provided and their dates fall within the trip, work at least one into the relevant day.
     - If real current news/happenings were provided, factor them into the plan or a practical note.
@@ -124,8 +124,9 @@ async function criticNode(state: typeof ItineraryStateAnnotation.State) {
     2. **No Fabricated Upgrades**: The itinerary must not state or imply the travelers were upgraded to a premium cabin or moved to a partner airline. It must reflect the actual cabin.
     3. **Cabin-Appropriate Tone**: If ECONOMY, the accommodation and activity recommendations should be budget/mid-tier, not 5-star luxury. If BUSINESS/FIRST, luxury is appropriate. If PREMIUM_ECONOMY, mid-range is fine.
     4. **Weather Section**: There must be a dedicated Weather Outlook or Weather section at the top of the itinerary.
-    5. **Realism & Logic**: Check pacing, layovers, and feasibility. Flag anything physically impossible or overly packed.
-    6. **No Invented Names**: It must not include specific traveler names.
+    5. **Daily Images**: Each of the 5 days must include exactly one ![IMAGE: ...] placeholder immediately after the day heading, naming a specific landmark or activity planned that day.
+    6. **Realism & Logic**: Check pacing, layovers, and feasibility. Flag anything physically impossible or overly packed.
+    7. **No Invented Names**: It must not include specific traveler names.
 
     Respond strictly in JSON: { "isApproved": boolean, "feedback": "Explanation of flaws or praise. Be specific about any false upgrade claims." }
   `;
