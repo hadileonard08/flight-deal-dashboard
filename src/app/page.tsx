@@ -1,9 +1,9 @@
 "use client";
 import useSWR from 'swr';
-import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink } from 'lucide-react';
+import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -78,11 +78,24 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('price');
+  const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!selectedDeal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedDeal(null);
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = 'unset';
+    };
+  }, [selectedDeal]);
 
   if (error) return <div className="p-10">Failed to load deals</div>;
   if (!deals) return <div className="p-10">Loading deals...</div>;
 
-  // Get unique filter options
   const origins = Array.from(new Set<string>(deals.map((d: any) => d.originCode)));
   const destinations = Array.from(new Set<string>(deals.map((d: any) => d.destinationCode)));
   const cabins = Array.from(new Set<string>(deals.map((d: any) => d.cabin)));
@@ -93,7 +106,6 @@ export default function Dashboard() {
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
 
-  // Filter deals
   const filteredDeals = deals.filter((deal: any) => {
     if (selectedOrigin !== 'all' && deal.originCode !== selectedOrigin) return false;
     if (selectedDestination !== 'all' && deal.destinationCode !== selectedDestination) return false;
@@ -105,7 +117,6 @@ export default function Dashboard() {
     return true;
   });
 
-  // Sort deals - good deals always come first, then by the chosen sort within each category
   const sortedDeals = [...filteredDeals].sort((a: any, b: any) => {
     const categoryDiff = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
     if (categoryDiff !== 0) return categoryDiff;
@@ -119,10 +130,10 @@ export default function Dashboard() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'short', 
-      year: 'numeric', 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
       timeZone: 'UTC'
     });
@@ -166,10 +177,10 @@ export default function Dashboard() {
             <Filter size={18} className="text-gray-500"/>
             <span className="font-medium text-gray-700">Filters:</span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Origin:</label>
-            <select 
+            <select
               value={selectedOrigin}
               onChange={(e) => setSelectedOrigin(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -183,7 +194,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Destination:</label>
-            <select 
+            <select
               value={selectedDestination}
               onChange={(e) => setSelectedDestination(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -197,7 +208,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Cabin:</label>
-            <select 
+            <select
               value={selectedCabin}
               onChange={(e) => setSelectedCabin(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -211,7 +222,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Trip Type:</label>
-            <select 
+            <select
               value={selectedTripType}
               onChange={(e) => setSelectedTripType(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -225,7 +236,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Month:</label>
-            <select 
+            <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -239,7 +250,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Year:</label>
-            <select 
+            <select
               value={selectedYear}
               onChange={(e) => setSelectedYear(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -253,7 +264,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Category:</label>
-            <select 
+            <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -267,7 +278,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Sort by:</label>
-            <select 
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
@@ -278,10 +289,14 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {sortedDeals.map((deal: any) => (
-          <div key={deal.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative">
+          <button
+            key={deal.id}
+            onClick={() => setSelectedDeal(deal)}
+            className="text-left bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer w-full group"
+          >
             <div className="flex justify-between items-start mb-4">
               <div>
                 <span className={`text-xs font-bold px-2 py-1 rounded ${CATEGORY_STYLES[deal.category] || 'bg-gray-100 text-gray-700'}`}>
@@ -309,7 +324,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
               <Calendar size={14} />
               <span>{formatDate(deal.departureDate)}</span>
@@ -321,33 +336,17 @@ export default function Dashboard() {
               )}
             </div>
 
-            {deal.itinerary && (
-              <div className="mb-4 bg-slate-50 p-4 rounded-lg text-sm max-h-96 overflow-y-auto">
-                <h4 className="font-bold flex items-center gap-1 mb-2 text-indigo-700">
-                  <Sparkles size={14}/> AI Itinerary
-                </h4>
-                <div className="prose prose-sm prose-indigo max-w-none">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {deal.itinerary}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-            
-            <p className="text-gray-700 text-sm mb-4 border-l-2 border-blue-200 pl-3">
-              "{deal.reasoning}"
+            <p className="text-gray-700 text-sm mb-4 border-l-2 border-blue-200 pl-3 line-clamp-3">
+              &ldquo;{deal.reasoning}&rdquo;
             </p>
 
-            <a 
-              href={getBookingUrl(deal)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors mb-4"
-            >
-              <ExternalLink size={14} />
-              Book This Flight
-            </a>
-          </div>
+            {deal.itinerary && (
+              <div className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:text-blue-700">
+                <Sparkles size={14} />
+                <span>Click to view full itinerary</span>
+              </div>
+            )}
+          </button>
         ))}
       </div>
 
@@ -355,6 +354,106 @@ export default function Dashboard() {
         <div className="text-center py-12 text-gray-500">
           <Plane size={48} className="mx-auto mb-4 text-gray-300"/>
           <p>No deals match your current filters</p>
+        </div>
+      )}
+
+      {/* Modal */}
+      {selectedDeal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedDeal(null);
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row relative">
+            <button
+              onClick={() => setSelectedDeal(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
+              aria-label="Close"
+            >
+              <X size={20} />
+            </button>
+
+            {/* Left: flight details & booking */}
+            <div className="w-full md:w-2/5 bg-gray-50 p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-center items-center text-center">
+              <div className="w-full max-w-sm">
+                <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
+                  {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
+                </span>
+
+                <h2 className="text-3xl font-black mb-1">{selectedDeal.originCode} ➔ {selectedDeal.destinationCode}</h2>
+                <p className="text-gray-500 mb-6">{selectedDeal.airline} • {selectedDeal.cabin.replace('_', ' ')}</p>
+
+                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200 mb-6 text-left">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <Calendar size={14} />
+                    <span>{formatDate(selectedDeal.departureDate)}</span>
+                  </div>
+                  {selectedDeal.returnDate && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                      <Calendar size={14} />
+                      <span>Return: {formatDate(selectedDeal.returnDate)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                    <MapPin size={14} />
+                    <span className="capitalize">{(selectedDeal.tripType || 'ONE_WAY').replace('_', ' ').toLowerCase()}</span>
+                  </div>
+                  <div className="border-t border-gray-100 my-3" />
+                  {selectedDeal.fareType === 'POINTS' ? (
+                    <div>
+                      <p className="text-3xl font-bold text-blue-600">{Number(selectedDeal.pointsRequired).toLocaleString()} pts</p>
+                      {selectedDeal.taxesAndFees > 0 && (
+                        <p className="text-sm text-gray-500">+ ${Number(selectedDeal.taxesAndFees).toLocaleString()} taxes/fees per traveler</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-3xl font-bold text-blue-600">${Number(selectedDeal.cashPrice).toLocaleString()}</p>
+                  )}
+                </div>
+
+                <p className="text-gray-700 text-sm mb-6 italic">
+                  &ldquo;{selectedDeal.reasoning}&rdquo;
+                </p>
+
+                <a
+                  href={getBookingUrl(selectedDeal)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
+                >
+                  <ExternalLink size={16} />
+                  Book This Flight
+                </a>
+              </div>
+            </div>
+
+            {/* Right: itinerary */}
+            <div className="w-full md:w-3/5 p-6 md:p-8 overflow-y-auto bg-white">
+              {selectedDeal.itinerary ? (
+                <div className="prose prose-sm prose-indigo max-w-none">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      img: (props: any) => (
+                        <img
+                          {...props}
+                          className="w-full h-auto max-h-96 object-cover rounded-xl my-4 shadow-sm"
+                          alt={props.alt || 'Destination'}
+                        />
+                      )
+                    }}
+                  >
+                    {selectedDeal.itinerary}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-12">
+                  <p>No detailed itinerary for this deal.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

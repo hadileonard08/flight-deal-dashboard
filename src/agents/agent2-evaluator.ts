@@ -5,6 +5,7 @@ import { generateHoneymoonItinerary } from './graph';
 import { getLocalEvents, LocalEvent } from './event-scraper';
 import { searchDestinationNews } from './news-search';
 import { getWeatherForecast } from './weather';
+import { getDestinationImageUrl } from './destination-images';
 import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
@@ -428,7 +429,20 @@ export async function processFlights(rawFlights: any[]) {
 
       // Always prepend a deterministic, data-accurate flight summary - independent of
       // whatever the AI did or didn't include, so it's consistent across every good deal.
-      itineraryText = formatFlightDetailsSection(flight) + itineraryText;
+      const flightDetails = formatFlightDetailsSection(flight);
+
+      let destinationImage: string | null = null;
+      try {
+        destinationImage = await getDestinationImageUrl(flight.destinationCode);
+      } catch (error) {
+        console.log('Destination image lookup failed, continuing without image');
+      }
+
+      const imageMarkdown = destinationImage
+        ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
+        : '';
+
+      itineraryText = flightDetails + imageMarkdown + itineraryText;
     }
 
     // 4. Save to DB
