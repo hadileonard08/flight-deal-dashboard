@@ -4,7 +4,7 @@ A full-stack, multi-agent flight tracking and itinerary generation system that c
 
 ## Live Demo
 
-The dashboard is deployed at **https://flight-deal-dashboard-project-josh.vercel.app**.
+The dashboard is deployed at **https://flight-deals-dashboard.vercel.app**.
 
 ## Features
 
