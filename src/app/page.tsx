@@ -1,9 +1,10 @@
 "use client";
 import useSWR from 'swr';
-import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin } from 'lucide-react';
+import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useEffect } from 'react';
+import { getBookingUrl } from '@/lib/booking-url';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -28,46 +29,6 @@ const CATEGORY_ORDER: Record<string, number> = {
   BAD_DEAL: 3,
 };
 
-const AIRLINE_BOOKING_URLS: Record<string, string> = {
-  'Alaska Airlines': 'https://www.alaskaair.com',
-  'American': 'https://www.aa.com',
-  'American Airlines': 'https://www.aa.com',
-  'Cathay Pacific': 'https://www.cathaypacific.com',
-  'Delta': 'https://www.delta.com',
-  'Delta Air Lines': 'https://www.delta.com',
-  'United': 'https://www.united.com',
-  'United Airlines': 'https://www.united.com',
-  'AC': 'https://www.aircanada.com',
-  'Air Canada': 'https://www.aircanada.com',
-  'Korean Air': 'https://www.koreanair.com',
-  'Korean Airlines': 'https://www.koreanair.com',
-  'Asiana Airlines': 'https://www.flyasiana.com',
-  'JAL': 'https://www.jal.co.jp',
-  'Japan Airlines': 'https://www.jal.co.jp',
-  'ANA': 'https://www.ana.co.jp',
-  'All Nippon Airways': 'https://www.ana.co.jp',
-  'Lufthansa': 'https://www.lufthansa.com',
-  'Singapore Airlines': 'https://www.singaporeair.com',
-  'EVA Air': 'https://www.evaair.com',
-  'Qatar Airways': 'https://www.qatarairways.com',
-  'Emirates': 'https://www.emirates.com',
-  'Etihad Airways': 'https://www.etihad.com',
-  'Turkish Airlines': 'https://www.turkishairlines.com',
-  'Hawaiian Airlines': 'https://www.hawaiianairlines.com',
-  'Air France': 'https://www.airfrance.com',
-  'KLM': 'https://www.klm.com',
-  'British Airways': 'https://www.britishairways.com',
-};
-
-function getBookingUrl(deal: any): string {
-  const airline = (deal.airline || '').trim();
-  const mapped = AIRLINE_BOOKING_URLS[airline];
-  if (mapped && (!deal.bookingUrl || deal.bookingUrl.includes('seats.aero'))) {
-    return mapped;
-  }
-  return deal.bookingUrl || `https://www.google.com/travel/flights?q=flights%20from%20${deal.originCode}%20to%20${deal.destinationCode}`;
-}
-
 export default function Dashboard() {
   const { data: deals, error } = useSWR('/api/deals', fetcher, { refreshInterval: 30000 });
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
@@ -79,6 +40,9 @@ export default function Dashboard() {
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('price');
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [emailMessage, setEmailMessage] = useState('');
 
   useEffect(() => {
     if (!selectedDeal) return;
@@ -142,6 +106,34 @@ export default function Dashboard() {
   const formatPrice = (price: number) => {
     if (price >= 1000) return `$${(price / 1000).toFixed(1)}k`;
     return `$${price}`;
+  };
+
+  const handleSendEmail = async () => {
+    if (!email || !selectedDeal) return;
+    setEmailStatus('sending');
+    setEmailMessage('');
+
+    try {
+      const res = await fetch('/api/email-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, dealId: selectedDeal.id })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setEmailStatus('sent');
+        setEmailMessage('Itinerary sent! Check your inbox.');
+        setEmail('');
+      } else {
+        setEmailStatus('error');
+        setEmailMessage(data.error || 'Failed to send email.');
+      }
+    } catch (error) {
+      setEmailStatus('error');
+      setEmailMessage('Network error. Please try again.');
+    }
   };
 
   return (
@@ -425,6 +417,32 @@ export default function Dashboard() {
                   <ExternalLink size={16} />
                   Book This Flight
                 </a>
+
+                <div className="mt-6 text-left w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email me this itinerary</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    />
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={emailStatus === 'sending'}
+                      className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Mail size={14} />
+                      {emailStatus === 'sending' ? 'Sending...' : 'Send'}
+                    </button>
+                  </div>
+                  {emailMessage && (
+                    <p className={`text-xs mt-2 ${emailStatus === 'sent' ? 'text-green-600' : 'text-red-600'}`}>
+                      {emailMessage}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
