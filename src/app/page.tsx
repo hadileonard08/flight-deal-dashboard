@@ -262,7 +262,6 @@ export default function Dashboard() {
                 ) : (
                   <p className="text-2xl font-bold text-blue-600">${Number(deal.cashPrice).toLocaleString()}</p>
                 )}
-                <p className="text-xs text-gray-400">{deal.occasion}</p>
               </div>
             </div>
             
@@ -280,7 +279,7 @@ export default function Dashboard() {
             {deal.itinerary && (
               <div className="mb-4 bg-slate-50 p-4 rounded-lg text-sm max-h-96 overflow-y-auto">
                 <h4 className="font-bold flex items-center gap-1 mb-2 text-indigo-700">
-                  <Sparkles size={14}/> AI Itinerary: {deal.occasion}
+                  <Sparkles size={14}/> AI Itinerary
                 </h4>
                 <div className="prose prose-sm prose-indigo max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
