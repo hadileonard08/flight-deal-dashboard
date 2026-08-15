@@ -400,7 +400,7 @@ export default function Dashboard() {
             </button>
 
             {/* Left: flight details & booking */}
-            <div className="w-full md:w-2/5 bg-gray-50 p-4 md:p-8 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 md:max-h-full md:overflow-y-auto">
+            <div className={`w-full bg-gray-50 p-4 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${selectedDeal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
               <div className="w-full max-w-sm">
                 <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
                   {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
@@ -482,42 +482,46 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Right: itinerary */}
-            <div className="w-full md:w-3/5 p-4 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
-              {selectedDeal.itinerary ? (
-                <div className="prose prose-sm prose-indigo max-w-none">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      img: (props: any) => (
-                        <img
-                          {...props}
-                          className="w-full h-auto max-h-56 md:max-h-96 object-cover rounded-xl my-4 shadow-sm"
-                          alt={props.alt || 'Destination'}
-                        />
-                      )
-                    }}
-                  >
-                    {selectedDeal.itinerary}
-                  </ReactMarkdown>
+            {selectedDeal.category === 'GOOD_DEAL' && (
+              <>
+                {/* Right: itinerary */}
+                <div className="w-full md:w-3/5 p-4 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
+                  {selectedDeal.itinerary ? (
+                    <div className="prose prose-sm prose-indigo max-w-none">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          img: (props: any) => (
+                            <img
+                              {...props}
+                              className="w-full h-auto max-h-56 md:max-h-96 object-cover rounded-xl my-4 shadow-sm"
+                              alt={props.alt || 'Destination'}
+                            />
+                          )
+                        }}
+                      >
+                        {selectedDeal.itinerary}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-12">
+                      <p>No detailed itinerary for this deal.</p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="text-center text-gray-500 py-12">
-                  <p>No detailed itinerary for this deal.</p>
-                </div>
-              )}
-            </div>
 
-            {/* Mobile Go to top */}
-            <div className="md:hidden w-full p-6 text-center">
-              <button
-                onClick={() => document.getElementById('deal-modal')?.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
-              >
-                <ArrowUp size={16} />
-                Go to top
-              </button>
-            </div>
+                {/* Mobile Go to top */}
+                <div className="md:hidden w-full p-6 text-center">
+                  <button
+                    onClick={() => document.getElementById('deal-modal')?.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
+                  >
+                    <ArrowUp size={16} />
+                    Go to top
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
