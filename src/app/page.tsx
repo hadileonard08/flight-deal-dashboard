@@ -419,7 +419,7 @@ export default function Dashboard() {
                 </a>
 
                 <div className="mt-6 text-left w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email me this itinerary</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Subscribe and email me this itinerary</label>
                   <div className="flex gap-2">
                     <input
                       type="email"
