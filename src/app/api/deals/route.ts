@@ -3,6 +3,8 @@ import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
 import { desc, eq } from 'drizzle-orm';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const allDeals = await db.select({
     id: deals.id,
