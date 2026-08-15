@@ -2,6 +2,10 @@
 
 A full-stack, multi-agent flight tracking and itinerary generation system that continuously scrapes flight deals from major US gateways to Asia, evaluates them against regional baseline pricing, and triggers a LangGraph multi-agent loop to generate highly customized luxury honeymoon itineraries when top-tier deals are found.
 
+## Live Demo
+
+The dashboard is deployed at **https://flight-deal-dashboard-project-josh.vercel.app**.
+
 ## Features
 
 - **Multi-Agent System**: LangGraph-powered AI agents for itinerary generation
