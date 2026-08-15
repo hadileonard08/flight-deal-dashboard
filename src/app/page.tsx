@@ -1,6 +1,6 @@
 "use client";
 import useSWR from 'swr';
-import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail } from 'lucide-react';
+import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useState, useEffect } from 'react';
@@ -43,6 +43,8 @@ export default function Dashboard() {
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailMessage, setEmailMessage] = useState('');
+  const [discordStatus, setDiscordStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [discordMessage, setDiscordMessage] = useState('');
 
   useEffect(() => {
     if (!selectedDeal) return;
@@ -133,6 +135,33 @@ export default function Dashboard() {
     } catch (error) {
       setEmailStatus('error');
       setEmailMessage('Network error. Please try again.');
+    }
+  };
+
+  const handleSendToDiscord = async () => {
+    if (!selectedDeal) return;
+    setDiscordStatus('sending');
+    setDiscordMessage('');
+
+    try {
+      const res = await fetch('/api/discord-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId: selectedDeal.id })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setDiscordStatus('sent');
+        setDiscordMessage('Itinerary shared to Discord!');
+      } else {
+        setDiscordStatus('error');
+        setDiscordMessage(data.error || 'Failed to share to Discord.');
+      }
+    } catch (error) {
+      setDiscordStatus('error');
+      setDiscordMessage('Network error. Please try again.');
     }
   };
 
@@ -440,6 +469,22 @@ export default function Dashboard() {
                   {emailMessage && (
                     <p className={`text-xs mt-2 ${emailStatus === 'sent' ? 'text-green-600' : 'text-red-600'}`}>
                       {emailMessage}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4 text-left w-full">
+                  <button
+                    onClick={handleSendToDiscord}
+                    disabled={discordStatus === 'sending'}
+                    className="inline-flex items-center justify-center gap-2 w-full bg-[#5865F2] text-white px-4 py-3 rounded-lg text-sm font-medium hover:bg-[#4752C4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <MessageSquare size={14} />
+                    {discordStatus === 'sending' ? 'Sharing...' : 'Share to Discord'}
+                  </button>
+                  {discordMessage && (
+                    <p className={`text-xs mt-2 ${discordStatus === 'sent' ? 'text-green-600' : 'text-red-600'}`}>
+                      {discordMessage}
                     </p>
                   )}
                 </div>
