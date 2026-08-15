@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
+  const [priceView, setPriceView] = useState<'cash' | 'points'>('cash');
   const [sortBy, setSortBy] = useState<string>('price');
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
   const [email, setEmail] = useState('');
@@ -85,9 +86,7 @@ export default function Dashboard() {
     const categoryDiff = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
     if (categoryDiff !== 0) return categoryDiff;
 
-    const aValue = a.fareType === 'POINTS' ? a.pointsRequired : a.cashPrice;
-    const bValue = b.fareType === 'POINTS' ? b.pointsRequired : b.cashPrice;
-    if (sortBy === 'price') return aValue - bValue;
+    if (sortBy === 'price') return getDisplayPrice(a).value - getDisplayPrice(b).value;
     if (sortBy === 'date') return new Date(a.departureDate).getTime() - new Date(b.departureDate).getTime();
     return 0;
   });
@@ -103,9 +102,22 @@ export default function Dashboard() {
     });
   };
 
-  const formatPrice = (price: number) => {
-    if (price >= 1000) return `$${(price / 1000).toFixed(1)}k`;
-    return `$${price}`;
+  const formatNumber = (n: number) => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+  const getDisplayPrice = (deal: any): { value: number; label: string; suffix: string; unit: string } => {
+    const tax = Number(deal.taxesAndFees || 0);
+    if (priceView === 'cash') {
+      if (deal.fareType === 'CASH') {
+        return { value: Number(deal.cashPrice), label: '$', suffix: '', unit: 'cash' };
+      }
+      const points = Number(deal.pointsRequired || 0);
+      return { value: Math.round(points * 0.02 + tax), label: 'est. $', suffix: 'at 2¢/pt', unit: 'cash' };
+    }
+    if (deal.fareType === 'POINTS') {
+      return { value: Number(deal.pointsRequired), label: '', suffix: tax > 0 ? `+ $${tax.toLocaleString()} taxes` : '', unit: 'points' };
+    }
+    const cash = Number(deal.cashPrice || 0);
+    return { value: Math.round(cash / 0.02), label: 'est.', suffix: 'pts at 2¢/pt', unit: 'points' };
   };
 
   const handleSendEmail = async () => {
@@ -279,6 +291,24 @@ export default function Dashboard() {
               <option value="date">Date</option>
             </select>
           </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <label className="text-sm text-gray-600">Show prices as:</label>
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => setPriceView('cash')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${priceView === 'cash' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Cash
+              </button>
+              <button
+                onClick={() => setPriceView('points')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${priceView === 'points' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                Points
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -304,16 +334,19 @@ export default function Dashboard() {
                 <p className="text-gray-400 text-xs mt-1">{deal.cabin.replace('_', ' ')} • {deal.tripType?.replace('_', ' ') || 'ONE WAY'}</p>
               </div>
               <div className="text-right">
-                {deal.fareType === 'POINTS' ? (
-                  <>
-                    <p className="text-2xl font-bold text-blue-600">{Number(deal.pointsRequired).toLocaleString()} pts</p>
-                    {deal.taxesAndFees > 0 && (
-                      <p className="text-xs text-gray-500">+${Number(deal.taxesAndFees).toLocaleString()} taxes</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-2xl font-bold text-blue-600">${Number(deal.cashPrice).toLocaleString()}</p>
-                )}
+                {(() => {
+                  const dp = getDisplayPrice(deal);
+                  return (
+                    <>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {dp.label}{formatNumber(dp.value)}{dp.unit === 'points' ? ' pts' : ''}
+                      </p>
+                      {dp.suffix && (
+                        <p className="text-xs text-gray-500">{dp.suffix}</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
@@ -392,16 +425,19 @@ export default function Dashboard() {
                     <span className="capitalize">{(selectedDeal.tripType || 'ONE_WAY').replace('_', ' ').toLowerCase()}</span>
                   </div>
                   <div className="border-t border-gray-100 my-3" />
-                  {selectedDeal.fareType === 'POINTS' ? (
-                    <div>
-                      <p className="text-3xl font-bold text-blue-600">{Number(selectedDeal.pointsRequired).toLocaleString()} pts</p>
-                      {selectedDeal.taxesAndFees > 0 && (
-                        <p className="text-sm text-gray-500">+ ${Number(selectedDeal.taxesAndFees).toLocaleString()} taxes/fees per traveler</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-3xl font-bold text-blue-600">${Number(selectedDeal.cashPrice).toLocaleString()}</p>
-                  )}
+                  {(() => {
+                    const dp = getDisplayPrice(selectedDeal);
+                    return (
+                      <div>
+                        <p className="text-3xl font-bold text-blue-600">
+                          {dp.label}{formatNumber(dp.value)}{dp.unit === 'points' ? ' pts' : ''}
+                        </p>
+                        {dp.suffix && (
+                          <p className="text-sm text-gray-500">{dp.suffix}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <p className="text-gray-700 text-sm mb-6 italic">
