@@ -136,12 +136,17 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Plane className="text-blue-600"/> Flight Deal Dashboard
-        </h1>
-        <p className="text-gray-600">
-          Showing {sortedDeals.length} of {deals.length} total deals
-        </p>
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+              <Plane className="text-blue-600"/> Flight Deal Dashboard
+            </h1>
+            <p className="text-gray-600">
+              Showing {sortedDeals.length} of {deals.length} total deals
+            </p>
+          </div>
+          <p className="text-sm text-gray-500">by: hadileonard</p>
+        </div>
         {simulatedCount > 0 ? (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4 text-sm text-yellow-800">
             <strong>⚠️ {simulatedCount === deals.length ? 'Simulated Data:' : `${simulatedCount} of ${deals.length} deals are simulated:`}</strong> Some flight prices, airlines, and dates shown are generated for demonstration purposes (marked with a badge on each card).
