@@ -398,7 +398,7 @@ export default function Dashboard() {
             </button>
 
             {/* Left: flight details & booking */}
-            <div className={`w-full bg-gray-50 p-4 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start md:justify-center items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${selectedDeal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
+            <div className={`w-full bg-gray-50 p-4 pt-12 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${selectedDeal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
               <div className="w-full max-w-sm">
                 <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
                   {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
@@ -447,22 +447,29 @@ export default function Dashboard() {
                   </p>
                   {selectedDeal.fareType === 'POINTS' && selectedDeal.cashPrice && selectedDeal.pointsRequired ? (
                     <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
+                      Cash price is the cheapest one-way cash fare found for this airline on Duffel/Google Flights, or a static route estimate when no matching live offer exists.<br />
                       CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100<br />
                       CPP = (${formatNumber(Number(selectedDeal.cashPrice))} − ${formatNumber(Number(selectedDeal.taxesAndFees || 0))}) ÷ {formatNumber(Number(selectedDeal.pointsRequired))} × 100 = {((Math.max(0, Number(selectedDeal.cashPrice) - Number(selectedDeal.taxesAndFees || 0)) / Number(selectedDeal.pointsRequired)) * 100).toFixed(1)}¢ per point.
                     </p>
                   ) : null}
                 </div>
 
-                {selectedDeal.duration ? (
+                {selectedDeal.duration !== null && selectedDeal.duration !== undefined ? (
                   <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Flight details</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Representative cash flight details</h3>
+                    <p className="text-xs text-gray-500 mb-2 italic">
+                      Based on the cheapest one-way cash option on Google Flights for this route/cabin. The actual award flight may differ.
+                    </p>
                     <ul className="text-sm text-gray-700 space-y-1">
+                      {selectedDeal.cashAirline && (
+                        <li><span className="font-medium">Airline:</span> {selectedDeal.cashAirline}</li>
+                      )}
                       <li><span className="font-medium">Duration:</span> {Math.floor(Number(selectedDeal.duration) / 60)}h {Number(selectedDeal.duration) % 60}m</li>
                       <li><span className="font-medium">Stops:</span> {Number(selectedDeal.stops)}</li>
                       {selectedDeal.layoverAirport && (
                         <li>
                           <span className="font-medium">Layover:</span>{' '}
-                          {Number(selectedDeal.stops) > 1 ? 'One stop in' : 'In'} {selectedDeal.layoverAirport}
+                          First stop in {selectedDeal.layoverAirport}
                           {selectedDeal.layoverDuration ? ` for ${Math.floor(Number(selectedDeal.layoverDuration) / 60)}h ${Number(selectedDeal.layoverDuration) % 60}m` : ''}
                         </li>
                       )}
@@ -511,7 +518,7 @@ export default function Dashboard() {
             {selectedDeal.category === 'GOOD_DEAL' && (
               <>
                 {/* Right: itinerary */}
-                <div className="w-full md:w-3/5 p-4 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
+                <div className="w-full md:w-3/5 p-4 pt-12 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
                   {selectedDeal.itinerary ? (
                     <div className="prose prose-sm prose-indigo max-w-none">
                       <ReactMarkdown

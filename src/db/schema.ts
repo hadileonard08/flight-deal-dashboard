@@ -25,6 +25,7 @@ export const flights = pgTable('flights', {
   isSimulated: boolean('is_simulated').default(false).notNull(),
   scrapedAt: timestamp('scraped_at').defaultNow().notNull(),
   // Representative cash-flight details for the modal (not the exact award itinerary)
+  cashAirline: varchar('cash_airline', { length: 100 }),
   duration: integer('duration'),
   stops: integer('stops'),
   layoverAirport: varchar('layover_airport', { length: 5 }),

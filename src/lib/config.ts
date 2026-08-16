@@ -52,15 +52,14 @@ function estimateOneWayCashValue(destinationCode: string, cabin: string): number
   return cabinMap[cabin] ?? cabinMap['ECONOMY'];
 }
 
-// Get the best available cash value for a redemption: live Google Flights price,
-// or the static estimate table as fallback.
+// Get the best available cash value for a redemption: live Google Flights price
+// for the deal's airline (or the cheapest alternative), or the static estimate table as fallback.
 export function getEstimatedCashValue(flight: any): number | null {
-  // Try live Google Flights cash price first if it was pre-fetched.
   const { getLiveCashPrice } = require('../agents/cash-price');
   const dateStr = flight.departureDate instanceof Date
     ? flight.departureDate.toISOString().split('T')[0]
     : String(flight.departureDate).slice(0, 10);
-  const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr);
+  const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr, flight.airline);
 
   return liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
 }
@@ -94,12 +93,13 @@ export function evaluateThreshold(flight: any) {
       ? flight.departureDate.toISOString().split('T')[0]
       : String(flight.departureDate).slice(0, 10);
     const { getFlightDetails } = require('../agents/cash-price');
-    const details = getFlightDetails(flight.originCode, flight.destinationCode, flight.cabin, dateStr);
+    const details = getFlightDetails(flight.originCode, flight.destinationCode, flight.cabin, dateStr, flight.airline);
     if (details) {
       if (!flight.duration) flight.duration = details.duration;
-      if (!flight.stops && details.stops > 0) flight.stops = details.stops;
+      if (typeof flight.stops !== 'number') flight.stops = details.stops;
       if (details.layoverAirport && !flight.layoverAirport) flight.layoverAirport = details.layoverAirport;
       if (details.layoverDuration && !flight.layoverDuration) flight.layoverDuration = details.layoverDuration;
+      if (details.airlines?.length && !flight.cashAirline) flight.cashAirline = details.airlines.join(', ');
     }
 
     const cpp = calculateCPP(flight);

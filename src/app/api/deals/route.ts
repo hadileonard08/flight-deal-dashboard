@@ -25,6 +25,7 @@ export async function GET() {
     tripType: flights.tripType,
     bookingUrl: flights.bookingUrl,
     isSimulated: flights.isSimulated,
+    cashAirline: flights.cashAirline,
     duration: flights.duration,
     stops: flights.stops,
     layoverAirport: flights.layoverAirport,
