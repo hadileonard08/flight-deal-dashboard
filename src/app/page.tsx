@@ -34,12 +34,11 @@ export default function Dashboard() {
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
   const [selectedDestination, setSelectedDestination] = useState<string>('all');
   const [selectedCabin, setSelectedCabin] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('GOOD_DEAL');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
   const [selectedAirline, setSelectedAirline] = useState<string>('all');
-  const [priceView, setPriceView] = useState<'cash' | 'points'>('points');
   const [sortBy, setSortBy] = useState<string>('price');
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
   const [email, setEmail] = useState('');
@@ -86,20 +85,13 @@ export default function Dashboard() {
 
   const formatNumber = (n: number) => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-  const getDisplayPrice = (deal: any): { value: number; label: string; suffix: string; unit: string } => {
+  const getDisplayPrice = (deal: any): { value: number; suffix: string } => {
     const tax = Number(deal.taxesAndFees || 0);
-    if (priceView === 'cash') {
-      if (deal.fareType === 'CASH') {
-        return { value: Number(deal.cashPrice), label: '$', suffix: '', unit: 'cash' };
-      }
-      const points = Number(deal.pointsRequired || 0);
-      return { value: Math.round(points * 0.02 + tax), label: 'est. $', suffix: 'at 2¢/pt', unit: 'cash' };
-    }
     if (deal.fareType === 'POINTS') {
-      return { value: Number(deal.pointsRequired), label: '', suffix: tax > 0 ? `+ $${tax.toLocaleString()} taxes` : '', unit: 'points' };
+      return { value: Number(deal.pointsRequired), suffix: tax > 0 ? `+ $${tax.toLocaleString()} taxes` : '' };
     }
     const cash = Number(deal.cashPrice || 0);
-    return { value: Math.round(cash / 0.02), label: 'est.', suffix: 'pts at 2¢/pt', unit: 'points' };
+    return { value: Math.round(cash / 0.02), suffix: 'est. pts at 2¢/pt' };
   };
 
   const filteredDeals = deals.filter((deal: any) => {
@@ -270,20 +262,6 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Category:</label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Airline:</label>
             <select
               value={selectedAirline}
@@ -304,26 +282,23 @@ export default function Dashboard() {
               onChange={(e) => setSortBy(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
             >
-              <option value="price">Price</option>
+              <option value="price">Points</option>
               <option value="date">Date</option>
             </select>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <label className="text-sm text-gray-600">Show prices as:</label>
-            <div className="flex bg-gray-100 rounded-lg p-1">
-              <button
-                onClick={() => setPriceView('cash')}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${priceView === 'cash' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                Cash
-              </button>
-              <button
-                onClick={() => setPriceView('points')}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${priceView === 'points' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                Points
-              </button>
+            <label className="text-sm text-gray-600">Show:</label>
+            <div className="flex bg-gray-100 rounded-lg p-1 flex-wrap">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${selectedCategory === cat ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                >
+                  {CATEGORY_LABELS[cat] || cat.replace('_', ' ')}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -356,7 +331,7 @@ export default function Dashboard() {
                   return (
                     <>
                       <p className="text-2xl font-bold text-blue-600">
-                        {dp.label}{formatNumber(dp.value)}{dp.unit === 'points' ? ' pts' : ''}
+                        {formatNumber(dp.value)} pts
                       </p>
                       {dp.suffix && (
                         <p className="text-xs text-gray-500">{dp.suffix}</p>
@@ -447,7 +422,7 @@ export default function Dashboard() {
                     return (
                       <div>
                         <p className="text-3xl font-bold text-blue-600">
-                          {dp.label}{formatNumber(dp.value)}{dp.unit === 'points' ? ' pts' : ''}
+                          {formatNumber(dp.value)} pts
                         </p>
                         {dp.suffix && (
                           <p className="text-sm text-gray-500">{dp.suffix}</p>
