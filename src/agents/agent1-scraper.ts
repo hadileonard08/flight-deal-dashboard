@@ -1,4 +1,5 @@
 import { REGIONS } from '../lib/config';
+import { resolveAirlineName } from '../lib/airlines';
 
 // Seats.aero Partner API integration for real award availability data
 // Docs: https://developers.seats.aero/reference/cached-search
@@ -26,21 +27,6 @@ const CABIN_MAP: Record<string, string> = {
   J: 'BUSINESS',
   F: 'FIRST'
 };
-
-// Maps common IATA airline codes returned by Seats.aero to display names
-const AIRLINE_NAMES: Record<string, string> = {
-  AA: 'American', UA: 'United', DL: 'Delta', B6: 'JetBlue', AS: 'Alaska Airlines',
-  JL: 'JAL', NH: 'ANA', KE: 'Korean Air', OZ: 'Asiana', TG: 'Thai Airways',
-  SQ: 'Singapore Airlines', CX: 'Cathay Pacific', CI: 'China Airlines', BR: 'EVA Air',
-  MH: 'Malaysia Airlines', PR: 'Philippine Airlines', VN: 'Vietnam Airlines',
-  CA: 'Air China', MU: 'China Eastern', CZ: 'China Southern', QR: 'Qatar Airways',
-  EK: 'Emirates', BA: 'British Airways', LH: 'Lufthansa', QF: 'Qantas'
-};
-
-function resolveAirlineName(code: string): string {
-  const trimmed = code.trim();
-  return AIRLINE_NAMES[trimmed] || trimmed;
-}
 
 export async function scrapeFlightDeals(): Promise<FlightDeal[]> {
   const apiKey = process.env.SEATS_AERO_API_KEY;

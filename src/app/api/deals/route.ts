@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
+import { resolveAirlineName } from '@/lib/airlines';
 import { desc, eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -29,5 +30,10 @@ export async function GET() {
   .innerJoin(flights, eq(deals.flightId, flights.id))
   .orderBy(desc(deals.createdAt));
 
-  return NextResponse.json(allDeals);
+  const resolvedDeals = allDeals.map(deal => ({
+    ...deal,
+    airline: resolveAirlineName(deal.airline)
+  }));
+
+  return NextResponse.json(resolvedDeals);
 }
