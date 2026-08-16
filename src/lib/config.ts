@@ -55,8 +55,18 @@ function estimateOneWayCashValue(destinationCode: string, cabin: string): number
 // Cents-per-point (CPP) value of a redemption: (estimated cash value - taxes/fees) / points * 100.
 // 2.0 cpp+ is the standard "good value" benchmark used by the points & miles community.
 export function calculateCPP(flight: any): number | null {
-  const estimatedCashValue = estimateOneWayCashValue(flight.destinationCode, flight.cabin);
-  if (!estimatedCashValue || !flight.pointsRequired || flight.pointsRequired <= 0) return null;
+  if (!flight.pointsRequired || flight.pointsRequired <= 0) return null;
+
+  // Try live Google Flights cash price first if it was pre-fetched.
+  const { getLiveCashPrice } = require('../agents/cash-price');
+  const dateStr = flight.departureDate instanceof Date
+    ? flight.departureDate.toISOString().split('T')[0]
+    : String(flight.departureDate).slice(0, 10);
+  const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr);
+
+  const estimatedCashValue = liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
+  if (!estimatedCashValue) return null;
+
   const netValue = estimatedCashValue - (flight.taxesAndFees || 0);
   return (netValue / flight.pointsRequired) * 100;
 }

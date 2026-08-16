@@ -16,6 +16,7 @@
     "cheerio": "^1.0.0-rc.10",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.30.10",
+    "fast-flights-ts": "^4.1.0",
     "lucide-react": "^0.378.0",
     "marked": "^18.0.9",
     "next": "14.2.3",

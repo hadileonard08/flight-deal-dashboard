@@ -6,6 +6,7 @@ import { searchDestinationNews } from './news-search';
 import { getWeatherForecast } from './weather';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
 import { hasAIProvider, getChatModel } from '../lib/ai-provider';
+import { prefetchCashPrices } from './cash-price';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
 // accurate and always present, regardless of whether/how the AI itinerary generation succeeds.
@@ -344,6 +345,16 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 
 export async function processFlights(rawFlights: any[]) {
   console.log(`Processing ${rawFlights.length} flights...`);
+
+  // Prefetch live cash prices from Google Flights for every unique route/cabin/date.
+  // This lets the CPP calculation use real market cash instead of static estimates.
+  const cashRoutes = rawFlights.map(f => ({
+    origin: f.originCode,
+    destination: f.destinationCode,
+    cabin: f.cabin,
+    date: f.departureDate instanceof Date ? f.departureDate.toISOString().split('T')[0] : String(f.departureDate).slice(0, 10)
+  }));
+  await prefetchCashPrices(cashRoutes, 8);
 
   // Bring back the full agentic workflow, but cap the most expensive calls
   // so 3 months of data doesn't run away on time/cost.
