@@ -65,8 +65,9 @@ export function getEstimatedCashValue(flight: any): number | null {
   return liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
 }
 
-// Cents-per-point (CPP) value of a redemption: (estimated cash value - taxes/fees) / points * 100.
-// 2.0 cpp+ is the standard "good value" benchmark used by the points & miles community.
+// Cents-per-point (CPP) value of a redemption using the canonical formula:
+// CPP = (Cash Price - Taxes & Fees) / Points Required × 100.
+// 2.0¢+ is the standard "good value" benchmark used by the points & miles community.
 export function calculateCPP(flight: any): number | null {
   if (!flight.pointsRequired || flight.pointsRequired <= 0) return null;
 

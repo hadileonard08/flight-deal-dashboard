@@ -447,8 +447,8 @@ export default function Dashboard() {
                   </p>
                   {selectedDeal.fareType === 'POINTS' && selectedDeal.cashPrice && selectedDeal.pointsRequired ? (
                     <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
-                      Cash equivalent around ${formatNumber(Number(selectedDeal.cashPrice))};
-                      {' '}{formatNumber(Number(selectedDeal.pointsRequired))} pts = {((Math.max(0, Number(selectedDeal.cashPrice) - Number(selectedDeal.taxesAndFees || 0)) / Number(selectedDeal.pointsRequired)) * 100).toFixed(1)}¢ per point.
+                      CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100<br />
+                      CPP = (${formatNumber(Number(selectedDeal.cashPrice))} − ${formatNumber(Number(selectedDeal.taxesAndFees || 0))}) ÷ {formatNumber(Number(selectedDeal.pointsRequired))} × 100 = {((Math.max(0, Number(selectedDeal.cashPrice) - Number(selectedDeal.taxesAndFees || 0)) / Number(selectedDeal.pointsRequired)) * 100).toFixed(1)}¢ per point.
                     </p>
                   ) : null}
                 </div>
