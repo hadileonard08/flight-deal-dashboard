@@ -365,7 +365,7 @@ export async function processFlights(rawFlights: any[]) {
       }
     }
 
-    // 2. Look up current web news for the destination (only for Good Deals)
+    // 2. Look up current web news for the destination (GUARDRAIL: only for GOOD_DEAL)
     let destinationNews: string | null = null;
     if (category === 'GOOD_DEAL') {
       const tripStart = new Date(flight.departureDate);
@@ -378,7 +378,7 @@ export async function processFlights(rawFlights: any[]) {
       }
     }
 
-    // 3. Generate occasion-specific itinerary using LangGraph (Only for Good Deals)
+    // 3. Generate occasion-specific itinerary using LangGraph (GUARDRAIL: only for GOOD_DEAL)
     let itineraryText = null;
     let occasion = 'LEISURE'; // Default occasion
 
