@@ -4,9 +4,10 @@
 
 - Build: `npm run build`
 - Deploy: `npx vercel --prod` then alias to `flight-deals-dashboard.vercel.app`
-- Refresh data: `npm run clear:db && npm run run:pipeline`
+- Refresh local data: `npm run clear:db && npm run run:pipeline`
   - `clear:db` deletes all `flights` and `deals`.
-  - `run:pipeline` runs the full scraping/evaluation pipeline.
+  - `run:pipeline` runs the full scraping/evaluation pipeline (~2 min for 13k deals now).
+- Refresh production data: set `DATABASE_URL` to the Vercel Postgres URL in the environment, then run the same commands. Vercel CLI `env run` does not expose sensitive env values, so it cannot be used locally for the production database.
 
 ## Cost & AI Guardrails
 
@@ -16,3 +17,4 @@
   - No live news search, no LangGraph, no image hydration, and no paid model calls during normal pipeline runs.
   - Flights and deals are inserted in 1,000-row batches for speed.
 - The scraper now uses `order_by=lowest_mileage` and paginates up to 5,000 records per run to pull availability up to a year out.
+- `/api/deals` returns the 4,000 cheapest deals sorted by points to stay under Vercel's response-size limits.
