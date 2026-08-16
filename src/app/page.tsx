@@ -1,603 +1,79 @@
-"use client";
+'use client';
+
 import useSWR from 'swr';
-import useSWRInfinite from 'swr/infinite';
-import { Plane, Sparkles, Filter, Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useState, useEffect, useMemo } from 'react';
-import { getBookingUrl } from '@/lib/booking-url';
-import { CityNodes } from '@/components/CityNodes';
+import Link from 'next/link';
+import { Plane, MapPin, ArrowRight } from 'lucide-react';
+import { formatNumber } from '@/lib/format';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
-const CATEGORY_STYLES: Record<string, string> = {
-  GOOD_DEAL: 'bg-green-100 text-green-700',
-  MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
-  OKAY_DEAL: 'bg-blue-100 text-blue-700',
-  BAD_DEAL: 'bg-red-100 text-red-700',
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  GOOD_DEAL: 'GOOD DEAL',
-  MAYBE_GOOD_DEAL: 'MAYBE GOOD DEAL',
-  OKAY_DEAL: 'OKAY DEAL',
-  BAD_DEAL: 'OTHER DEAL',
-};
-
-const CATEGORY_ORDER: Record<string, number> = {
-  GOOD_DEAL: 0,
-  MAYBE_GOOD_DEAL: 1,
-  OKAY_DEAL: 2,
-  BAD_DEAL: 3,
-};
-
-const PAGE_SIZE = 15;
-
-interface DealPage {
-  deals: any[];
-  hasMore: boolean;
+interface OriginCity {
+  name: string;
+  codes: string[];
+  count: number;
+  minPoints: number | null;
+  minCash: number | null;
 }
 
-export default function Dashboard() {
-  const [selectedOriginCity, setSelectedOriginCity] = useState<string>('all');
-  const [selectedDestinationCity, setSelectedDestinationCity] = useState<string>('all');
-  const [selectedCabin, setSelectedCabin] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('GOOD_DEAL');
-  const [selectedMonth, setSelectedMonth] = useState<string>('all');
-  const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedTripType, setSelectedTripType] = useState<string>('all');
-  const [selectedAirline, setSelectedAirline] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<string>('price');
-  const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
-  const [email, setEmail] = useState('');
-  const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
-  const [emailMessage, setEmailMessage] = useState('');
+export default function Home() {
+  const { data: origins, error } = useSWR<OriginCity[]>('/api/origins', fetcher, { refreshInterval: 60000 });
 
-  const filters = useMemo(() => ({
-    category: selectedCategory,
-    originCity: selectedOriginCity,
-    destinationCity: selectedDestinationCity,
-    cabin: selectedCabin,
-    tripType: selectedTripType,
-    airline: selectedAirline,
-    month: selectedMonth,
-    year: selectedYear,
-    sortBy,
-  }), [selectedCategory, selectedOriginCity, selectedDestinationCity, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
-
-  const { data: filterOptions, error: optionsError } = useSWR('/api/filter-options', fetcher, { refreshInterval: 60000 });
-
-  const getKey = (pageIndex: number, previousPageData: DealPage | null) => {
-    if (previousPageData && !previousPageData.hasMore) return null;
-
-    const params = new URLSearchParams();
-    params.set('limit', String(PAGE_SIZE));
-    params.set('page', String(pageIndex + 1));
-
-    if (filters.category && filters.category !== 'all') params.set('category', filters.category);
-    if (filters.originCity && filters.originCity !== 'all') params.set('originCity', filters.originCity);
-    if (filters.destinationCity && filters.destinationCity !== 'all') params.set('destinationCity', filters.destinationCity);
-    if (filters.cabin && filters.cabin !== 'all') params.set('cabin', filters.cabin);
-    if (filters.tripType && filters.tripType !== 'all') params.set('tripType', filters.tripType);
-    if (filters.airline && filters.airline !== 'all') params.set('airline', filters.airline);
-    if (filters.month && filters.month !== 'all') params.set('month', filters.month);
-    if (filters.year && filters.year !== 'all') params.set('year', filters.year);
-    if (filters.sortBy) params.set('sortBy', filters.sortBy);
-
-    return `/api/deals?${params.toString()}`;
-  };
-
-  const { data: pages, error, size, setSize, isLoading } = useSWRInfinite<DealPage>(getKey, fetcher, {
-    refreshInterval: 30000,
-    revalidateAll: false,
-  });
-
-  useEffect(() => {
-    setSize(1);
-  }, [filters]);
-
-  const deals = useMemo(() => pages ? pages.flatMap(page => page.deals) : [], [pages]);
-  const hasMore = pages ? pages[pages.length - 1]?.hasMore : true;
-  const isLoadingMore = isLoading || (size > 0 && pages && typeof pages[size - 1] === 'undefined');
-
-  useEffect(() => {
-    if (!selectedDeal) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedDeal(null);
-    };
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = 'unset';
-    };
-  }, [selectedDeal]);
-
-  if (error || optionsError) return <div className="p-10">Failed to load deals</div>;
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'short',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      timeZone: 'UTC'
-    });
-  };
-
-  const formatNumber = (n: number) => Number.isInteger(n) ? n.toLocaleString() : n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-
-  const getDisplayPrice = (deal: any): { value: number; suffix: string } => {
-    const tax = Number(deal.taxesAndFees || 0);
-    if (deal.fareType === 'POINTS') {
-      return { value: Number(deal.pointsRequired), suffix: tax > 0 ? `+ $${tax.toLocaleString()} taxes` : '' };
-    }
-    const cash = Number(deal.cashPrice || 0);
-    return { value: Math.round(cash / 0.02), suffix: 'est. pts at 2¢/pt' };
-  };
-
-  const handleSendEmail = async () => {
-    if (!email || !selectedDeal) return;
-    setEmailStatus('sending');
-    setEmailMessage('');
-
-    try {
-      const res = await fetch('/api/email-itinerary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, dealId: selectedDeal.id })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setEmailStatus('sent');
-        setEmailMessage('Itinerary sent! Check your inbox.');
-        setEmail('');
-      } else {
-        setEmailStatus('error');
-        setEmailMessage(data.error || 'Failed to send email.');
-      }
-    } catch (error) {
-      setEmailStatus('error');
-      setEmailMessage('Network error. Please try again.');
-    }
-  };
-
-  const cabins = filterOptions?.cabins || [];
-  const categories = (filterOptions?.categories || []).sort((a: string, b: string) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
-  const airlines = filterOptions?.airlines || [];
-  const tripTypes = filterOptions?.tripTypes || [];
-  const months = filterOptions?.months || [];
-  const years = filterOptions?.years || [];
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <p className="text-red-600">Failed to load cities. Please try again.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mb-8">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-              <Plane className="text-blue-600"/> Flight Deal Dashboard
-            </h1>
-            <p className="text-gray-600">
-              {pages
-                ? `Showing ${deals.length} deal${deals.length === 1 ? '' : 's'}${hasMore ? ' — load more to see additional results' : ''}`
-                : 'Loading deals...'}
-            </p>
-          </div>
-          <p className="text-sm text-gray-500">by: hadileonard</p>
-        </div>
-        {simulatedCount > 0 ? (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4 text-sm text-yellow-800">
-            <strong>⚠️ {simulatedCount === deals.length ? 'Simulated Data:' : `${simulatedCount} of ${deals.length} deals are simulated:`}</strong> Some flight prices, airlines, and dates shown are generated for demonstration purposes (marked with a badge on each card).
-            Add a <a href="https://seats.aero/settings" target="_blank" rel="noopener noreferrer" className="underline font-medium">Seats.aero key</a> for real award data.
-          </div>
-        ) : deals.length > 0 ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4 text-sm text-green-800">
-            <strong>✅ Real Data:</strong> All deals shown are from live flight data sources.
-          </div>
-        ) : null}
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+          <Plane className="text-blue-600" /> Flight Deal Dashboard
+        </h1>
+        <p className="text-gray-600">
+          {origins ? `Choose a departure city to explore ${origins.reduce((sum, o) => sum + o.count, 0).toLocaleString()} deals.` : 'Loading cities...'}
+        </p>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-gray-500"/>
-            <span className="font-medium text-gray-700">Filters:</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Cabin:</label>
-            <select
-              value={selectedCabin}
-              onChange={(e) => setSelectedCabin(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Cabins</option>
-              {cabins.map((cabin: string) => (
-                <option key={cabin} value={cabin}>{cabin.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Trip Type:</label>
-            <select
-              value={selectedTripType}
-              onChange={(e) => setSelectedTripType(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Trip Types</option>
-              {tripTypes.map((tripType: string) => (
-                <option key={tripType} value={tripType}>{tripType.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Month:</label>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Months</option>
-              {months.map((month: number) => (
-                <option key={month} value={month}>{monthNames[month]}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Year:</label>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Years</option>
-              {years.map((year: number) => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Airline:</label>
-            <select
-              value={selectedAirline}
-              onChange={(e) => setSelectedAirline(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Airlines</option>
-              {airlines.map((airline: string) => (
-                <option key={airline} value={airline}>{airline}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Sort by:</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="price">Points</option>
-              <option value="date">Date</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 ml-auto">
-            <label className="text-sm text-gray-600">Show:</label>
-            <div className="flex bg-gray-100 rounded-lg p-1 flex-wrap">
-              <button
-                onClick={() => setSelectedCategory('all')}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${selectedCategory === 'all' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                All
-              </button>
-              {categories.map((cat: string) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1 text-sm rounded-md transition-colors ${selectedCategory === cat ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
-                >
-                  {CATEGORY_LABELS[cat] || cat.replace('_', ' ')}
-                </button>
-              ))}
+      {!origins ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-32 animate-pulse">
+              <div className="h-5 bg-gray-200 rounded w-1/2 mb-3"></div>
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
             </div>
-          </div>
+          ))}
         </div>
-      </div>
-
-      <CityNodes
-        endpoint="/api/origins"
-        label="Origin Cities"
-        selectedCity={selectedOriginCity}
-        onSelectCity={setSelectedOriginCity}
-      />
-      <CityNodes
-        endpoint="/api/cities"
-        label="Destination Cities"
-        selectedCity={selectedDestinationCity}
-        onSelectCity={setSelectedDestinationCity}
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {deals.map((deal: any) => (
-          <button
-            key={deal.id}
-            onClick={() => setSelectedDeal(deal)}
-            className="text-left bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer w-full group"
-          >
-            <div className="flex justify-between items-start mb-4">
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {origins.map(origin => (
+            <Link
+              key={origin.name}
+              href={`/origin/${encodeURIComponent(origin.name)}`}
+              className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between h-full"
+            >
               <div>
-                <span className={`text-xs font-bold px-2 py-1 rounded ${CATEGORY_STYLES[deal.category] || 'bg-gray-100 text-gray-700'}`}>
-                  {CATEGORY_LABELS[deal.category] || deal.category.replace('_', ' ')}
-                </span>
-                {deal.isSimulated && (
-                  <span className="text-xs font-bold px-2 py-1 rounded bg-orange-100 text-orange-700 ml-1">
-                    SIMULATED
-                  </span>
-                )}
-                <h2 className="text-xl font-black mt-2">{deal.originCode} ➔ {deal.destinationCode}</h2>
-                <p className="text-gray-500 text-sm">{deal.airline}</p>
-                <p className="text-gray-400 text-xs mt-1">{deal.cabin.replace('_', ' ')} • {deal.tripType?.replace('_', ' ') || 'ONE WAY'}</p>
-              </div>
-              <div className="text-right">
-                {(() => {
-                  const dp = getDisplayPrice(deal);
-                  return (
-                    <>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {formatNumber(dp.value)} pts
-                      </p>
-                      {dp.suffix && (
-                        <p className="text-xs text-gray-500">{dp.suffix}</p>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 mb-4 text-sm text-gray-600">
-              <Calendar size={14} />
-              <span>{formatDate(deal.departureDate)}</span>
-              {deal.returnDate && (
-                <>
-                  <span> → </span>
-                  <span>{formatDate(deal.returnDate)}</span>
-                </>
-              )}
-            </div>
-
-            <p className="text-gray-700 text-sm mb-4 border-l-2 border-blue-200 pl-3 line-clamp-3">
-              &ldquo;{deal.reasoning}&rdquo;
-            </p>
-
-            {deal.itinerary && (
-              <div className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:text-blue-700">
-                <Sparkles size={14} />
-                <span>Click to view full itinerary</span>
-              </div>
-            )}
-          </button>
-        ))}
-
-        {isLoadingMore && (
-          <>
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-48 animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
-                <div className="h-8 bg-gray-200 rounded w-2/3 mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-
-      {deals.length > 0 && hasMore && !isLoadingMore && (
-        <div className="flex justify-center mt-8">
-          <button
-            onClick={() => setSize(size + 1)}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-          >
-            Load More
-          </button>
-        </div>
-      )}
-
-      {deals.length === 0 && !isLoadingMore && (
-        <div className="text-center py-12 text-gray-500">
-          <Plane size={48} className="mx-auto mb-4 text-gray-300"/>
-          <p>No deals match your current filters</p>
-        </div>
-      )}
-
-      {/* Modal */}
-      {selectedDeal && (
-        <div
-          className="fixed inset-0 z-50 flex md:items-center justify-center bg-black/60 md:p-4 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSelectedDeal(null);
-          }}
-        >
-          <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[95dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative">
-            <button
-              onClick={() => setSelectedDeal(null)}
-              className="fixed md:absolute top-4 right-4 z-50 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
-              aria-label="Close"
-            >
-              <X size={20} />
-            </button>
-
-            {/* Left: flight details & booking */}
-            <div className={`w-full bg-gray-50 p-4 pt-12 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${selectedDeal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
-              <div className="w-full max-w-sm">
-                <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[selectedDeal.category] || 'bg-gray-100 text-gray-700'}`}>
-                  {CATEGORY_LABELS[selectedDeal.category] || selectedDeal.category.replace('_', ' ')}
-                </span>
-
-                <h2 className="text-2xl md:text-3xl font-black mb-1">{selectedDeal.originCode} ➔ {selectedDeal.destinationCode}</h2>
-                <p className="text-gray-500 mb-4 md:mb-6">{selectedDeal.airline} • {selectedDeal.cabin.replace('_', ' ')}</p>
-
-                <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 mb-4 md:mb-6 text-left">
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                    <Calendar size={14} />
-                    <span>{formatDate(selectedDeal.departureDate)}</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <MapPin size={20} />
+                    <h2 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{origin.name}</h2>
                   </div>
-                  {selectedDeal.returnDate && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                      <Calendar size={14} />
-                      <span>Return: {formatDate(selectedDeal.returnDate)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                    <MapPin size={14} />
-                    <span className="capitalize">{(selectedDeal.tripType || 'ONE_WAY').replace('_', ' ').toLowerCase()}</span>
-                  </div>
-                  <div className="border-t border-gray-100 my-3" />
-                  {(() => {
-                    const dp = getDisplayPrice(selectedDeal);
-                    return (
-                      <div>
-                        <p className="text-3xl font-bold text-blue-600">
-                          {formatNumber(dp.value)} pts
-                        </p>
-                        {dp.suffix && (
-                          <p className="text-sm text-gray-500">{dp.suffix}</p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  <ArrowRight size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
                 </div>
-
-                <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
-                    Why this is a {CATEGORY_LABELS[selectedDeal.category].toLowerCase()}
-                  </h3>
-                  <p className="text-gray-800 text-sm italic leading-relaxed">
-                    &ldquo;{selectedDeal.reasoning}&rdquo;
-                  </p>
-                  {selectedDeal.fareType === 'POINTS' && selectedDeal.cashPrice && selectedDeal.pointsRequired ? (
-                    <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
-                      Cash price is the cheapest one-way cash fare found for this airline on Duffel/Google Flights, or a static route estimate when no matching live offer exists.<br />
-                      CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100<br />
-                      CPP = (${formatNumber(Number(selectedDeal.cashPrice))} − ${formatNumber(Number(selectedDeal.taxesAndFees || 0))}) ÷ {formatNumber(Number(selectedDeal.pointsRequired))} × 100 = {((Math.max(0, Number(selectedDeal.cashPrice) - Number(selectedDeal.taxesAndFees || 0)) / Number(selectedDeal.pointsRequired)) * 100).toFixed(1)}¢ per point.
-                    </p>
-                  ) : null}
-                </div>
-
-                {selectedDeal.duration !== null && selectedDeal.duration !== undefined ? (
-                  <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Representative cash flight details</h3>
-                    <p className="text-xs text-gray-500 mb-2 italic">
-                      Based on the cheapest one-way cash option on Google Flights for this route/cabin. The actual award flight may differ.
-                    </p>
-                    <ul className="text-sm text-gray-700 space-y-1">
-                      {selectedDeal.cashAirline && (
-                        <li><span className="font-medium">Airline:</span> {selectedDeal.cashAirline}</li>
-                      )}
-                      <li><span className="font-medium">Duration:</span> {Math.floor(Number(selectedDeal.duration) / 60)}h {Number(selectedDeal.duration) % 60}m</li>
-                      <li><span className="font-medium">Stops:</span> {Number(selectedDeal.stops)}</li>
-                      {selectedDeal.layoverAirport && (
-                        <li>
-                          <span className="font-medium">Layover:</span>{' '}
-                          First stop in {selectedDeal.layoverAirport}
-                          {selectedDeal.layoverDuration ? ` for ${Math.floor(Number(selectedDeal.layoverDuration) / 60)}h ${Number(selectedDeal.layoverDuration) % 60}m` : ''}
-                        </li>
-                      )}
-                    </ul>
-                  </div>
-                ) : null}
-
-                <a
-                  href={getBookingUrl(selectedDeal)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-blue-700 transition-colors w-full"
-                >
-                  <ExternalLink size={16} />
-                  Book This Flight
-                </a>
-
-                <div className="mt-6 text-left w-full">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Subscribe and email me this itinerary</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@email.com"
-                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                    />
-                    <button
-                      onClick={handleSendEmail}
-                      disabled={emailStatus === 'sending'}
-                      className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Mail size={14} />
-                      {emailStatus === 'sending' ? 'Sending...' : 'Send'}
-                    </button>
-                  </div>
-                  {emailMessage && (
-                    <p className={`text-xs mt-2 ${emailStatus === 'sent' ? 'text-green-600' : 'text-red-600'}`}>
-                      {emailMessage}
-                    </p>
-                  )}
-                </div>
+                <p className="text-sm text-gray-500 mb-1">{origin.count.toLocaleString()} deal{origin.count === 1 ? '' : 's'}</p>
+                <p className="text-sm text-gray-500 font-medium">
+                  {origin.minPoints !== null
+                    ? `From ${formatNumber(origin.minPoints)} pts`
+                    : origin.minCash !== null
+                      ? `From $${Number(origin.minCash).toLocaleString()} cash`
+                      : 'Explore deals'}
+                </p>
               </div>
-            </div>
-
-            {selectedDeal.category === 'GOOD_DEAL' && (
-              <>
-                {/* Right: itinerary */}
-                <div className="w-full md:w-3/5 p-4 pt-12 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
-                  {selectedDeal.itinerary ? (
-                    <div className="prose prose-sm prose-indigo max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          img: (props: any) => (
-                            <img
-                              {...props}
-                              className="w-full h-auto max-h-56 md:max-h-96 object-cover rounded-xl my-4 shadow-sm"
-                              alt={props.alt || 'Destination'}
-                            />
-                          )
-                        }}
-                      >
-                        {selectedDeal.itinerary}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="text-center text-gray-500 py-12">
-                      <p>No detailed itinerary for this deal.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Mobile Go to top */}
-                <div className="md:hidden w-full p-6 text-center">
-                  <button
-                    onClick={() => document.getElementById('deal-modal')?.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 text-sm font-medium"
-                  >
-                    <ArrowUp size={16} />
-                    Go to top
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+            </Link>
+          ))}
         </div>
       )}
     </div>

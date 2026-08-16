@@ -20,7 +20,7 @@ function getCityCodes(cityName: string): string[] | null {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  const limit = Math.min(parseInt(searchParams.get('limit') || String(PAGE_SIZE), 10), 100);
+  const limit = Math.min(parseInt(searchParams.get('limit') || String(PAGE_SIZE), 10), 200);
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
   const category = searchParams.get('category') || undefined;
   const destinationCity = searchParams.get('destinationCity') || undefined;
