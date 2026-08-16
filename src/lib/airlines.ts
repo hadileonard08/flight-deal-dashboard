@@ -7,7 +7,7 @@ export const AIRLINE_NAMES: Record<string, string> = {
   SQ: 'Singapore Airlines', CX: 'Cathay Pacific', CI: 'China Airlines', BR: 'EVA Air',
   MH: 'Malaysia Airlines', PR: 'Philippine Airlines', VN: 'Vietnam Airlines',
   CA: 'Air China', MU: 'China Eastern', CZ: 'China Southern', HX: 'Hong Kong Airlines',
-  '7C': 'Jeju Air', ZE: 'Eastar Jet', LJ: 'Jin Air', TW: 'T\'way Air', GK: 'Jetstar Japan',
+  '7C': 'Jeju Air', ZE: 'Eastar Jet', LJ: 'Jin Air', TW: 'T\'way Air', GK: 'Jetstar Japan', JX: 'Starlux Airlines',
   // Middle East / Europe
   QR: 'Qatar Airways', EK: 'Emirates', EY: 'Etihad Airways', BA: 'British Airways',
   LH: 'Lufthansa', AF: 'Air France', KL: 'KLM', VS: 'Virgin Atlantic', IB: 'Iberia',
