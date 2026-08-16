@@ -52,11 +52,9 @@ function estimateOneWayCashValue(destinationCode: string, cabin: string): number
   return cabinMap[cabin] ?? cabinMap['ECONOMY'];
 }
 
-// Cents-per-point (CPP) value of a redemption: (estimated cash value - taxes/fees) / points * 100.
-// 2.0 cpp+ is the standard "good value" benchmark used by the points & miles community.
-export function calculateCPP(flight: any): number | null {
-  if (!flight.pointsRequired || flight.pointsRequired <= 0) return null;
-
+// Get the best available cash value for a redemption: live Google Flights price,
+// or the static estimate table as fallback.
+export function getEstimatedCashValue(flight: any): number | null {
   // Try live Google Flights cash price first if it was pre-fetched.
   const { getLiveCashPrice } = require('../agents/cash-price');
   const dateStr = flight.departureDate instanceof Date
@@ -64,7 +62,15 @@ export function calculateCPP(flight: any): number | null {
     : String(flight.departureDate).slice(0, 10);
   const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr);
 
-  const estimatedCashValue = liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
+  return liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
+}
+
+// Cents-per-point (CPP) value of a redemption: (estimated cash value - taxes/fees) / points * 100.
+// 2.0 cpp+ is the standard "good value" benchmark used by the points & miles community.
+export function calculateCPP(flight: any): number | null {
+  if (!flight.pointsRequired || flight.pointsRequired <= 0) return null;
+
+  const estimatedCashValue = getEstimatedCashValue(flight);
   if (!estimatedCashValue) return null;
 
   const netValue = estimatedCashValue - (flight.taxesAndFees || 0);
@@ -76,6 +82,12 @@ export function evaluateThreshold(flight: any) {
   const isWest = region === 'WEST_COAST';
 
   if (flight.fareType === 'POINTS') {
+    // Store the estimated cash value so the UI can show "why this is a good deal" math.
+    const estimatedCashValue = getEstimatedCashValue(flight);
+    if (estimatedCashValue && !flight.cashPrice) {
+      flight.cashPrice = estimatedCashValue;
+    }
+
     const cpp = calculateCPP(flight);
 
     // Primary guardrail: value the redemption in cents-per-point.

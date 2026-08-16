@@ -438,9 +438,20 @@ export default function Dashboard() {
                   })()}
                 </div>
 
-                <p className="text-gray-700 text-sm mb-6 italic">
-                  &ldquo;{selectedDeal.reasoning}&rdquo;
-                </p>
+                <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">
+                    Why this is a {CATEGORY_LABELS[selectedDeal.category].toLowerCase()}
+                  </h3>
+                  <p className="text-gray-800 text-sm italic leading-relaxed">
+                    &ldquo;{selectedDeal.reasoning}&rdquo;
+                  </p>
+                  {selectedDeal.fareType === 'POINTS' && selectedDeal.cashPrice && selectedDeal.pointsRequired ? (
+                    <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
+                      Cash equivalent around ${formatNumber(Number(selectedDeal.cashPrice))};
+                      {' '}{formatNumber(Number(selectedDeal.pointsRequired))} pts = {((Math.max(0, Number(selectedDeal.cashPrice) - Number(selectedDeal.taxesAndFees || 0)) / Number(selectedDeal.pointsRequired)) * 100).toFixed(1)}¢ per point.
+                    </p>
+                  ) : null}
+                </div>
 
                 <a
                   href={getBookingUrl(selectedDeal)}
