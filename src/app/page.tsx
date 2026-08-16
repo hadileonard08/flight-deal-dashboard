@@ -184,8 +184,9 @@ export default function Dashboard() {
               <Plane className="text-blue-600"/> Flight Deal Dashboard
             </h1>
             <p className="text-gray-600">
-              {pages ? `Showing ${deals.length} deal${deals.length === 1 ? '' : 's'}` : 'Loading deals...'}
-              {hasMore && ' — load more to see additional results'}
+              {pages
+                ? `Showing ${deals.length} deal${deals.length === 1 ? '' : 's'}${hasMore ? ' — load more to see additional results' : ''}`
+                : 'Loading deals...'}
             </p>
           </div>
           <p className="text-sm text-gray-500">by: hadileonard</p>
