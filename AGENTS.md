@@ -7,7 +7,7 @@
 - Refresh data: `npm run clear:db && npm run run:pipeline`
   - `clear:db` deletes all `flights` and `deals`.
   - `run:pipeline` runs the full scraping/evaluation pipeline (~2 min for 13k deals now).
-- To refresh production data: `npx vercel env run --environment=production -- npm run clear:db && npx vercel env run --environment=production -- npm run run:pipeline`
+- To refresh production data: set the `DATABASE_URL` environment variable to the Vercel Postgres URL, then run the same `npm run clear:db && npm run run:pipeline` commands. `vercel env run` cannot expose sensitive values locally, so the pipeline must run in GitHub Actions (where `DATABASE_URL` is a repository secret) or on a machine with the Vercel Postgres connection string.
 
 ## Cost & AI Guardrails
 
