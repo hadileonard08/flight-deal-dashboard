@@ -387,7 +387,7 @@ export async function processFlights(rawFlights: any[]) {
 
         occasion = getRandomOccasion();
         const plan = generateOccasionItinerary(flight, occasion, null, weatherForecast);
-        itineraryText = flightDetails + (weatherForecast ? `\n\n${weatherForecast}` : '') + `\n\n${plan}`;
+        itineraryText = flightDetails + `\n\n${plan}`;
       }
     }
 
