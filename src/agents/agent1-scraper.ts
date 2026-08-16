@@ -46,61 +46,89 @@ export async function scrapeFlightDeals(): Promise<FlightDeal[]> {
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
     const endDate = new Date(today);
-    endDate.setDate(today.getDate() + 90);
+    endDate.setDate(today.getDate() + 365);
     const endDateStr = endDate.toISOString().split('T')[0];
 
-    const url = `${SEATS_AERO_API_BASE}/search?origin_airport=${origins.join(',')}&destination_airport=${asianDestinations.join(',')}&start_date=${startDate}&end_date=${endDateStr}&take=500`;
+    const baseParams = `origin_airport=${origins.join(',')}&destination_airport=${asianDestinations.join(',')}&start_date=${startDate}&end_date=${endDateStr}&order_by=lowest_mileage`;
+    const take = 5000;
+    const maxTotal = 5000;
 
-    const response = await fetch(url, {
-      headers: {
-        'Partner-Authorization': apiKey,
-        'Accept': 'application/json'
+    let cursor: number | undefined;
+    let skip = 0;
+    let hasMore = true;
+    const seenIds = new Set<string>();
+
+    while (hasMore && skip < maxTotal) {
+      let url = `${SEATS_AERO_API_BASE}/search?${baseParams}&take=${take}&skip=${skip}`;
+      if (cursor !== undefined) {
+        url += `&cursor=${cursor}`;
       }
-    });
 
-    if (!response.ok) {
-      console.log(`❌ Seats.aero API returned ${response.status}: ${await response.text()}`);
-      return [];
-    }
+      console.log(`🌐 Fetching Seats.aero page: skip=${skip}, take=${take}`);
+      const response = await fetch(url, {
+        headers: {
+          'Partner-Authorization': apiKey,
+          'Accept': 'application/json'
+        }
+      });
 
-    const data = await response.json();
-    const results = data?.data || [];
+      if (!response.ok) {
+        console.log(`❌ Seats.aero API returned ${response.status}: ${await response.text()}`);
+        break;
+      }
 
-    for (const result of results) {
-      const originCode = result.Route?.OriginAirport;
-      const destinationCode = result.Route?.DestinationAirport;
-      const departureDate = result.Date;
+      const data = await response.json();
+      const results = data?.data || [];
 
-      if (!originCode || !destinationCode || !departureDate) continue;
+      if (results.length === 0) {
+        hasMore = false;
+        break;
+      }
 
-      for (const [letter, cabinName] of Object.entries(CABIN_MAP)) {
-        const available = result[`${letter}Available`];
-        const mileageCost = parseInt(result[`${letter}MileageCost`], 10);
-        const airlines = result[`${letter}Airlines`];
-        const taxes = parseFloat(result[`${letter}TotalTaxes`]) || 0;
+      for (const result of results) {
+        if (seenIds.has(result.ID)) continue;
+        seenIds.add(result.ID);
 
-        if (!available || !mileageCost || mileageCost <= 0) continue;
+        const originCode = result.Route?.OriginAirport;
+        const destinationCode = result.Route?.DestinationAirport;
+        const departureDate = result.Date;
 
-        const airlineList = airlines
-          ? airlines.split(',').map((code: string) => code.trim()).filter(Boolean)
-          : [result.Source || 'Multiple Airlines'];
+        if (!originCode || !destinationCode || !departureDate) continue;
 
-        for (const airlineCode of airlineList) {
-          deals.push({
-            originCode,
-            destinationCode,
-            airline: resolveAirlineName(airlineCode),
-            departureDate: new Date(departureDate),
-            cabin: cabinName,
-            fareType: 'POINTS',
-            tripType: 'ONE_WAY',
-            pointsRequired: mileageCost,
-            taxesAndFees: taxes,
-            bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
-            isSimulated: false
-          });
+        for (const [letter, cabinName] of Object.entries(CABIN_MAP)) {
+          const available = result[`${letter}Available`];
+          const mileageCost = parseInt(result[`${letter}MileageCost`], 10);
+          const airlines = result[`${letter}Airlines`];
+          const taxes = parseFloat(result[`${letter}TotalTaxes`]) || 0;
+
+          if (!available || !mileageCost || mileageCost <= 0) continue;
+
+          const airlineList = airlines
+            ? airlines.split(',').map((code: string) => code.trim()).filter(Boolean)
+            : [result.Source || 'Multiple Airlines'];
+
+          for (const airlineCode of airlineList) {
+            deals.push({
+              originCode,
+              destinationCode,
+              airline: resolveAirlineName(airlineCode),
+              departureDate: new Date(departureDate),
+              cabin: cabinName,
+              fareType: 'POINTS',
+              tripType: 'ONE_WAY',
+              pointsRequired: mileageCost,
+              taxesAndFees: taxes,
+              bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
+              isSimulated: false
+            });
+          }
         }
       }
+
+      skip += results.length;
+      hasMore = data?.hasMore ?? false;
+      cursor = data?.cursor ?? cursor;
+      console.log(`✅ Fetched ${results.length} results, total ${deals.length} deals, hasMore=${hasMore}`);
     }
 
     console.log(`✅ Scraped ${deals.length} real award deals from Seats.aero`);
