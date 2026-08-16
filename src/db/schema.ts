@@ -24,6 +24,11 @@ export const flights = pgTable('flights', {
   bookingUrl: varchar('booking_url', { length: 1000 }),
   isSimulated: boolean('is_simulated').default(false).notNull(),
   scrapedAt: timestamp('scraped_at').defaultNow().notNull(),
+  // Representative cash-flight details for the modal (not the exact award itinerary)
+  duration: integer('duration'),
+  stops: integer('stops'),
+  layoverAirport: varchar('layover_airport', { length: 5 }),
+  layoverDuration: integer('layover_duration'),
 });
 
 export const deals = pgTable('deals', {

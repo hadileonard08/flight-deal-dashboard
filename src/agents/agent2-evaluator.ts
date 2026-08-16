@@ -479,7 +479,11 @@ export async function processFlights(rawFlights: any[]) {
       pointsRequired: flight.pointsRequired,
       taxesAndFees: flight.taxesAndFees,
       bookingUrl: flight.bookingUrl,
-      isSimulated: flight.isSimulated !== false
+      isSimulated: flight.isSimulated !== false,
+      duration: flight.duration || null,
+      stops: flight.stops || 0,
+      layoverAirport: flight.layoverAirport || null,
+      layoverDuration: flight.layoverDuration || null
     });
 
     dealValues.push({

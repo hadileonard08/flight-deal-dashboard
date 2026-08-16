@@ -82,10 +82,23 @@ export function evaluateThreshold(flight: any) {
   const isWest = region === 'WEST_COAST';
 
   if (flight.fareType === 'POINTS') {
-    // Store the estimated cash value so the UI can show "why this is a good deal" math.
+    // Store the estimated cash value and representative flight details so the UI can
+    // show "why this is a good deal" math and duration/stops in the modal.
     const estimatedCashValue = getEstimatedCashValue(flight);
     if (estimatedCashValue && !flight.cashPrice) {
       flight.cashPrice = estimatedCashValue;
+    }
+
+    const dateStr = flight.departureDate instanceof Date
+      ? flight.departureDate.toISOString().split('T')[0]
+      : String(flight.departureDate).slice(0, 10);
+    const { getFlightDetails } = require('../agents/cash-price');
+    const details = getFlightDetails(flight.originCode, flight.destinationCode, flight.cabin, dateStr);
+    if (details) {
+      if (!flight.duration) flight.duration = details.duration;
+      if (!flight.stops && details.stops > 0) flight.stops = details.stops;
+      if (details.layoverAirport && !flight.layoverAirport) flight.layoverAirport = details.layoverAirport;
+      if (details.layoverDuration && !flight.layoverDuration) flight.layoverDuration = details.layoverDuration;
     }
 
     const cpp = calculateCPP(flight);

@@ -453,6 +453,23 @@ export default function Dashboard() {
                   ) : null}
                 </div>
 
+                {selectedDeal.duration ? (
+                  <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
+                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Flight details</h3>
+                    <ul className="text-sm text-gray-700 space-y-1">
+                      <li><span className="font-medium">Duration:</span> {Math.floor(Number(selectedDeal.duration) / 60)}h {Number(selectedDeal.duration) % 60}m</li>
+                      <li><span className="font-medium">Stops:</span> {Number(selectedDeal.stops)}</li>
+                      {selectedDeal.layoverAirport && (
+                        <li>
+                          <span className="font-medium">Layover:</span>{' '}
+                          {Number(selectedDeal.stops) > 1 ? 'One stop in' : 'In'} {selectedDeal.layoverAirport}
+                          {selectedDeal.layoverDuration ? ` for ${Math.floor(Number(selectedDeal.layoverDuration) / 60)}h ${Number(selectedDeal.layoverDuration) % 60}m` : ''}
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                ) : null}
+
                 <a
                   href={getBookingUrl(selectedDeal)}
                   target="_blank"

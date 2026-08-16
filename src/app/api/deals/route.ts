@@ -24,7 +24,11 @@ export async function GET() {
     returnDate: flights.returnDate,
     tripType: flights.tripType,
     bookingUrl: flights.bookingUrl,
-    isSimulated: flights.isSimulated
+    isSimulated: flights.isSimulated,
+    duration: flights.duration,
+    stops: flights.stops,
+    layoverAirport: flights.layoverAirport,
+    layoverDuration: flights.layoverDuration
   })
   .from(deals)
   .innerJoin(flights, eq(deals.flightId, flights.id))
