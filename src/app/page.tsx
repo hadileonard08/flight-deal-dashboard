@@ -1,10 +1,12 @@
 "use client";
 import useSWR from 'swr';
-import { Plane, Sparkles, Filter, DollarSign, Search, Calendar, ExternalLink, X, MapPin, Mail, ArrowUp } from 'lucide-react';
+import useSWRInfinite from 'swr/infinite';
+import { Plane, Sparkles, Filter, Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getBookingUrl } from '@/lib/booking-url';
+import { CityNodes } from '@/components/CityNodes';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -29,10 +31,16 @@ const CATEGORY_ORDER: Record<string, number> = {
   BAD_DEAL: 3,
 };
 
+const PAGE_SIZE = 15;
+
+interface DealPage {
+  deals: any[];
+  hasMore: boolean;
+}
+
 export default function Dashboard() {
-  const { data: deals, error } = useSWR('/api/deals', fetcher, { refreshInterval: 30000 });
   const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
-  const [selectedDestination, setSelectedDestination] = useState<string>('all');
+  const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedCabin, setSelectedCabin] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('GOOD_DEAL');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -44,6 +52,53 @@ export default function Dashboard() {
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailMessage, setEmailMessage] = useState('');
+
+  const filters = useMemo(() => ({
+    category: selectedCategory,
+    destinationCity: selectedCity,
+    origin: selectedOrigin,
+    cabin: selectedCabin,
+    tripType: selectedTripType,
+    airline: selectedAirline,
+    month: selectedMonth,
+    year: selectedYear,
+    sortBy,
+  }), [selectedCategory, selectedCity, selectedOrigin, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
+
+  const { data: filterOptions, error: optionsError } = useSWR('/api/filter-options', fetcher, { refreshInterval: 60000 });
+
+  const getKey = (pageIndex: number, previousPageData: DealPage | null) => {
+    if (previousPageData && !previousPageData.hasMore) return null;
+
+    const params = new URLSearchParams();
+    params.set('limit', String(PAGE_SIZE));
+    params.set('page', String(pageIndex + 1));
+
+    if (filters.category && filters.category !== 'all') params.set('category', filters.category);
+    if (filters.destinationCity && filters.destinationCity !== 'all') params.set('destinationCity', filters.destinationCity);
+    if (filters.origin && filters.origin !== 'all') params.set('origin', filters.origin);
+    if (filters.cabin && filters.cabin !== 'all') params.set('cabin', filters.cabin);
+    if (filters.tripType && filters.tripType !== 'all') params.set('tripType', filters.tripType);
+    if (filters.airline && filters.airline !== 'all') params.set('airline', filters.airline);
+    if (filters.month && filters.month !== 'all') params.set('month', filters.month);
+    if (filters.year && filters.year !== 'all') params.set('year', filters.year);
+    if (filters.sortBy) params.set('sortBy', filters.sortBy);
+
+    return `/api/deals?${params.toString()}`;
+  };
+
+  const { data: pages, error, size, setSize, isLoading } = useSWRInfinite<DealPage>(getKey, fetcher, {
+    refreshInterval: 30000,
+    revalidateAll: false,
+  });
+
+  useEffect(() => {
+    setSize(1);
+  }, [filters]);
+
+  const deals = useMemo(() => pages ? pages.flatMap(page => page.deals) : [], [pages]);
+  const hasMore = pages ? pages[pages.length - 1]?.hasMore : true;
+  const isLoadingMore = isLoading || (size > 0 && pages && typeof pages[size - 1] === 'undefined');
 
   useEffect(() => {
     if (!selectedDeal) return;
@@ -58,19 +113,7 @@ export default function Dashboard() {
     };
   }, [selectedDeal]);
 
-  if (error) return <div className="p-10">Failed to load deals</div>;
-  if (!deals) return <div className="p-10">Loading deals...</div>;
-
-  const origins = Array.from(new Set<string>(deals.map((d: any) => d.originCode)));
-  const destinations = Array.from(new Set<string>(deals.map((d: any) => d.destinationCode)));
-  const cabins = Array.from(new Set<string>(deals.map((d: any) => d.cabin)));
-  const categories = Array.from(new Set<string>(deals.map((d: any) => d.category))).sort((a, b) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
-  const airlines = Array.from(new Set<string>(deals.map((d: any) => d.airline).filter(Boolean))).sort();
-  const tripTypes = Array.from(new Set<string>(deals.map((d: any) => d.tripType)));
-  const months = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getMonth()))).sort((a, b) => a - b);
-  const years = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getFullYear()))).sort((a, b) => a - b);
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
+  if (error || optionsError) return <div className="p-10">Failed to load deals</div>;
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -93,27 +136,6 @@ export default function Dashboard() {
     const cash = Number(deal.cashPrice || 0);
     return { value: Math.round(cash / 0.02), suffix: 'est. pts at 2¢/pt' };
   };
-
-  const filteredDeals = deals.filter((deal: any) => {
-    if (selectedOrigin !== 'all' && deal.originCode !== selectedOrigin) return false;
-    if (selectedDestination !== 'all' && deal.destinationCode !== selectedDestination) return false;
-    if (selectedCabin !== 'all' && deal.cabin !== selectedCabin) return false;
-    if (selectedCategory !== 'all' && deal.category !== selectedCategory) return false;
-    if (selectedMonth !== 'all' && new Date(deal.departureDate).getMonth() !== parseInt(selectedMonth)) return false;
-    if (selectedYear !== 'all' && new Date(deal.departureDate).getFullYear() !== parseInt(selectedYear)) return false;
-    if (selectedTripType !== 'all' && deal.tripType !== selectedTripType) return false;
-    if (selectedAirline !== 'all' && deal.airline !== selectedAirline) return false;
-    return true;
-  });
-
-  const sortedDeals = [...filteredDeals].sort((a: any, b: any) => {
-    const categoryDiff = (CATEGORY_ORDER[a.category] ?? 99) - (CATEGORY_ORDER[b.category] ?? 99);
-    if (categoryDiff !== 0) return categoryDiff;
-
-    if (sortBy === 'price') return getDisplayPrice(a).value - getDisplayPrice(b).value;
-    if (sortBy === 'date') return new Date(a.departureDate).getTime() - new Date(b.departureDate).getTime();
-    return 0;
-  });
 
   const handleSendEmail = async () => {
     if (!email || !selectedDeal) return;
@@ -143,6 +165,16 @@ export default function Dashboard() {
     }
   };
 
+  const origins = filterOptions?.origins || [];
+  const cabins = filterOptions?.cabins || [];
+  const categories = (filterOptions?.categories || []).sort((a: string, b: string) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
+  const airlines = filterOptions?.airlines || [];
+  const tripTypes = filterOptions?.tripTypes || [];
+  const months = filterOptions?.months || [];
+  const years = filterOptions?.years || [];
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const simulatedCount = deals.filter((d: any) => d.isSimulated).length;
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="mb-8">
@@ -152,7 +184,8 @@ export default function Dashboard() {
               <Plane className="text-blue-600"/> Flight Deal Dashboard
             </h1>
             <p className="text-gray-600">
-              Showing {sortedDeals.length} of {deals.length} total deals
+              {pages ? `Showing ${deals.length} deal${deals.length === 1 ? '' : 's'}` : 'Loading deals...'}
+              {hasMore && ' — load more to see additional results'}
             </p>
           </div>
           <p className="text-sm text-gray-500">by: hadileonard</p>
@@ -162,12 +195,14 @@ export default function Dashboard() {
             <strong>⚠️ {simulatedCount === deals.length ? 'Simulated Data:' : `${simulatedCount} of ${deals.length} deals are simulated:`}</strong> Some flight prices, airlines, and dates shown are generated for demonstration purposes (marked with a badge on each card).
             Add a <a href="https://seats.aero/settings" target="_blank" rel="noopener noreferrer" className="underline font-medium">Seats.aero key</a> for real award data.
           </div>
-        ) : (
+        ) : deals.length > 0 ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4 text-sm text-green-800">
             <strong>✅ Real Data:</strong> All deals shown are from live flight data sources.
           </div>
-        )}
+        ) : null}
       </div>
+
+      <CityNodes selectedCity={selectedCity} onSelectCity={setSelectedCity} />
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
@@ -185,22 +220,8 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Origins</option>
-              {origins.map(origin => (
+              {origins.map((origin: string) => (
                 <option key={origin} value={origin}>{origin}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Destination:</label>
-            <select
-              value={selectedDestination}
-              onChange={(e) => setSelectedDestination(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Destinations</option>
-              {destinations.map(dest => (
-                <option key={dest} value={dest}>{dest}</option>
               ))}
             </select>
           </div>
@@ -213,7 +234,7 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Cabins</option>
-              {cabins.map(cabin => (
+              {cabins.map((cabin: string) => (
                 <option key={cabin} value={cabin}>{cabin.replace('_', ' ')}</option>
               ))}
             </select>
@@ -227,7 +248,7 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Trip Types</option>
-              {tripTypes.map(tripType => (
+              {tripTypes.map((tripType: string) => (
                 <option key={tripType} value={tripType}>{tripType.replace('_', ' ')}</option>
               ))}
             </select>
@@ -241,7 +262,7 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Months</option>
-              {months.map(month => (
+              {months.map((month: number) => (
                 <option key={month} value={month}>{monthNames[month]}</option>
               ))}
             </select>
@@ -255,7 +276,7 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Years</option>
-              {years.map(year => (
+              {years.map((year: number) => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
@@ -269,7 +290,7 @@ export default function Dashboard() {
               className="border rounded px-3 py-1 text-sm"
             >
               <option value="all">All Airlines</option>
-              {airlines.map(airline => (
+              {airlines.map((airline: string) => (
                 <option key={airline} value={airline}>{airline}</option>
               ))}
             </select>
@@ -296,7 +317,7 @@ export default function Dashboard() {
               >
                 All
               </button>
-              {categories.map(cat => (
+              {categories.map((cat: string) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
@@ -311,7 +332,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {sortedDeals.map((deal: any) => (
+        {deals.map((deal: any) => (
           <button
             key={deal.id}
             onClick={() => setSelectedDeal(deal)}
@@ -371,9 +392,33 @@ export default function Dashboard() {
             )}
           </button>
         ))}
+
+        {isLoadingMore && (
+          <>
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 h-48 animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/3 mb-4"></div>
+                <div className="h-8 bg-gray-200 rounded w-2/3 mb-4"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
-      {sortedDeals.length === 0 && (
+      {deals.length > 0 && hasMore && !isLoadingMore && (
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={() => setSize(size + 1)}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            Load More
+          </button>
+        </div>
+      )}
+
+      {deals.length === 0 && !isLoadingMore && (
         <div className="text-center py-12 text-gray-500">
           <Plane size={48} className="mx-auto mb-4 text-gray-300"/>
           <p>No deals match your current filters</p>
