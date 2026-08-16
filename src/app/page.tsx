@@ -290,6 +290,12 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 ml-auto">
             <label className="text-sm text-gray-600">Show:</label>
             <div className="flex bg-gray-100 rounded-lg p-1 flex-wrap">
+              <button
+                onClick={() => setSelectedCategory('all')}
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${selectedCategory === 'all' ? 'bg-white text-blue-600 font-medium shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                All
+              </button>
               {categories.map(cat => (
                 <button
                   key={cat}
