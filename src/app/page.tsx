@@ -39,8 +39,8 @@ interface DealPage {
 }
 
 export default function Dashboard() {
-  const [selectedOrigin, setSelectedOrigin] = useState<string>('all');
-  const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [selectedOriginCity, setSelectedOriginCity] = useState<string>('all');
+  const [selectedDestinationCity, setSelectedDestinationCity] = useState<string>('all');
   const [selectedCabin, setSelectedCabin] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('GOOD_DEAL');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
@@ -55,15 +55,15 @@ export default function Dashboard() {
 
   const filters = useMemo(() => ({
     category: selectedCategory,
-    destinationCity: selectedCity,
-    origin: selectedOrigin,
+    originCity: selectedOriginCity,
+    destinationCity: selectedDestinationCity,
     cabin: selectedCabin,
     tripType: selectedTripType,
     airline: selectedAirline,
     month: selectedMonth,
     year: selectedYear,
     sortBy,
-  }), [selectedCategory, selectedCity, selectedOrigin, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
+  }), [selectedCategory, selectedOriginCity, selectedDestinationCity, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
 
   const { data: filterOptions, error: optionsError } = useSWR('/api/filter-options', fetcher, { refreshInterval: 60000 });
 
@@ -75,8 +75,8 @@ export default function Dashboard() {
     params.set('page', String(pageIndex + 1));
 
     if (filters.category && filters.category !== 'all') params.set('category', filters.category);
+    if (filters.originCity && filters.originCity !== 'all') params.set('originCity', filters.originCity);
     if (filters.destinationCity && filters.destinationCity !== 'all') params.set('destinationCity', filters.destinationCity);
-    if (filters.origin && filters.origin !== 'all') params.set('origin', filters.origin);
     if (filters.cabin && filters.cabin !== 'all') params.set('cabin', filters.cabin);
     if (filters.tripType && filters.tripType !== 'all') params.set('tripType', filters.tripType);
     if (filters.airline && filters.airline !== 'all') params.set('airline', filters.airline);
@@ -165,7 +165,6 @@ export default function Dashboard() {
     }
   };
 
-  const origins = filterOptions?.origins || [];
   const cabins = filterOptions?.cabins || [];
   const categories = (filterOptions?.categories || []).sort((a: string, b: string) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
   const airlines = filterOptions?.airlines || [];
@@ -203,28 +202,12 @@ export default function Dashboard() {
         ) : null}
       </div>
 
-      <CityNodes selectedCity={selectedCity} onSelectCity={setSelectedCity} />
-
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-gray-500"/>
             <span className="font-medium text-gray-700">Filters:</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Origin:</label>
-            <select
-              value={selectedOrigin}
-              onChange={(e) => setSelectedOrigin(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Origins</option>
-              {origins.map((origin: string) => (
-                <option key={origin} value={origin}>{origin}</option>
-              ))}
-            </select>
           </div>
 
           <div className="flex items-center gap-2">
@@ -331,6 +314,19 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <CityNodes
+        endpoint="/api/origins"
+        label="Origin Cities"
+        selectedCity={selectedOriginCity}
+        onSelectCity={setSelectedOriginCity}
+      />
+      <CityNodes
+        endpoint="/api/cities"
+        label="Destination Cities"
+        selectedCity={selectedDestinationCity}
+        onSelectCity={setSelectedDestinationCity}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {deals.map((deal: any) => (

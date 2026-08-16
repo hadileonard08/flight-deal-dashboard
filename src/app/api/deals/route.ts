@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   const destinationCity = searchParams.get('destinationCity') || undefined;
   const destinationCode = searchParams.get('destinationCode') || undefined;
   const origin = searchParams.get('origin') || undefined;
+  const originCity = searchParams.get('originCity') || undefined;
   const cabin = searchParams.get('cabin') || undefined;
   const tripType = searchParams.get('tripType') || undefined;
   const airline = searchParams.get('airline') || undefined;
@@ -41,6 +42,13 @@ export async function GET(request: Request) {
 
   if (origin && origin !== 'all') {
     conditions.push(eq(flights.originCode, origin));
+  }
+
+  if (originCity && originCity !== 'all') {
+    const originCodes = getCityCodes(originCity);
+    if (originCodes) {
+      conditions.push(inArray(flights.originCode, originCodes));
+    }
   }
 
   if (destinationCode && destinationCode !== 'all') {
