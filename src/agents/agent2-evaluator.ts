@@ -1,7 +1,11 @@
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { evaluateThreshold, getRegion, AIRPORT_NAMES } from '../lib/config';
+import { generateHoneymoonItinerary } from './graph';
+import { searchDestinationNews } from './news-search';
 import { getWeatherForecast } from './weather';
+import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
+import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
 // accurate and always present, regardless of whether/how the AI itinerary generation succeeds.
@@ -341,13 +345,15 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 export async function processFlights(rawFlights: any[]) {
   console.log(`Processing ${rawFlights.length} flights...`);
 
-  // Guardrails to keep the pipeline fast and cheap:
-  // - No paid AI calls for reasoning (deterministic copy only).
-  // - Weather + a deterministic, no-AI 5-day itinerary for the first MAX_ITINERARY GOOD deals.
-  // - No live news/image hydration (those add cost and time).
-  // - Flights and deals are batch-inserted in 1,000-row chunks.
-  const MAX_ITINERARY = 50;
-  let itineraryCount = 0;
+  // Bring back the full agentic workflow, but cap the most expensive calls
+  // so 3 months of data doesn't run away on time/cost.
+  // - AI reasoning for the first 250 GOOD/MAYBE deals.
+  // - Full news/weather/LangGraph itinerary for the first 50 GOOD deals.
+  // - All GOOD deals still get a deterministic flight summary + fallback plan.
+  const MAX_AI_REASONING = 250;
+  const MAX_AI_ITINERARY = 50;
+  let aiReasoningCount = 0;
+  let aiItineraryCount = 0;
 
   const defaultReasoning: Record<string, string> = {
     GOOD_DEAL: "Great deal found with excellent value for this route.",
@@ -361,11 +367,28 @@ export async function processFlights(rawFlights: any[]) {
 
   for (const flight of rawFlights) {
     const category = evaluateThreshold(flight);
-    if (flightsToInsert.length % 500 === 0) {
+    if (flightsToInsert.length % 100 === 0) {
       console.log(`  ... ${flightsToInsert.length}/${rawFlights.length} categorized (${category})`);
     }
 
-    const reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
+    let reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
+
+    // 1. AI rationale for the first 250 GOOD/MAYBE
+    if (hasAIProvider && (category === 'GOOD_DEAL' || category === 'MAYBE_GOOD_DEAL') && aiReasoningCount < MAX_AI_REASONING) {
+      aiReasoningCount++;
+      try {
+        const model = getChatModel(0.7)!;
+        const res = await model.invoke(
+          `Output strictly JSON with no markdown code fences: {"reasoning": "2-sentence punchy rationale why this deal is good."}\n\nFlight: ${JSON.stringify(flight)}`
+        );
+        const rawText = (res.content as string).trim().replace(/^```(?:json)?\n?/, '').replace(/```$/, '');
+        reasoning = JSON.parse(rawText).reasoning;
+      } catch (error) {
+        console.log('Using fallback reasoning due to API error');
+      }
+    }
+
+    // 2 & 3. Full agentic itinerary for the first 50 GOOD
     let itineraryText = null;
     let occasion: any = null;
 
@@ -373,10 +396,17 @@ export async function processFlights(rawFlights: any[]) {
       const flightDetails = formatFlightDetailsSection(flight);
       itineraryText = flightDetails;
 
-      if (itineraryCount < MAX_ITINERARY) {
-        itineraryCount++;
+      if (aiItineraryCount < MAX_AI_ITINERARY) {
+        aiItineraryCount++;
         const tripStart = new Date(flight.departureDate);
         const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
+
+        let destinationNews: string | null = null;
+        try {
+          destinationNews = await searchDestinationNews(flight.destinationCode, tripStart, tripEnd);
+        } catch (error) {
+          console.log('News search failed, continuing without destination news');
+        }
 
         let weatherForecast: string | null = null;
         try {
@@ -385,9 +415,42 @@ export async function processFlights(rawFlights: any[]) {
           console.log('Weather lookup failed, continuing without forecast');
         }
 
+        try {
+          if (hasAIProvider) {
+            itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
+            occasion = 'HONEYMOON';
+          } else {
+            occasion = getRandomOccasion();
+            itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
+          }
+        } catch (error) {
+          console.log('Using fallback itinerary due to API error');
+          occasion = 'LEISURE';
+          itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
+        }
+
+        let destinationImage: string | null = null;
+        try {
+          destinationImage = await getDestinationImageUrl(flight.destinationCode);
+        } catch (error) {
+          console.log('Destination image lookup failed, continuing without image');
+        }
+
+        const imageMarkdown = destinationImage
+          ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
+          : '';
+
+        itineraryText = flightDetails + imageMarkdown + itineraryText;
+
+        try {
+          itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
+        } catch (error) {
+          console.log('Itinerary image hydration failed, keeping placeholders');
+        }
+      } else {
+        // All other GOOD deals get a deterministic fallback plan
         occasion = getRandomOccasion();
-        const plan = generateOccasionItinerary(flight, occasion, null, weatherForecast);
-        itineraryText = flightDetails + `\n\n${plan}`;
+        itineraryText = flightDetails + '\n\n' + generateOccasionItinerary(flight, occasion, null, null);
       }
     }
 

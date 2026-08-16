@@ -46,7 +46,7 @@ export async function scrapeFlightDeals(): Promise<FlightDeal[]> {
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
     const endDate = new Date(today);
-    endDate.setDate(today.getDate() + 365);
+    endDate.setDate(today.getDate() + 90); // 3 months out
     const endDateStr = endDate.toISOString().split('T')[0];
 
     const baseParams = `origin_airport=${origins.join(',')}&destination_airport=${asianDestinations.join(',')}&start_date=${startDate}&end_date=${endDateStr}&order_by=lowest_mileage`;

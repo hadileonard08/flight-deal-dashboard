@@ -6,15 +6,15 @@
 - Deploy: `npx vercel --prod` then alias to `flight-deals-dashboard.vercel.app`
 - Refresh data: `npm run clear:db && npm run run:pipeline`
   - `clear:db` deletes all `flights` and `deals`.
-  - `run:pipeline` runs the full scraping/evaluation pipeline (~2 min for 13k deals now).
-- To refresh production data: set the `DATABASE_URL` environment variable to the Vercel Postgres URL, then run the same `npm run clear:db && npm run run:pipeline` commands. `vercel env run` cannot expose sensitive values locally, so the pipeline must run in GitHub Actions (where `DATABASE_URL` is a repository secret) or on a machine with the Vercel Postgres connection string.
+  - `run:pipeline` runs the full scraping/evaluation pipeline.
+- To refresh production data: set `DATABASE_URL` to the Vercel Postgres URL, then run the same commands. Vercel CLI does not expose sensitive env values locally, so the pipeline must run in GitHub Actions (where `DATABASE_URL` is a repo secret) or on a machine with the Vercel Postgres connection string.
 
 ## Cost & AI Guardrails
 
-- **Only `GOOD_DEAL` flights get a detailed itinerary, and the pipeline avoids paid AI calls.**
-  - `processFlights` uses deterministic canned reasoning for every deal (no paid LLM reasoning).
-  - `GOOD_DEAL` flights get a deterministic 5-day itinerary; the first `MAX_ITINERARY` (50) also get a free Open-Meteo weather outlook.
-  - No live news search, no LangGraph, no image hydration, and no paid model calls during normal pipeline runs.
+- **Agentic workflow is restored with caps to keep 3-month runs fast.**
+  - `processFlights` uses AI-generated reasoning for the first `MAX_AI_REASONING` (250) `GOOD_DEAL`/`MAYBE_GOOD_DEAL` flights.
+  - `GOOD_DEAL` flights get a full agentic itinerary: live news, Open-Meteo weather, LangGraph/Honeymoon AI itinerary, and Wikipedia images for the first `MAX_AI_ITINERARY` (50) flights.
+  - All other `GOOD_DEAL` flights get a deterministic fallback plan with a flight summary.
   - Flights and deals are inserted in 1,000-row batches for speed.
-- The scraper now uses `order_by=lowest_mileage` and paginates up to 5,000 records per run to pull availability up to a year out.
+- The scraper uses `order_by=lowest_mileage` and searches 90 days (3 months) out with a max of 5,000 records per run.
 - `/api/deals` returns the 4,000 cheapest deals sorted by points to stay under Vercel's response-size limits.
