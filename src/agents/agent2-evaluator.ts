@@ -1,11 +1,7 @@
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { evaluateThreshold, getRegion, AIRPORT_NAMES } from '../lib/config';
-import { generateHoneymoonItinerary } from './graph';
-import { searchDestinationNews } from './news-search';
 import { getWeatherForecast } from './weather';
-import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
-import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 
 // Deterministic "Flight & Arrival Details" summary built from real deal data - always
 // accurate and always present, regardless of whether/how the AI itinerary generation succeeds.
@@ -334,71 +330,53 @@ function generateOccasionItinerary(flight: any, occasion: string, news: string |
   return baseItinerary + realityNote;
 }
 
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export async function processFlights(rawFlights: any[]) {
   console.log(`Processing ${rawFlights.length} flights...`);
 
-  // Guardrails to keep API cost/time bounded while still returning a rich set of deals.
-  // Full AI reasoning, weather, news, and itinerary are only generated for the first
-  // GOOD/MAYBE deals; the rest keep their value but use deterministic fallback copy.
-  const MAX_AI_REASONING = 500;
-  const MAX_AI_ITINERARY = 50;
-  let aiReasoningCount = 0;
-  let aiItineraryCount = 0;
+  // Guardrails to keep the pipeline fast and cheap:
+  // - No paid AI calls for reasoning (deterministic copy only).
+  // - Weather + a deterministic, no-AI 5-day itinerary for the first MAX_ITINERARY GOOD deals.
+  // - No live news/image hydration (those add cost and time).
+  // - Flights and deals are batch-inserted in 1,000-row chunks.
+  const MAX_ITINERARY = 50;
+  let itineraryCount = 0;
+
+  const defaultReasoning: Record<string, string> = {
+    GOOD_DEAL: "Great deal found with excellent value for this route.",
+    MAYBE_GOOD_DEAL: "Solid deal that's close to great value for this route.",
+    OKAY_DEAL: "Reasonably priced for this route - not exceptional, but a fair option.",
+    BAD_DEAL: "Priced well above typical rates for this route - consider other dates or cabins."
+  };
+
+  const flightsToInsert: any[] = [];
+  const dealValues: any[] = [];
 
   for (const flight of rawFlights) {
     const category = evaluateThreshold(flight);
-    console.log(`Flight ${flight.originCode}-${flight.destinationCode}: ${category} (price: ${flight.cashPrice || flight.pointsRequired})`);
-
-    // 1. Generate a rationale. To keep AI usage/cost bounded, only call the model for
-    // the top two tiers (there are usually many OKAY_DEAL/BAD_DEAL rows); the lower
-    // tiers get clear canned copy instead.
-    const defaultReasoning: Record<string, string> = {
-      GOOD_DEAL: "Great deal found with excellent value for this route.",
-      MAYBE_GOOD_DEAL: "Solid deal that's close to great value for this route.",
-      OKAY_DEAL: "Reasonably priced for this route - not exceptional, but a fair option.",
-      BAD_DEAL: "Priced well above typical rates for this route - consider other dates or cabins."
-    };
-    let reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
-
-    if (hasAIProvider && (category === 'GOOD_DEAL' || category === 'MAYBE_GOOD_DEAL') && aiReasoningCount < MAX_AI_REASONING) {
-      aiReasoningCount++;
-      try {
-        const model = getChatModel(0.7)!;
-        const res = await model.invoke(
-          `Output strictly JSON with no markdown code fences: {"reasoning": "2-sentence punchy rationale why this deal is good."}\n\nFlight: ${JSON.stringify(flight)}`
-        );
-        const rawText = (res.content as string).trim().replace(/^```(?:json)?\n?/, '').replace(/```$/, '');
-        reasoning = JSON.parse(rawText).reasoning;
-      } catch (error) {
-        console.log('Using fallback reasoning due to API error');
-      }
+    if (flightsToInsert.length % 500 === 0) {
+      console.log(`  ... ${flightsToInsert.length}/${rawFlights.length} categorized (${category})`);
     }
 
-    // 2. Look up current web news for the destination (GUARDRAIL: only for capped GOOD_DEAL)
-    let destinationNews: string | null = null;
-
-    // 3. Generate occasion-specific itinerary using LangGraph (GUARDRAIL: only for capped GOOD_DEAL)
+    const reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
     let itineraryText = null;
-    let occasion = 'LEISURE'; // Default occasion
+    let occasion: any = null;
 
-    // All GOOD deals get a deterministic flight-summary itinerary.
-    // Only the first MAX_AI_ITINERARY GOOD deals also get news, weather, and a full AI itinerary.
     if (category === 'GOOD_DEAL') {
-      // Always prepend a deterministic, data-accurate flight summary - independent of
-      // whatever the AI did or didn't include, so it's consistent across every good deal.
       const flightDetails = formatFlightDetailsSection(flight);
       itineraryText = flightDetails;
 
-      if (aiItineraryCount < MAX_AI_ITINERARY) {
-        aiItineraryCount++;
+      if (itineraryCount < MAX_ITINERARY) {
+        itineraryCount++;
         const tripStart = new Date(flight.departureDate);
         const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
-
-        try {
-          destinationNews = await searchDestinationNews(flight.destinationCode, tripStart, tripEnd);
-        } catch (error) {
-          console.log('News search failed, continuing without destination news');
-        }
 
         let weatherForecast: string | null = null;
         try {
@@ -407,45 +385,13 @@ export async function processFlights(rawFlights: any[]) {
           console.log('Weather lookup failed, continuing without forecast');
         }
 
-        try {
-          if (hasAIProvider) {
-            itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
-            occasion = 'HONEYMOON';
-          } else {
-            // Generate occasion-specific fallback itinerary
-            occasion = getRandomOccasion();
-            itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
-          }
-        } catch (error) {
-          console.log('Using fallback itinerary due to API error');
-          occasion = 'LEISURE';
-          itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
-        }
-
-        let destinationImage: string | null = null;
-        try {
-          destinationImage = await getDestinationImageUrl(flight.destinationCode);
-        } catch (error) {
-          console.log('Destination image lookup failed, continuing without image');
-        }
-
-        const imageMarkdown = destinationImage
-          ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
-          : '';
-
-        itineraryText = flightDetails + imageMarkdown + itineraryText;
-
-        // Replace per-day IMAGE placeholders with real Wikipedia photos
-        try {
-          itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
-        } catch (error) {
-          console.log('Itinerary image hydration failed, keeping placeholders');
-        }
+        occasion = getRandomOccasion();
+        const plan = generateOccasionItinerary(flight, occasion, null, weatherForecast);
+        itineraryText = flightDetails + (weatherForecast ? `\n\n${weatherForecast}` : '') + `\n\n${plan}`;
       }
     }
 
-    // 4. Save to DB
-    const [insertedFlight] = await db.insert(flights).values({
+    flightsToInsert.push({
       originCode: flight.originCode,
       originRegion: getRegion(flight.originCode),
       destinationCode: flight.destinationCode,
@@ -459,17 +405,34 @@ export async function processFlights(rawFlights: any[]) {
       pointsRequired: flight.pointsRequired,
       taxesAndFees: flight.taxesAndFees,
       bookingUrl: flight.bookingUrl,
-      isSimulated: flight.isSimulated !== false // defaults to simulated unless a source explicitly marks it real
-    }).returning();
+      isSimulated: flight.isSimulated !== false
+    });
 
-    await db.insert(deals).values({
-      flightId: insertedFlight.id,
+    dealValues.push({
       category: category as any,
       reasoning,
       itinerary: itineraryText,
-      occasion: occasion as any
+      occasion: (occasion || 'LEISURE') as any
     });
   }
+
+  console.log(`✅ Categorized ${flightsToInsert.length} flights; inserting in batches...`);
+
+  const insertedIds: number[] = [];
+  for (const chunk of chunkArray(flightsToInsert, 1000)) {
+    const inserted = await db.insert(flights).values(chunk as any).returning({ id: flights.id });
+    insertedIds.push(...inserted.map((row: any) => row.id));
+  }
+
+  for (let i = 0; i < dealValues.length; i++) {
+    dealValues[i].flightId = insertedIds[i];
+  }
+
+  for (const chunk of chunkArray(dealValues, 1000)) {
+    await db.insert(deals).values(chunk as any);
+  }
+
+  console.log(`✅ Pipeline finished: ${insertedIds.length} flights and ${dealValues.length} deals saved.`);
 }
 
 function getRandomOccasion(): string {
