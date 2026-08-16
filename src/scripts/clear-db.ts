@@ -7,6 +7,7 @@ async function clearDatabase() {
   await db.delete(deals);
   await db.delete(flights);
   console.log('Database cleared.');
+  process.exit(0);
 }
 
-clearDatabase().catch(console.error);
+clearDatabase().catch((err) => { console.error(err); process.exit(1); });
