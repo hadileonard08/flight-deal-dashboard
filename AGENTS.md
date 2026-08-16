@@ -10,8 +10,8 @@
 
 ## Cost & AI Guardrails
 
-- **Only `GOOD_DEAL` flights trigger expensive API calls, and only the first 300 of them per pipeline run.**
-  - `agent2-evaluator.ts` only calls `searchDestinationNews`, `getWeatherForecast`, and `generateHoneymoonItinerary` for the first `MAX_AI_ITINERARY` (300) `GOOD_DEAL` flights.
+- **Only `GOOD_DEAL` flights trigger expensive API calls, and only the first 50 of them per pipeline run.**
+  - `agent2-evaluator.ts` only calls `searchDestinationNews`, `getWeatherForecast`, and `generateHoneymoonItinerary` for the first `MAX_AI_ITINERARY` (50) `GOOD_DEAL` flights.
   - Every `GOOD_DEAL` still gets a deterministic `Flight & Arrival Details` summary in its itinerary.
   - `MAYBE_GOOD_DEAL`, `OKAY_DEAL`, and `BAD_DEAL` get canned/deterministic reasoning, no news, no weather, and no AI-generated itinerary.
   - `hasAIProvider` reasoning is also capped to the first `MAX_AI_REASONING` (500) `GOOD_DEAL`/`MAYBE_GOOD_DEAL` flights.

@@ -341,7 +341,7 @@ export async function processFlights(rawFlights: any[]) {
   // Full AI reasoning, weather, news, and itinerary are only generated for the first
   // GOOD/MAYBE deals; the rest keep their value but use deterministic fallback copy.
   const MAX_AI_REASONING = 500;
-  const MAX_AI_ITINERARY = 300;
+  const MAX_AI_ITINERARY = 50;
   let aiReasoningCount = 0;
   let aiItineraryCount = 0;
 
