@@ -95,19 +95,25 @@ export async function scrapeFlightDeals(): Promise<FlightDeal[]> {
 
         if (!available || !mileageCost || mileageCost <= 0) continue;
 
-        deals.push({
-          originCode,
-          destinationCode,
-          airline: airlines ? resolveAirlineName(airlines.split(',')[0]) : (result.Source || 'Multiple Airlines'),
-          departureDate: new Date(departureDate),
-          cabin: cabinName,
-          fareType: 'POINTS',
-          tripType: 'ONE_WAY',
-          pointsRequired: mileageCost,
-          taxesAndFees: taxes,
-          bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
-          isSimulated: false
-        });
+        const airlineList = airlines
+          ? airlines.split(',').map((code: string) => code.trim()).filter(Boolean)
+          : [result.Source || 'Multiple Airlines'];
+
+        for (const airlineCode of airlineList) {
+          deals.push({
+            originCode,
+            destinationCode,
+            airline: resolveAirlineName(airlineCode),
+            departureDate: new Date(departureDate),
+            cabin: cabinName,
+            fareType: 'POINTS',
+            tripType: 'ONE_WAY',
+            pointsRequired: mileageCost,
+            taxesAndFees: taxes,
+            bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
+            isSimulated: false
+          });
+        }
       }
     }
 

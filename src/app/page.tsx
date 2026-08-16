@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [selectedTripType, setSelectedTripType] = useState<string>('all');
+  const [selectedAirline, setSelectedAirline] = useState<string>('all');
   const [priceView, setPriceView] = useState<'cash' | 'points'>('points');
   const [sortBy, setSortBy] = useState<string>('price');
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
@@ -65,6 +66,7 @@ export default function Dashboard() {
   const destinations = Array.from(new Set<string>(deals.map((d: any) => d.destinationCode)));
   const cabins = Array.from(new Set<string>(deals.map((d: any) => d.cabin)));
   const categories = Array.from(new Set<string>(deals.map((d: any) => d.category)));
+  const airlines = Array.from(new Set<string>(deals.map((d: any) => d.airline).filter(Boolean))).sort();
   const tripTypes = Array.from(new Set<string>(deals.map((d: any) => d.tripType)));
   const months = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getMonth()))).sort((a, b) => a - b);
   const years = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getFullYear()))).sort((a, b) => a - b);
@@ -108,6 +110,7 @@ export default function Dashboard() {
     if (selectedMonth !== 'all' && new Date(deal.departureDate).getMonth() !== parseInt(selectedMonth)) return false;
     if (selectedYear !== 'all' && new Date(deal.departureDate).getFullYear() !== parseInt(selectedYear)) return false;
     if (selectedTripType !== 'all' && deal.tripType !== selectedTripType) return false;
+    if (selectedAirline !== 'all' && deal.airline !== selectedAirline) return false;
     return true;
   });
 
@@ -276,6 +279,20 @@ export default function Dashboard() {
               <option value="all">All Categories</option>
               {categories.map(cat => (
                 <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Airline:</label>
+            <select
+              value={selectedAirline}
+              onChange={(e) => setSelectedAirline(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Airlines</option>
+              {airlines.map(airline => (
+                <option key={airline} value={airline}>{airline}</option>
               ))}
             </select>
           </div>
