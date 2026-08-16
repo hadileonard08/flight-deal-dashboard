@@ -64,7 +64,7 @@ export default function Dashboard() {
   const origins = Array.from(new Set<string>(deals.map((d: any) => d.originCode)));
   const destinations = Array.from(new Set<string>(deals.map((d: any) => d.destinationCode)));
   const cabins = Array.from(new Set<string>(deals.map((d: any) => d.cabin)));
-  const categories = Array.from(new Set<string>(deals.map((d: any) => d.category)));
+  const categories = Array.from(new Set<string>(deals.map((d: any) => d.category))).sort((a, b) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
   const airlines = Array.from(new Set<string>(deals.map((d: any) => d.airline).filter(Boolean))).sort();
   const tripTypes = Array.from(new Set<string>(deals.map((d: any) => d.tripType)));
   const months = Array.from(new Set<number>(deals.map((d: any) => new Date(d.departureDate).getMonth()))).sort((a, b) => a - b);
