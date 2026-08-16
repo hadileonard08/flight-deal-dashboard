@@ -336,7 +336,15 @@ function generateOccasionItinerary(flight: any, occasion: string, news: string |
 
 export async function processFlights(rawFlights: any[]) {
   console.log(`Processing ${rawFlights.length} flights...`);
-  
+
+  // Guardrails to keep API cost/time bounded while still returning a rich set of deals.
+  // Full AI reasoning, weather, news, and itinerary are only generated for the first
+  // GOOD/MAYBE deals; the rest keep their value but use deterministic fallback copy.
+  const MAX_AI_REASONING = 500;
+  const MAX_AI_ITINERARY = 300;
+  let aiReasoningCount = 0;
+  let aiItineraryCount = 0;
+
   for (const flight of rawFlights) {
     const category = evaluateThreshold(flight);
     console.log(`Flight ${flight.originCode}-${flight.destinationCode}: ${category} (price: ${flight.cashPrice || flight.pointsRequired})`);
@@ -352,7 +360,8 @@ export async function processFlights(rawFlights: any[]) {
     };
     let reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
 
-    if (hasAIProvider && (category === 'GOOD_DEAL' || category === 'MAYBE_GOOD_DEAL')) {
+    if (hasAIProvider && (category === 'GOOD_DEAL' || category === 'MAYBE_GOOD_DEAL') && aiReasoningCount < MAX_AI_REASONING) {
+      aiReasoningCount++;
       try {
         const model = getChatModel(0.7)!;
         const res = await model.invoke(
@@ -365,71 +374,73 @@ export async function processFlights(rawFlights: any[]) {
       }
     }
 
-    // 2. Look up current web news for the destination (GUARDRAIL: only for GOOD_DEAL)
+    // 2. Look up current web news for the destination (GUARDRAIL: only for capped GOOD_DEAL)
     let destinationNews: string | null = null;
-    if (category === 'GOOD_DEAL') {
-      const tripStart = new Date(flight.departureDate);
-      const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(new Date(flight.departureDate).getTime() + 5 * 24 * 60 * 60 * 1000);
 
-      try {
-        destinationNews = await searchDestinationNews(flight.destinationCode, tripStart, tripEnd);
-      } catch (error) {
-        console.log('News search failed, continuing without destination news');
-      }
-    }
-
-    // 3. Generate occasion-specific itinerary using LangGraph (GUARDRAIL: only for GOOD_DEAL)
+    // 3. Generate occasion-specific itinerary using LangGraph (GUARDRAIL: only for capped GOOD_DEAL)
     let itineraryText = null;
     let occasion = 'LEISURE'; // Default occasion
 
+    // All GOOD deals get a deterministic flight-summary itinerary.
+    // Only the first MAX_AI_ITINERARY GOOD deals also get news, weather, and a full AI itinerary.
     if (category === 'GOOD_DEAL') {
-      const tripStart = new Date(flight.departureDate);
-      const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
-
-      let weatherForecast: string | null = null;
-      try {
-        weatherForecast = await getWeatherForecast(flight.destinationCode, tripStart, tripEnd);
-      } catch (error) {
-        console.log('Weather lookup failed, continuing without forecast');
-      }
-
-      try {
-        if (hasAIProvider) {
-          itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
-          occasion = 'HONEYMOON';
-        } else {
-          // Generate occasion-specific fallback itinerary
-          occasion = getRandomOccasion();
-          itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
-        }
-      } catch (error) {
-        console.log('Using fallback itinerary due to API error');
-        occasion = 'LEISURE';
-        itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
-      }
-
       // Always prepend a deterministic, data-accurate flight summary - independent of
       // whatever the AI did or didn't include, so it's consistent across every good deal.
       const flightDetails = formatFlightDetailsSection(flight);
+      itineraryText = flightDetails;
 
-      let destinationImage: string | null = null;
-      try {
-        destinationImage = await getDestinationImageUrl(flight.destinationCode);
-      } catch (error) {
-        console.log('Destination image lookup failed, continuing without image');
-      }
+      if (aiItineraryCount < MAX_AI_ITINERARY) {
+        aiItineraryCount++;
+        const tripStart = new Date(flight.departureDate);
+        const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
 
-      const imageMarkdown = destinationImage
-        ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
-        : '';
+        try {
+          destinationNews = await searchDestinationNews(flight.destinationCode, tripStart, tripEnd);
+        } catch (error) {
+          console.log('News search failed, continuing without destination news');
+        }
 
-      itineraryText = flightDetails + imageMarkdown + itineraryText;
+        let weatherForecast: string | null = null;
+        try {
+          weatherForecast = await getWeatherForecast(flight.destinationCode, tripStart, tripEnd);
+        } catch (error) {
+          console.log('Weather lookup failed, continuing without forecast');
+        }
 
-      // Replace per-day IMAGE placeholders with real Wikipedia photos
-      try {
-        itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
-      } catch (error) {
-        console.log('Itinerary image hydration failed, keeping placeholders');
+        try {
+          if (hasAIProvider) {
+            itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
+            occasion = 'HONEYMOON';
+          } else {
+            // Generate occasion-specific fallback itinerary
+            occasion = getRandomOccasion();
+            itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
+          }
+        } catch (error) {
+          console.log('Using fallback itinerary due to API error');
+          occasion = 'LEISURE';
+          itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
+        }
+
+        let destinationImage: string | null = null;
+        try {
+          destinationImage = await getDestinationImageUrl(flight.destinationCode);
+        } catch (error) {
+          console.log('Destination image lookup failed, continuing without image');
+        }
+
+        const imageMarkdown = destinationImage
+          ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
+          : '';
+
+        itineraryText = flightDetails + imageMarkdown + itineraryText;
+
+        // Replace per-day IMAGE placeholders with real Wikipedia photos
+        try {
+          itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
+        } catch (error) {
+          console.log('Itinerary image hydration failed, keeping placeholders');
+        }
       }
     }
 
