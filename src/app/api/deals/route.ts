@@ -36,6 +36,5 @@ export async function GET() {
     airline: resolveAirlineName(deal.airline)
   }));
 
-  console.log('API returning', resolvedDeals.length, 'deals');
   return NextResponse.json(resolvedDeals);
 }
