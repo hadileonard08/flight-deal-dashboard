@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
 import { resolveAirlineName } from '@/lib/airlines';
-import { desc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +28,8 @@ export async function GET() {
   })
   .from(deals)
   .innerJoin(flights, eq(deals.flightId, flights.id))
-  .orderBy(desc(deals.createdAt));
+  .orderBy(asc(flights.pointsRequired), asc(deals.id))
+  .limit(4000);
 
   const resolvedDeals = allDeals.map(deal => ({
     ...deal,
