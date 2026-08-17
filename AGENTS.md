@@ -19,6 +19,6 @@
 - **Deal quality is based on the standard CPP formula.**
   - `CPP = (Cash Price − Taxes & Fees) / Points Required × 100`.
   - `GOOD_DEAL` ≥ 2.0¢, `MAYBE_GOOD_DEAL` ≥ 1.5¢, `OKAY_DEAL` ≥ 1.0¢, otherwise `BAD_DEAL`.
-  - Cash Price comes from live Google Flights via `fast-flights-ts`; if it fails, the static estimate table is used.
+  - Cash Price comes from live Google Flights via `fast-flights-ts`, cached per `route/cabin/date`. It prefers the award airline, then falls back to the cheapest cash option for that exact route and date. If live lookup fails, the static estimate table is used.
 - The scraper uses `order_by=lowest_mileage` and searches up to 365 days (1 year) out with a max of 12,000 records per run.
 - `/api/deals` is paginated; the dashboard loads 20 deals per page on demand.
