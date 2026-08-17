@@ -53,7 +53,8 @@ export const TRANSFER_PARTNERS: Record<string, TransferOption[]> = {
     { program: 'Amex Membership Rewards', ratio: '1:1', time: 'Instant' }
   ],
   'Japan Airlines': [
-    { program: 'Marriott Bonvoy', ratio: '3:1 (5,000 bonus on 60,000)', time: '~2 business days', notes: 'No direct US bank 1:1 partner; book via oneworld partners or Marriott.' }
+    { program: 'Bilt Rewards', ratio: '1:1', time: 'Instant to 24 hours', notes: 'Bilt transfers directly to JAL Mileage Bank.' },
+    { program: 'Marriott Bonvoy', ratio: '3:1 (5,000 bonus on 60,000)', time: '~2 business days', notes: 'Fallback hotel-points transfer if Bilt is not an option.' }
   ],
   'Korean Air': [
     { program: 'Marriott Bonvoy', ratio: '3:1 (5,000 bonus on 60,000)', time: '1-3 business days', notes: 'Chase UR partnership ended for consumers; use Marriott or Korean Air co-branded card.' }
