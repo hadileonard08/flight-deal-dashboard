@@ -1,10 +1,11 @@
 'use client';
 
+import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Plane, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Plane, Loader2, Filter } from 'lucide-react';
 import { DealCard } from '@/components/DealCard';
 import { DealModal } from '@/components/DealModal';
 
@@ -13,21 +14,74 @@ const fetcher = (url: string) => fetch(url).then(res => res.json());
 const PAGE_SIZE = 20;
 const BATCH_SIZE = 200;
 
+const CATEGORY_ORDER: Record<string, number> = {
+  GOOD_DEAL: 0,
+  MAYBE_GOOD_DEAL: 1,
+  OKAY_DEAL: 2,
+  BAD_DEAL: 3,
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  GOOD_DEAL: 'GOOD DEAL',
+  MAYBE_GOOD_DEAL: 'MAYBE GOOD DEAL',
+  OKAY_DEAL: 'OKAY DEAL',
+  BAD_DEAL: 'OTHER DEAL',
+};
+
 interface DealPage {
   deals: any[];
   hasMore: boolean;
 }
 
+interface FilterOptions {
+  categories: string[];
+  cabins: string[];
+  tripTypes: string[];
+  airlines: string[];
+  months: string[];
+  years: string[];
+}
+
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 export default function OriginCityPage() {
   const params = useParams();
   const city = decodeURIComponent(params.city as string);
+
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCabin, setSelectedCabin] = useState('all');
+  const [selectedTripType, setSelectedTripType] = useState('all');
+  const [selectedAirline, setSelectedAirline] = useState('all');
+  const [selectedMonth, setSelectedMonth] = useState('all');
+  const [selectedYear, setSelectedYear] = useState('all');
+  const [sortBy, setSortBy] = useState('price');
+
   const [targetPage, setTargetPage] = useState(0);
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
+
+  const { data: filterOptions } = useSWR<FilterOptions>('/api/filter-options', fetcher, { refreshInterval: 60000 });
+
+  useEffect(() => {
+    setTargetPage(0);
+  }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
 
   const getKey = (batchIndex: number, previousPageData: DealPage | null) => {
     if (previousPageData && !previousPageData.hasMore) return null;
     const page = batchIndex + 1;
-    return `/api/deals?originCity=${encodeURIComponent(city)}&category=GOOD_DEAL&limit=${BATCH_SIZE}&page=${page}&sortBy=price`;
+
+    const params = new URLSearchParams();
+    params.set('originCity', city);
+    params.set('limit', String(BATCH_SIZE));
+    params.set('page', String(page));
+    params.set('sortBy', sortBy);
+    if (selectedCategory !== 'all') params.set('category', selectedCategory);
+    if (selectedCabin !== 'all') params.set('cabin', selectedCabin);
+    if (selectedTripType !== 'all') params.set('tripType', selectedTripType);
+    if (selectedAirline !== 'all') params.set('airline', selectedAirline);
+    if (selectedMonth !== 'all') params.set('month', selectedMonth);
+    if (selectedYear !== 'all') params.set('year', selectedYear);
+
+    return `/api/deals?${params.toString()}`;
   };
 
   const { data: pages, error, size, setSize, isLoading } = useSWRInfinite<DealPage>(getKey, fetcher);
@@ -63,6 +117,13 @@ export default function OriginCityPage() {
   const goNext = () => goToPage(targetPage + 1);
   const goPrev = () => goToPage(targetPage - 1);
 
+  const categories = (filterOptions?.categories || []).sort((a: string, b: string) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99));
+  const cabins = filterOptions?.cabins || [];
+  const tripTypes = filterOptions?.tripTypes || [];
+  const airlines = filterOptions?.airlines || [];
+  const months = filterOptions?.months || [];
+  const years = filterOptions?.years || [];
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 p-8">
@@ -90,6 +151,112 @@ export default function OriginCityPage() {
         </p>
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-500" />
+            <span className="font-medium text-gray-700">Filters:</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Category:</label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat: string) => (
+                <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Airline:</label>
+            <select
+              value={selectedAirline}
+              onChange={(e) => setSelectedAirline(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Airlines</option>
+              {airlines.map((airline: string) => (
+                <option key={airline} value={airline}>{airline}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Cabin:</label>
+            <select
+              value={selectedCabin}
+              onChange={(e) => setSelectedCabin(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Cabins</option>
+              {cabins.map((cabin: string) => (
+                <option key={cabin} value={cabin}>{cabin.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Trip Type:</label>
+            <select
+              value={selectedTripType}
+              onChange={(e) => setSelectedTripType(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Trip Types</option>
+              {tripTypes.map((trip: string) => (
+                <option key={trip} value={trip}>{trip.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Month:</label>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Months</option>
+              {months.map((month: string) => (
+                <option key={month} value={month}>{monthNames[parseInt(month, 10) - 1] || month}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Year:</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Years</option>
+              {years.map((year: string) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <label className="text-sm text-gray-600">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="price">Points</option>
+              <option value="date">Date</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {currentDeals.map((deal: any) => (
           <DealCard key={deal.id} deal={deal} onClick={() => setSelectedDeal(deal)} />
@@ -112,7 +279,7 @@ export default function OriginCityPage() {
       {!isLoadingPage && currentDeals.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           <Plane size={48} className="mx-auto mb-4 text-gray-300" />
-          <p>No deals found for {city}.</p>
+          <p>No deals found for {city} with the selected filters.</p>
         </div>
       )}
 

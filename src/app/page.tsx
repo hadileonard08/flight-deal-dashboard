@@ -11,9 +11,24 @@ interface OriginCity {
   name: string;
   codes: string[];
   count: number;
+  categories: Record<string, number>;
   minPoints: number | null;
   minCash: number | null;
 }
+
+const CATEGORY_LABELS: Record<string, string> = {
+  GOOD_DEAL: 'GOOD',
+  MAYBE_GOOD_DEAL: 'MAYBE',
+  OKAY_DEAL: 'OKAY',
+  BAD_DEAL: 'OTHER',
+};
+
+const CATEGORY_STYLES: Record<string, string> = {
+  GOOD_DEAL: 'bg-green-100 text-green-700',
+  MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
+  OKAY_DEAL: 'bg-blue-100 text-blue-700',
+  BAD_DEAL: 'bg-red-100 text-red-700',
+};
 
 export default function Home() {
   const { data: origins, error } = useSWR<OriginCity[]>('/api/origins', fetcher, { refreshInterval: 60000 });
@@ -64,13 +79,26 @@ export default function Home() {
                   <ArrowRight size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
                 </div>
                 <p className="text-sm text-gray-500 mb-1">{origin.count.toLocaleString()} deal{origin.count === 1 ? '' : 's'}</p>
-                <p className="text-sm text-gray-500 font-medium">
+                <p className="text-sm text-gray-500 font-medium mb-3">
                   {origin.minPoints !== null
                     ? `From ${formatNumber(origin.minPoints)} pts`
                     : origin.minCash !== null
                       ? `From $${Number(origin.minCash).toLocaleString()} cash`
                       : 'Explore deals'}
                 </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(origin.categories)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([cat, count]) => (
+                      <span
+                        key={cat}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[cat] || 'bg-gray-100 text-gray-600'}`}
+                        title={`${CATEGORY_LABELS[cat] || cat.replace('_', ' ')} deals`}
+                      >
+                        {CATEGORY_LABELS[cat] || cat.replace('_', ' ')} {count.toLocaleString()}
+                      </span>
+                    ))}
+                </div>
               </div>
             </Link>
           ))}
