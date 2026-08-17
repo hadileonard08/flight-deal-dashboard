@@ -226,10 +226,9 @@ export function DealModal({ deal, onClose }: DealModalProps) {
             {/* Right: itinerary */}
             <div className="w-full md:w-3/5 p-4 pt-12 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
               {isGenerating ? (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-500">
-                  <Loader2 size={32} className="animate-spin mb-4 text-blue-600" />
-                  <p className="font-medium">Building your personalized itinerary...</p>
-                  <p className="text-sm text-gray-400 mt-1">This may take a few seconds.</p>
+                <div className="flex flex-col items-center justify-center py-20 text-gray-600">
+                  <Loader2 size={40} className="animate-spin mb-5 text-blue-600" />
+                  <p className="text-lg font-medium tracking-wide">Loading</p>
                 </div>
               ) : itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
