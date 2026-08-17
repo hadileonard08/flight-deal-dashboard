@@ -228,7 +228,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               {isGenerating ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-600">
                   <Loader2 size={40} className="animate-spin mb-5 text-blue-600" />
-                  <p className="text-lg font-medium tracking-wide">Loading</p>
+                  <p className="text-lg font-medium tracking-wide">Creating itinerary</p>
                 </div>
               ) : itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
