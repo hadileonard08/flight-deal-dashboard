@@ -2,12 +2,13 @@
 
 import useSWR from 'swr';
 import Link from 'next/link';
+import { useState } from 'react';
 import { Plane, MapPin, ArrowRight } from 'lucide-react';
 import { formatNumber } from '@/lib/format';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
-interface OriginCity {
+interface BrowseCity {
   name: string;
   codes: string[];
   count: number;
@@ -37,8 +38,72 @@ const CATEGORY_STYLES: Record<string, string> = {
   BAD_DEAL: 'bg-gray-100 text-gray-700',
 };
 
+function CityCard({ city, href, icon: Icon }: { city: BrowseCity; href: string; icon: typeof Plane }) {
+  return (
+    <Link
+      key={city.name}
+      href={href}
+      className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between h-full"
+    >
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 text-blue-600">
+            <Icon size={20} />
+            <h2 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{city.name}</h2>
+          </div>
+          <ArrowRight size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
+        </div>
+        <p className="text-sm text-gray-500 mb-1">{city.count.toLocaleString()} deal{city.count === 1 ? '' : 's'}</p>
+        <p className="text-sm text-gray-500 font-medium mb-3">
+          {city.minPoints !== null
+            ? `From ${formatNumber(city.minPoints)} pts`
+            : city.minCash !== null
+              ? `From $${Number(city.minCash).toLocaleString()} cash`
+              : 'Explore deals'}
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(city.categories)
+            .sort(([a], [b]) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99))
+            .map(([cat, count]) => (
+              <span
+                key={cat}
+                className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[cat] || 'bg-gray-100 text-gray-600'}`}
+                title={`${CATEGORY_LABELS[cat] || cat.replace('_', ' ')} deals`}
+              >
+                {CATEGORY_LABELS[cat] || cat.replace('_', ' ')} {count.toLocaleString()}
+              </span>
+            ))}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {[...Array(8)].map((_, i) => (
+        <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-32 animate-pulse">
+          <div className="h-5 bg-gray-200 rounded w-1/2 mb-3"></div>
+          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
-  const { data: origins, error } = useSWR<OriginCity[]>('/api/origins', fetcher, { refreshInterval: 60000 });
+  const [view, setView] = useState<'origins' | 'destinations'>('origins');
+
+  const { data: origins, error: originsError } = useSWR<BrowseCity[]>('/api/origins', fetcher, { refreshInterval: 60000 });
+  const { data: destinations, error: destinationsError } = useSWR<BrowseCity[]>('/api/destinations', fetcher, { refreshInterval: 60000 });
+
+  const isLoading = view === 'origins' ? !origins : !destinations;
+  const error = view === 'origins' ? originsError : destinationsError;
+
+  const cities = view === 'origins' ? origins : destinations;
+  const totalDeals = cities ? cities.reduce((sum, o) => sum + o.count, 0) : 0;
 
   if (error) {
     return (
@@ -50,67 +115,52 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mb-10 flex justify-between items-start">
+      <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
             <Plane className="text-blue-600" /> Flight Deal Dashboard
           </h1>
           <p className="text-gray-600">
-            {origins ? `Choose a departure city to explore ${origins.reduce((sum, o) => sum + o.count, 0).toLocaleString()} deals.` : 'Loading cities...'}
+            {cities ? `Choose a ${view === 'origins' ? 'departure' : 'destination'} city to explore ${totalDeals.toLocaleString()} deals.` : 'Loading cities...'}
           </p>
         </div>
         <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
 
-      {!origins ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[...Array(8)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 h-32 animate-pulse">
-              <div className="h-5 bg-gray-200 rounded w-1/2 mb-3"></div>
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            </div>
-          ))}
-        </div>
+      <div className="flex gap-2 mb-8">
+        <button
+          onClick={() => setView('origins')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            view === 'origins'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          Browse by Origin
+        </button>
+        <button
+          onClick={() => setView('destinations')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            view === 'destinations'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          Browse by Destination
+        </button>
+      </div>
+
+      {isLoading ? (
+        <SkeletonGrid />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {origins.map(origin => (
-            <Link
-              key={origin.name}
-              href={`/origin/${encodeURIComponent(origin.name)}`}
-              className="group bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between h-full"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <MapPin size={20} />
-                    <h2 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{origin.name}</h2>
-                  </div>
-                  <ArrowRight size={18} className="text-gray-400 group-hover:text-blue-600 transition-colors" />
-                </div>
-                <p className="text-sm text-gray-500 mb-1">{origin.count.toLocaleString()} deal{origin.count === 1 ? '' : 's'}</p>
-                <p className="text-sm text-gray-500 font-medium mb-3">
-                  {origin.minPoints !== null
-                    ? `From ${formatNumber(origin.minPoints)} pts`
-                    : origin.minCash !== null
-                      ? `From $${Number(origin.minCash).toLocaleString()} cash`
-                      : 'Explore deals'}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(origin.categories)
-                    .sort(([a], [b]) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99))
-                    .map(([cat, count]) => (
-                      <span
-                        key={cat}
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${CATEGORY_STYLES[cat] || 'bg-gray-100 text-gray-600'}`}
-                        title={`${CATEGORY_LABELS[cat] || cat.replace('_', ' ')} deals`}
-                      >
-                        {CATEGORY_LABELS[cat] || cat.replace('_', ' ')} {count.toLocaleString()}
-                      </span>
-                    ))}
-                </div>
-              </div>
-            </Link>
+          {cities?.map(city => (
+            <CityCard
+              key={city.name}
+              city={city}
+              href={view === 'origins' ? `/origin/${encodeURIComponent(city.name)}` : `/destination/${encodeURIComponent(city.name)}`}
+              icon={view === 'origins' ? MapPin : Plane}
+            />
           ))}
         </div>
       )}

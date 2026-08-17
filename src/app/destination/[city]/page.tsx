@@ -41,12 +41,12 @@ interface FilterOptions {
   months: string[];
   years: string[];
   weeks: string[];
-  destinations: string[];
+  origins: string[];
 }
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-export default function OriginCityPage() {
+export default function DestinationCityPage() {
   const params = useParams();
   const city = decodeURIComponent(params.city as string);
 
@@ -56,24 +56,24 @@ export default function OriginCityPage() {
   const [selectedAirline, setSelectedAirline] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
-  const [selectedDestination, setSelectedDestination] = useState('all');
+  const [selectedOrigin, setSelectedOrigin] = useState('all');
   const [sortBy, setSortBy] = useState('deal');
 
   const [targetPage, setTargetPage] = useState(0);
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
 
-  const { data: filterOptions } = useSWR<FilterOptions>(`/api/filter-options?originCity=${encodeURIComponent(city)}`, fetcher, { refreshInterval: 60000 });
+  const { data: filterOptions } = useSWR<FilterOptions>(`/api/filter-options?destinationCity=${encodeURIComponent(city)}`, fetcher, { refreshInterval: 60000 });
 
   useEffect(() => {
     setTargetPage(0);
-  }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, selectedDestination, sortBy]);
+  }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, selectedOrigin, sortBy]);
 
   const getKey = (batchIndex: number, previousPageData: DealPage | null) => {
     if (previousPageData && !previousPageData.hasMore) return null;
     const page = batchIndex + 1;
 
     const params = new URLSearchParams();
-    params.set('originCity', city);
+    params.set('destinationCity', city);
     params.set('limit', String(BATCH_SIZE));
     params.set('page', String(page));
     params.set('sortBy', sortBy);
@@ -83,7 +83,7 @@ export default function OriginCityPage() {
     if (selectedAirline !== 'all') params.set('airline', selectedAirline);
     if (selectedMonth !== 'all') params.set('month', selectedMonth);
     if (selectedYear !== 'all') params.set('year', selectedYear);
-    if (selectedDestination !== 'all') params.set('destinationCode', selectedDestination);
+    if (selectedOrigin !== 'all') params.set('origin', selectedOrigin);
 
     return `/api/deals?${params.toString()}`;
   };
@@ -127,7 +127,7 @@ export default function OriginCityPage() {
   const airlines = filterOptions?.airlines || [];
   const months = filterOptions?.months || [];
   const years = filterOptions?.years || [];
-  const destinations = filterOptions?.destinations || [];
+  const origins = filterOptions?.origins || [];
 
   if (error) {
     return (
@@ -149,7 +149,7 @@ export default function OriginCityPage() {
       <div className="mb-8 flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-            <Plane className="text-blue-600" /> {city} Flight Deals
+            <Plane className="text-blue-600" /> Deals to {city}
           </h1>
           <p className="text-gray-600">
             {pages ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded` : 'Loading deals...'}
@@ -182,15 +182,15 @@ export default function OriginCityPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Destination:</label>
+            <label className="text-sm text-gray-600">Origin:</label>
             <select
-              value={selectedDestination}
-              onChange={(e) => setSelectedDestination(e.target.value)}
+              value={selectedOrigin}
+              onChange={(e) => setSelectedOrigin(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
             >
-              <option value="all">All Destinations</option>
-              {destinations.map((destination: string) => (
-                <option key={destination} value={destination}>{destination}</option>
+              <option value="all">All Origins</option>
+              {origins.map((origin: string) => (
+                <option key={origin} value={origin}>{origin}</option>
               ))}
             </select>
           </div>
