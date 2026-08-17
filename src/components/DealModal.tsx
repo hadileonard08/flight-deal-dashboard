@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getBookingUrl } from '@/lib/booking-url';
 import { formatDate, formatNumber, getDisplayPrice } from '@/lib/format';
+import { getAirlineInfo } from '@/lib/airlines';
 
 const CATEGORY_STYLES: Record<string, string> = {
   GOOD_DEAL: 'bg-green-100 text-green-700',
@@ -70,6 +71,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
   }, [onClose]);
 
   const dp = getDisplayPrice(deal);
+  const airlineInfo = getAirlineInfo(deal.airlineCode || deal.airline);
 
   const loadBookingStrategy = async () => {
     if (strategy || isLoadingStrategy) return;
@@ -159,7 +161,10 @@ export function DealModal({ deal, onClose }: DealModalProps) {
             </span>
 
             <h2 className="text-2xl md:text-3xl font-black mb-1">{deal.originCode} ➔ {deal.destinationCode}</h2>
-            <p className="text-gray-500 mb-4 md:mb-6">{deal.airline} • {deal.cabin.replace('_', ' ')}</p>
+            <p className="text-gray-700 font-medium mb-0.5">{airlineInfo.name} • {deal.cabin.replace('_', ' ')}</p>
+            {airlineInfo.description && (
+              <p className="text-gray-400 text-xs mb-4 md:mb-6">{airlineInfo.description}</p>
+            )}
 
             <div className="bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 mb-4 md:mb-6 text-left">
               <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">

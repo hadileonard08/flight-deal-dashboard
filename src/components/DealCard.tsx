@@ -2,6 +2,7 @@
 
 import { Calendar, Sparkles } from 'lucide-react';
 import { formatDate, formatNumber, getDisplayPrice } from '@/lib/format';
+import { getAirlineInfo } from '@/lib/airlines';
 
 const CATEGORY_STYLES: Record<string, string> = {
   GOOD_DEAL: 'bg-green-100 text-green-700',
@@ -24,6 +25,7 @@ interface DealCardProps {
 
 export function DealCard({ deal, onClick }: DealCardProps) {
   const dp = getDisplayPrice(deal);
+  const airlineInfo = getAirlineInfo(deal.airlineCode || deal.airline);
 
   return (
     <button
@@ -41,7 +43,10 @@ export function DealCard({ deal, onClick }: DealCardProps) {
             </span>
           )}
           <h2 className="text-xl font-black mt-2">{deal.originCode} ➔ {deal.destinationCode}</h2>
-          <p className="text-gray-500 text-sm">{deal.airline}</p>
+          <p className="text-gray-700 text-sm font-medium">{airlineInfo.name}</p>
+          {airlineInfo.description && (
+            <p className="text-gray-400 text-xs">{airlineInfo.description}</p>
+          )}
           <p className="text-gray-400 text-xs mt-1">{deal.cabin.replace('_', ' ')} • {deal.tripType?.replace('_', ' ') || 'ONE WAY'}</p>
         </div>
         <div className="text-right">

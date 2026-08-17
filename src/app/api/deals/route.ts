@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
-import { resolveAirlineName } from '@/lib/airlines';
+import { resolveAirlineName, getAirlineInfo } from '@/lib/airlines';
 import { CITY_MAP } from '@/lib/city-map';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
@@ -140,10 +140,15 @@ export async function GET(request: Request) {
   const hasMore = pageDeals.length > limit;
   const trimmedDeals = hasMore ? pageDeals.slice(0, limit) : pageDeals;
 
-  const resolvedDeals = trimmedDeals.map(deal => ({
-    ...deal,
-    airline: resolveAirlineName(deal.airline)
-  }));
+  const resolvedDeals = trimmedDeals.map(deal => {
+    const info = getAirlineInfo(deal.airline);
+    return {
+      ...deal,
+      airline: info.name,
+      airlineCode: deal.airline,
+      airlineDescription: info.description
+    };
+  });
 
   return NextResponse.json({ deals: resolvedDeals, hasMore });
 }
