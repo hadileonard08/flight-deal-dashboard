@@ -61,7 +61,7 @@ async function architectNode(state: typeof ItineraryStateAnnotation.State) {
     - A **Weather Outlook** section at the top using the provided weather forecast (or noting it's unavailable). Include a brief practical note on what to pack or how it may affect plans.
     - A **Flight & Arrival Reality** section that truthfully reflects the actual airline, route, and cabin. No upgrades, no re-routing to partners unless explicitly in the booking.
     - A standalone **## Visa & Immigration Advisory** section. It must be a US passport holder advisory and include: whether a visa is required (or visa-free/ETA/VWP entry), the typical length allowed, and any key passport validity or blank-page requirements. Keep it specific to the destination country.
-    - Daily markdown itinerary with practical activities that match the cabin tier. For each day, on the line immediately after the day heading, include exactly one image placeholder for a specific landmark or activity planned that day, formatted as ![IMAGE: landmark or activity name]. Choose a specific, well-known place (e.g. "Gyeongbokgung Palace", "Tokyo Skytree", "Senso-ji Temple"). Do not include an IMAGE line for the Flight & Arrival Reality or Weather sections.
+    - Daily markdown itinerary with practical activities that match the cabin tier. For each day, on the line immediately after the day heading, include exactly one image placeholder for a specific landmark or activity planned that day, formatted as ![IMAGE: English landmark or activity name]. Choose a specific, well-known place written in English (e.g. "Gyeongbokgung Palace", "Tokyo Skytree", "Senso-ji Temple", "Shibuya Crossing"). Do not add any URL inside the placeholder and do not include an IMAGE line for the Flight & Arrival Reality or Weather sections.
     - If real current news/happenings were provided, factor them into the plan or a practical note.
     - Do not use or invent traveler names - refer to them generically (e.g. "you" or "the couple").
 
@@ -89,7 +89,7 @@ async function criticNode(state: typeof ItineraryStateAnnotation.State) {
     2. **No Fabricated Upgrades**: The itinerary must not state or imply the travelers were upgraded to a premium cabin or moved to a partner airline. It must reflect the actual cabin.
     3. **Cabin-Appropriate Tone**: If ECONOMY, the accommodation and activity recommendations should be budget/mid-tier, not 5-star luxury. If BUSINESS/FIRST, luxury is appropriate. If PREMIUM_ECONOMY, mid-range is fine.
     4. **Weather Section**: There must be a dedicated Weather Outlook or Weather section at the top of the itinerary.
-    5. **Daily Images**: Each of the 5 days must include exactly one ![IMAGE: ...] placeholder immediately after the day heading, naming a specific landmark or activity planned that day.
+    5. **Daily Images**: Each of the 5 days must include exactly one ![IMAGE: ...] placeholder immediately after the day heading, naming a specific English landmark or activity planned that day. The placeholder must not contain a URL.
     6. **Visa & Immigration Section**: There must be a dedicated markdown heading containing "Visa" or "Immigration" (e.g. "## Visa & Immigration Advisory") with specific, correct US passport holder entry guidance for the destination country.
     7. **Realism & Logic**: Check pacing, layovers, and feasibility. Flag anything physically impossible or overly packed.
     8. **No Invented Names**: It must not include specific traveler names.
