@@ -159,12 +159,12 @@ The dashboard is backed by a set of JSON API routes:
 
 ## Impressive highlights
 
-- Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores tens of thousands of real flight deals automatically.
-- Implemented a **CPP-based valuation guardrail** that turns raw award data into human-readable deal quality categories.
-- Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative.
-- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, images, AI plan).
-- Built a **two-level, filterable Next.js dashboard** that paginates large datasets efficiently on a serverless stack.
-- Automated the entire pipeline with **GitHub Actions** and deployed to **Vercel** with a custom domain.
+- Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **85,169+ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
+- Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — currently **3,659 GOOD**, **3,386 MAYBE**, **2,542 OKAY**, and **75,582 OTHER** — using the standard points-and-miles benchmark.
+- Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
+- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, images, AI plan) only for GOOD deals.
+- Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
+- Automated the entire pipeline with **GitHub Actions** (running every 3 hours) and deployed it to **Vercel** with a custom domain.
 
 ---
 
