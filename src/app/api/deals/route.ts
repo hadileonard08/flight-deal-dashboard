@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const airline = searchParams.get('airline') || undefined;
   const month = searchParams.get('month') || undefined;
   const year = searchParams.get('year') || undefined;
+  const week = searchParams.get('week') || undefined;
   const sortBy = searchParams.get('sortBy') || 'price';
 
   const conditions = [];
@@ -85,6 +86,13 @@ export async function GET(request: Request) {
     const yearNum = parseInt(year, 10);
     if (!isNaN(yearNum)) {
       conditions.push(sql`EXTRACT(YEAR FROM ${flights.departureDate}) = ${yearNum}`);
+    }
+  }
+
+  if (week && week !== 'all') {
+    const weekNum = parseInt(week, 10);
+    if (!isNaN(weekNum)) {
+      conditions.push(sql`EXTRACT(WEEK FROM ${flights.departureDate}) = ${weekNum}`);
     }
   }
 

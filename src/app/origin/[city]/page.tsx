@@ -40,6 +40,7 @@ interface FilterOptions {
   airlines: string[];
   months: string[];
   years: string[];
+  weeks: string[];
 }
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -54,6 +55,7 @@ export default function OriginCityPage() {
   const [selectedAirline, setSelectedAirline] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
+  const [selectedWeek, setSelectedWeek] = useState('all');
   const [sortBy, setSortBy] = useState('price');
 
   const [targetPage, setTargetPage] = useState(0);
@@ -63,7 +65,7 @@ export default function OriginCityPage() {
 
   useEffect(() => {
     setTargetPage(0);
-  }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, sortBy]);
+  }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, selectedWeek, sortBy]);
 
   const getKey = (batchIndex: number, previousPageData: DealPage | null) => {
     if (previousPageData && !previousPageData.hasMore) return null;
@@ -80,6 +82,7 @@ export default function OriginCityPage() {
     if (selectedAirline !== 'all') params.set('airline', selectedAirline);
     if (selectedMonth !== 'all') params.set('month', selectedMonth);
     if (selectedYear !== 'all') params.set('year', selectedYear);
+    if (selectedWeek !== 'all') params.set('week', selectedWeek);
 
     return `/api/deals?${params.toString()}`;
   };
@@ -123,6 +126,7 @@ export default function OriginCityPage() {
   const airlines = filterOptions?.airlines || [];
   const months = filterOptions?.months || [];
   const years = filterOptions?.years || [];
+  const weeks = filterOptions?.weeks || [];
 
   if (error) {
     return (
@@ -242,6 +246,20 @@ export default function OriginCityPage() {
               <option value="all">All Years</option>
               {years.map((year: string) => (
                 <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Week:</label>
+            <select
+              value={selectedWeek}
+              onChange={(e) => setSelectedWeek(e.target.value)}
+              className="border rounded px-3 py-1 text-sm"
+            >
+              <option value="all">All Weeks</option>
+              {weeks.map((week: string) => (
+                <option key={week} value={week}>Week {week}</option>
               ))}
             </select>
           </div>
