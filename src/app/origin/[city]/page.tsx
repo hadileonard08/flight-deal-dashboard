@@ -126,6 +126,7 @@ export default function OriginCityPage() {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
+  const [isGridExpanded, setIsGridExpanded] = useState(false);
   const [sortBy, setSortBy] = useState('deal');
 
   const [targetPage, setTargetPage] = useState(0);
@@ -244,20 +245,26 @@ export default function OriginCityPage() {
                 : 'Loading deals...'}
             {selectedDestination && hasMore && ' — more available'}
           </p>
+          {selectedDestination && (
+            <button
+              onClick={() => { setSelectedDestination(null); setIsGridExpanded(false); }}
+              className="text-sm text-blue-600 hover:text-blue-800 mt-1 underline"
+            >
+              Change destination
+            </button>
+          )}
         </div>
         <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
 
       {/* Destination selector */}
-      {destinations && destinations.length > 0 && (
+      {!selectedDestination && destinations && destinations.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Choose a destination</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <button
               onClick={() => setSelectedDestination('all')}
-              className={`text-left w-full bg-white p-4 rounded-xl shadow-sm border transition-all hover:shadow-md hover:border-blue-200 ${
-                selectedDestination === 'all' ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
-              }`}
+              className="text-left w-full bg-white p-4 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md hover:border-blue-200"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-blue-600">
@@ -269,14 +276,27 @@ export default function OriginCityPage() {
               <p className="text-xs text-gray-500">{destinations.reduce((sum, d) => sum + d.count, 0).toLocaleString()} deals</p>
             </button>
 
-            {destinations.map(dest => (
+            {(isGridExpanded ? destinations : destinations.slice(0, 3)).map(dest => (
               <DestinationCard
                 key={dest.name}
                 city={dest}
-                isActive={selectedDestination === dest.name}
+                isActive={false}
                 onClick={() => setSelectedDestination(dest.name)}
               />
             ))}
+
+            {!isGridExpanded && destinations.length > 3 && (
+              <button
+                onClick={() => setIsGridExpanded(true)}
+                className="text-left w-full bg-white p-4 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md hover:border-blue-200 flex flex-col justify-center h-full"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-lg font-bold text-gray-900">...</h2>
+                  <ArrowRight size={16} className="text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-500">{destinations.length - 3} more destinations</p>
+              </button>
+            )}
           </div>
         </div>
       )}

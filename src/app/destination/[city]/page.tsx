@@ -126,6 +126,7 @@ export default function DestinationCityPage() {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedOrigin, setSelectedOrigin] = useState<string | null>(null);
+  const [isGridExpanded, setIsGridExpanded] = useState(false);
   const [sortBy, setSortBy] = useState('deal');
 
   const [targetPage, setTargetPage] = useState(0);
@@ -244,20 +245,26 @@ export default function DestinationCityPage() {
                 : 'Loading deals...'}
             {selectedOrigin && hasMore && ' — more available'}
           </p>
+          {selectedOrigin && (
+            <button
+              onClick={() => { setSelectedOrigin(null); setIsGridExpanded(false); }}
+              className="text-sm text-blue-600 hover:text-blue-800 mt-1 underline"
+            >
+              Change origin
+            </button>
+          )}
         </div>
         <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
 
       {/* Origin selector */}
-      {origins && origins.length > 0 && (
+      {!selectedOrigin && origins && origins.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Choose an origin</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <button
               onClick={() => setSelectedOrigin('all')}
-              className={`text-left w-full bg-white p-4 rounded-xl shadow-sm border transition-all hover:shadow-md hover:border-blue-200 ${
-                selectedOrigin === 'all' ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
-              }`}
+              className="text-left w-full bg-white p-4 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md hover:border-blue-200"
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-blue-600">
@@ -269,14 +276,27 @@ export default function DestinationCityPage() {
               <p className="text-xs text-gray-500">{origins.reduce((sum, o) => sum + o.count, 0).toLocaleString()} deals</p>
             </button>
 
-            {origins.map(origin => (
+            {(isGridExpanded ? origins : origins.slice(0, 3)).map(origin => (
               <OriginCard
                 key={origin.name}
                 city={origin}
-                isActive={selectedOrigin === origin.name}
+                isActive={false}
                 onClick={() => setSelectedOrigin(origin.name)}
               />
             ))}
+
+            {!isGridExpanded && origins.length > 3 && (
+              <button
+                onClick={() => setIsGridExpanded(true)}
+                className="text-left w-full bg-white p-4 rounded-xl shadow-sm border border-gray-100 transition-all hover:shadow-md hover:border-blue-200 flex flex-col justify-center h-full"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <h2 className="text-lg font-bold text-gray-900">...</h2>
+                  <ArrowRight size={16} className="text-gray-400" />
+                </div>
+                <p className="text-xs text-gray-500">{origins.length - 3} more origins</p>
+              </button>
+            )}
           </div>
         </div>
       )}
