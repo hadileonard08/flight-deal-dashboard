@@ -27,8 +27,8 @@ export const AIRLINE_INFO: Record<string, AirlineInfo> = {
   G3: { name: 'GOL', description: 'Brazilian low-cost carrier' },
 
   // Asia
-  JL: { name: 'JAL', description: 'Japanese flag carrier, Oneworld member' },
-  NH: { name: 'ANA', description: 'Japanese flag carrier, Star Alliance member' },
+  JL: { name: 'Japan Airlines (JAL)', description: 'Japanese flag carrier, Oneworld member' },
+  NH: { name: 'All Nippon Airways (ANA)', description: 'Japanese flag carrier, Star Alliance member' },
   KE: { name: 'Korean Air', description: 'South Korean flag carrier, SkyTeam member' },
   OZ: { name: 'Asiana Airlines', description: 'South Korean carrier, Star Alliance member' },
   TG: { name: 'Thai Airways', description: 'Thai flag carrier, Star Alliance member' },
@@ -85,18 +85,60 @@ export const AIRLINE_INFO: Record<string, AirlineInfo> = {
   EH: { name: 'ANA Wings', description: 'Regional subsidiary of ANA' }
 };
 
+// Reverse lookup by IATA code, exact name, and short-name tokens.
+const AIRLINE_BY_NAME = new Map<string, AirlineInfo>();
+
+function tokenSet(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[()]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+  AIRLINE_BY_NAME.set(code.toLowerCase(), info);
+  AIRLINE_BY_NAME.set(info.name.toLowerCase(), info);
+}
+
+function findAirlineInfo(input: string): AirlineInfo | null {
+  const key = (input || '').trim().toLowerCase();
+  if (!key) return null;
+
+  // 1. Direct IATA code or exact name match.
+  const exact = AIRLINE_BY_NAME.get(key);
+  if (exact) return exact;
+
+  // 2. Token match — e.g. "JAL" inside "Japan Airlines" or "ANA" inside "All Nippon Airways".
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    const tokens = new Set([code.toLowerCase(), ...tokenSet(info.name)]);
+    if (tokens.has(key)) return info;
+  }
+
+  // 3. Substring match on the full name (case-insensitive).
+  for (const info of Object.values(AIRLINE_INFO)) {
+    if (info.name.toLowerCase().includes(key)) return info;
+  }
+
+  return null;
+}
+
 export const AIRLINE_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(AIRLINE_INFO).map(([code, info]) => [code, info.name])
 );
 
 export function resolveAirlineName(code: string): string {
-  return AIRLINE_INFO[(code || '').trim()]?.name || (code || '').trim();
+  return findAirlineName(code) || (code || '').trim();
+}
+
+export function findAirlineName(input: string): string | null {
+  return findAirlineInfo(input)?.name || null;
 }
 
 export function getAirlineDescription(code: string): string | undefined {
-  return AIRLINE_INFO[(code || '').trim()]?.description;
+  return findAirlineInfo(code)?.description;
 }
 
 export function getAirlineInfo(code: string): AirlineInfo {
-  return AIRLINE_INFO[(code || '').trim()] || { name: (code || '').trim() };
+  return findAirlineInfo(code) || { name: (code || '').trim() };
 }

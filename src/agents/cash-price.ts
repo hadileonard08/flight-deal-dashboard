@@ -1,5 +1,5 @@
 import { createQuery, getFlights, Passengers } from 'fast-flights-ts';
-import { AIRLINE_NAMES } from '../lib/airlines';
+import { findAirlineName, AIRLINE_INFO } from '../lib/airlines';
 
 export interface Segment {
   origin: string;
@@ -39,10 +39,25 @@ function routeCabinKey(origin: string, destination: string, cabin: string, date:
 }
 
 function nameToCode(name: string): string | null {
-  const lower = (name || '').toLowerCase();
-  for (const [code, mapped] of Object.entries(AIRLINE_NAMES)) {
-    if (mapped.toLowerCase() === lower) return code;
+  const lower = (name || '').trim().toLowerCase();
+  if (!lower) return null;
+
+  // 1. Exact match by full name.
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    if (info.name.toLowerCase() === lower) return code;
   }
+
+  // 2. Match by short name token (e.g. "JAL", "ANA", "SAS").
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    const tokens = new Set([code.toLowerCase(), ...info.name.toLowerCase().replace(/[()]/g, ' ').split(/\s+/).filter(Boolean)]);
+    if (tokens.has(lower)) return code;
+  }
+
+  // 3. Substring match.
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    if (info.name.toLowerCase().includes(lower)) return code;
+  }
+
   return null;
 }
 
