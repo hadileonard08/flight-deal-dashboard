@@ -231,7 +231,7 @@ The dashboard is backed by a set of JSON API routes:
 
 ---
 
-## Impressive highlights
+## Highlights
 
 - Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **100k++ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
 - Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — using the standard points-and-miles benchmark.
@@ -239,9 +239,3 @@ The dashboard is backed by a set of JSON API routes:
 - Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
 - Automated the entire pipeline with **GitHub Actions** (running every 5 hours) and deployed it to **Vercel** with a custom domain.
-
----
-
-## License
-
-MIT
