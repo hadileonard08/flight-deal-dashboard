@@ -22,3 +22,10 @@
   - Cash Price comes from live Google Flights via `fast-flights-ts`, cached per `route/cabin/date`. It prefers the award airline, then falls back to the cheapest cash option for that exact route and date. If live lookup fails, the static estimate table is used.
 - The scraper uses `order_by=lowest_mileage` and searches up to 365 days (1 year) out with a max of 12,000 records per run.
 - `/api/deals` is paginated; the dashboard loads 20 deals per page on demand.
+
+## Maintenance Mode
+
+- Set the environment variable `MAINTENANCE_MODE=true` to put the site into maintenance.
+- When enabled, all page requests (except `/maintenance` and static assets) are redirected to `/maintenance`, which shows "We are updating".
+- To enable on Vercel: add `MAINTENANCE_MODE=true` in the project environment variables and redeploy (`npx vercel --prod`).
+- To restore the site, change it to `MAINTENANCE_MODE=false` (or remove it) and redeploy.
