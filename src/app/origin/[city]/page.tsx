@@ -5,9 +5,10 @@ import useSWRInfinite from 'swr/infinite';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Plane, Loader2, Filter } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Plane, Loader2, Filter, MapPin, ArrowRight } from 'lucide-react';
 import { DealCard } from '@/components/DealCard';
 import { DealModal } from '@/components/DealModal';
+import { formatNumber } from '@/lib/format';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
@@ -28,6 +29,22 @@ const CATEGORY_LABELS: Record<string, string> = {
   BAD_DEAL: 'OTHER DEAL',
 };
 
+const PILL_LABELS: Record<string, string> = {
+  GOOD_DEAL: 'GOOD',
+  MAYBE_GOOD_DEAL: 'MAYBE',
+  OKAY_DEAL: 'OKAY',
+  BAD_DEAL: 'OTHER',
+};
+
+const PILL_STYLES: Record<string, string> = {
+  GOOD_DEAL: 'bg-green-100 text-green-700',
+  MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
+  OKAY_DEAL: 'bg-blue-100 text-blue-700',
+  BAD_DEAL: 'bg-gray-100 text-gray-700',
+};
+
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
 interface DealPage {
   deals: any[];
   hasMore: boolean;
@@ -40,11 +57,63 @@ interface FilterOptions {
   airlines: string[];
   months: string[];
   years: string[];
-  weeks: string[];
-  destinations: string[];
 }
 
-const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+interface BrowseCity {
+  name: string;
+  codes: string[];
+  count: number;
+  categories: Record<string, number>;
+  minPoints: number | null;
+  minCash: number | null;
+}
+
+function DestinationCard({
+  city,
+  isActive,
+  onClick
+}: {
+  city: BrowseCity;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left w-full bg-white p-4 rounded-xl shadow-sm border transition-all hover:shadow-md hover:border-blue-200 ${
+        isActive ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-blue-600">
+          <MapPin size={18} />
+          <h2 className="text-lg font-bold text-gray-900">{city.name}</h2>
+        </div>
+        <ArrowRight size={16} className="text-gray-400" />
+      </div>
+      <p className="text-xs text-gray-500 mb-1">{city.count.toLocaleString()} deal{city.count === 1 ? '' : 's'}</p>
+      <p className="text-xs text-gray-500 font-medium mb-2">
+        {city.minPoints !== null
+          ? `From ${formatNumber(city.minPoints)} pts`
+          : city.minCash !== null
+            ? `From $${Number(city.minCash).toLocaleString()} cash`
+            : 'Explore deals'}
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {Object.entries(city.categories)
+          .sort(([a], [b]) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99))
+          .map(([cat, count]) => (
+            <span
+              key={cat}
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${PILL_STYLES[cat] || 'bg-gray-100 text-gray-600'}`}
+            >
+              {PILL_LABELS[cat] || cat.replace('_', ' ')} {count.toLocaleString()}
+            </span>
+          ))}
+      </div>
+    </button>
+  );
+}
 
 export default function OriginCityPage() {
   const params = useParams();
@@ -56,13 +125,23 @@ export default function OriginCityPage() {
   const [selectedAirline, setSelectedAirline] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
-  const [selectedDestination, setSelectedDestination] = useState('all');
+  const [selectedDestination, setSelectedDestination] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('deal');
 
   const [targetPage, setTargetPage] = useState(0);
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
 
-  const { data: filterOptions } = useSWR<FilterOptions>(`/api/filter-options?originCity=${encodeURIComponent(city)}`, fetcher, { refreshInterval: 60000 });
+  const { data: filterOptions } = useSWR<FilterOptions>(
+    `/api/filter-options?originCity=${encodeURIComponent(city)}${selectedDestination ? `&destinationCity=${encodeURIComponent(selectedDestination)}` : ''}`,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
+
+  const { data: destinations } = useSWR<BrowseCity[]>(
+    `/api/destinations?originCity=${encodeURIComponent(city)}`,
+    fetcher,
+    { refreshInterval: 60000 }
+  );
 
   useEffect(() => {
     setTargetPage(0);
@@ -83,7 +162,7 @@ export default function OriginCityPage() {
     if (selectedAirline !== 'all') params.set('airline', selectedAirline);
     if (selectedMonth !== 'all') params.set('month', selectedMonth);
     if (selectedYear !== 'all') params.set('year', selectedYear);
-    if (selectedDestination !== 'all') params.set('destinationCode', selectedDestination);
+    if (selectedDestination) params.set('destinationCity', selectedDestination);
 
     return `/api/deals?${params.toString()}`;
   };
@@ -127,7 +206,8 @@ export default function OriginCityPage() {
   const airlines = filterOptions?.airlines || [];
   const months = filterOptions?.months || [];
   const years = filterOptions?.years || [];
-  const destinations = filterOptions?.destinations || [];
+
+  const destinationTitle = selectedDestination ? `${city} → ${selectedDestination} Flight Deals` : `${city} Flight Deals`;
 
   if (error) {
     return (
@@ -149,7 +229,7 @@ export default function OriginCityPage() {
       <div className="mb-8 flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-            <Plane className="text-blue-600" /> {city} Flight Deals
+            <Plane className="text-blue-600" /> {destinationTitle}
           </h1>
           <p className="text-gray-600">
             {pages ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded` : 'Loading deals...'}
@@ -158,6 +238,39 @@ export default function OriginCityPage() {
         </div>
         <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
+
+      {/* Destination selector */}
+      {destinations && destinations.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Choose a destination</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <button
+              onClick={() => setSelectedDestination(null)}
+              className={`text-left w-full bg-white p-4 rounded-xl shadow-sm border transition-all hover:shadow-md hover:border-blue-200 ${
+                !selectedDestination ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-blue-600">
+                  <Plane size={18} />
+                  <h2 className="text-lg font-bold text-gray-900">All</h2>
+                </div>
+                <ArrowRight size={16} className="text-gray-400" />
+              </div>
+              <p className="text-xs text-gray-500">{destinations.reduce((sum, d) => sum + d.count, 0).toLocaleString()} deals</p>
+            </button>
+
+            {destinations.map(dest => (
+              <DestinationCard
+                key={dest.name}
+                city={dest}
+                isActive={selectedDestination === dest.name}
+                onClick={() => setSelectedDestination(dest.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
@@ -177,20 +290,6 @@ export default function OriginCityPage() {
               <option value="all">All Categories</option>
               {categories.map((cat: string) => (
                 <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat.replace('_', ' ')}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Destination:</label>
-            <select
-              value={selectedDestination}
-              onChange={(e) => setSelectedDestination(e.target.value)}
-              className="border rounded px-3 py-1 text-sm"
-            >
-              <option value="all">All Destinations</option>
-              {destinations.map((destination: string) => (
-                <option key={destination} value={destination}>{destination}</option>
               ))}
             </select>
           </div>
