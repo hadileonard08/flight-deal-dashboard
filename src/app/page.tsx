@@ -50,13 +50,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Plane className="text-blue-600" /> Flight Deal Dashboard
-        </h1>
-        <p className="text-gray-600">
-          {origins ? `Choose a departure city to explore ${origins.reduce((sum, o) => sum + o.count, 0).toLocaleString()} deals.` : 'Loading cities...'}
-        </p>
+      <div className="mb-10 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+            <Plane className="text-blue-600" /> Flight Deal Dashboard
+          </h1>
+          <p className="text-gray-600">
+            {origins ? `Choose a departure city to explore ${origins.reduce((sum, o) => sum + o.count, 0).toLocaleString()} deals.` : 'Loading cities...'}
+          </p>
+        </div>
+        <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
 
       {!origins ? (

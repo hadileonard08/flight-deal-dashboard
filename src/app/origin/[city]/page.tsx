@@ -141,14 +141,17 @@ export default function OriginCityPage() {
         <ArrowLeft size={18} /> Back to cities
       </Link>
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Plane className="text-blue-600" /> {city} Flight Deals
-        </h1>
-        <p className="text-gray-600">
-          {pages ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded` : 'Loading deals...'}
-          {hasMore && ' — more available'}
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+            <Plane className="text-blue-600" /> {city} Flight Deals
+          </h1>
+          <p className="text-gray-600">
+            {pages ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded` : 'Loading deals...'}
+            {hasMore && ' — more available'}
+          </p>
+        </div>
+        <p className="text-sm text-gray-500">by: hadileonard</p>
       </div>
 
       {/* Filters */}
