@@ -42,6 +42,7 @@ Clicking a deal opens a detail modal with:
 - **Representative Cash Flight Details** — duration, stops, layover airport and duration, and the cash airline. These come from the cheapest one-way cash alternative for the same route, cabin, and date.
 - A live booking link back to the award search on Seats.aero.
 - A one-click email field to send the full itinerary.
+- **Booking Strategy** and **Analyze Routing** on-demand agents (one click each) that generate a points transfer plan and a layover/cabin-product critique.
 
 ---
 
@@ -87,7 +88,7 @@ The flow is:
 3. If not, the modal calls `POST /api/itinerary`, which runs the agentic generator:
    - Fetches a 5-day weather forecast from Open-Meteo.
    - Searches live destination news and events.
-   - Retrieves a destination hero image and daily activity images. Each placeholder is matched against Wikipedia first, then Wikimedia Commons search, with the destination image as a final fallback.
+   - Retrieves a destination hero image and daily activity images. The LLM is required to emit a specific English landmark or activity name for each day (e.g. "Victoria Peak", "Tian Tan Buddha"), not the destination city, "skyline", or "flag". Each placeholder is resolved through Wikipedia and Wikimedia Commons; flag and emblem images are rejected, and the destination image is never used as the fallback for daily images.
    - Generates a 5-day, cabin-appropriate itinerary through a **LangGraph architect/critic loop**:
      - The **Architect** drafts the itinerary, weaving together weather, news, the booked airline/cabin, and the destination.
      - The **Critic** reviews the draft specifically for hallucinations that would mislead the traveler. It checks that the plan does not invent premium perks, direct routes, partner airlines, lounges, or upgrades that are not part of the actual booking.
@@ -217,7 +218,8 @@ flowchart LR
 - **Date-specific cash pricing** — cash prices are cached by `route/cabin/date` instead of `route/cabin`, so CPP reflects the actual departure date.
 - **Cheapest-cash fallback** — if the award airline is not available in live cash results, the system falls back to the cheapest cash option for that route and date rather than returning null and using a low static estimate.
 - **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 5-hour pipeline lightweight.
-- **Multi-source itinerary images** — each `![IMAGE: ...]` placeholder is resolved through Wikipedia first, then Wikimedia Commons search, with the destination image as a fallback.
+- **Multi-source itinerary images** — each `![IMAGE: ...]` placeholder is resolved through Wikipedia and Wikimedia Commons. The architect is instructed to use specific English landmark/activity names; the critic rejects generic terms, flags, or skyline-only placeholders. Flag, emblem, and coat-of-arms images are filtered out at the source, and the destination image is not reused as a daily fallback.
+- **Responsive mobile UX** — the modal uses a proper viewport meta tag, full dynamic viewport height, bottom-safe padding, and `overflow-x-hidden` so the page never requires horizontal panning. Inputs use a 16px font size to prevent iOS zoom.
 - **Batch pagination** — city pages preload 200 deals at a time and render 20 per page, balancing speed and memory on the serverless backend.
 - **Serverless deployment** — the entire app runs on Vercel with dynamic API routes, while the heavy data pipeline runs in GitHub Actions.
 
@@ -268,7 +270,7 @@ The dashboard is backed by a set of JSON API routes:
 - Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **100k++ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
 - Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — using the standard points-and-miles benchmark.
 - Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
-- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals, plus on-demand Booking Strategy and Logistics & Suitability agents.
+- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia landmark images, AI plan) only for GOOD deals, plus on-demand Booking Strategy and Logistics & Suitability agents. Added explicit critic guardrails and source filters so itineraries avoid generic skyline/flag images and each day shows a distinct landmark.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
 - Automated the data pipeline with **GitHub Actions** (running every 5 hours), the daily email digest with **Vercel Cron**, and deployed the dashboard to **Vercel** with a custom domain.
 
