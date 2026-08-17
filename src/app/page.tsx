@@ -23,6 +23,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   BAD_DEAL: 'OTHER',
 };
 
+const CATEGORY_ORDER: Record<string, number> = {
+  GOOD_DEAL: 0,
+  MAYBE_GOOD_DEAL: 1,
+  OKAY_DEAL: 2,
+  BAD_DEAL: 3,
+};
+
 const CATEGORY_STYLES: Record<string, string> = {
   GOOD_DEAL: 'bg-green-100 text-green-700',
   MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
@@ -88,7 +95,7 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {Object.entries(origin.categories)
-                    .sort(([, a], [, b]) => b - a)
+                    .sort(([a], [b]) => (CATEGORY_ORDER[a] ?? 99) - (CATEGORY_ORDER[b] ?? 99))
                     .map(([cat, count]) => (
                       <span
                         key={cat}
