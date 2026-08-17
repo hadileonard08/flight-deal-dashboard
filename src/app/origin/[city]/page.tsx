@@ -131,11 +131,11 @@ export default function OriginCityPage() {
   const [targetPage, setTargetPage] = useState(0);
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
 
-  const { data: filterOptions } = useSWR<FilterOptions>(
-    `/api/filter-options?originCity=${encodeURIComponent(city)}${selectedDestination ? `&destinationCity=${encodeURIComponent(selectedDestination)}` : ''}`,
-    fetcher,
-    { refreshInterval: 60000 }
-  );
+  const filterOptionsUrl = selectedDestination
+    ? `/api/filter-options?originCity=${encodeURIComponent(city)}${selectedDestination !== 'all' ? `&destinationCity=${encodeURIComponent(selectedDestination)}` : ''}`
+    : null;
+
+  const { data: filterOptions } = useSWR<FilterOptions>(filterOptionsUrl, fetcher, { refreshInterval: 60000 });
 
   const { data: destinations } = useSWR<BrowseCity[]>(
     `/api/destinations?originCity=${encodeURIComponent(city)}`,
@@ -148,6 +148,7 @@ export default function OriginCityPage() {
   }, [city, selectedCategory, selectedCabin, selectedTripType, selectedAirline, selectedMonth, selectedYear, selectedDestination, sortBy]);
 
   const getKey = (batchIndex: number, previousPageData: DealPage | null) => {
+    if (!selectedDestination) return null;
     if (previousPageData && !previousPageData.hasMore) return null;
     const page = batchIndex + 1;
 
@@ -162,7 +163,7 @@ export default function OriginCityPage() {
     if (selectedAirline !== 'all') params.set('airline', selectedAirline);
     if (selectedMonth !== 'all') params.set('month', selectedMonth);
     if (selectedYear !== 'all') params.set('year', selectedYear);
-    if (selectedDestination) params.set('destinationCity', selectedDestination);
+    if (selectedDestination !== 'all') params.set('destinationCity', selectedDestination);
 
     return `/api/deals?${params.toString()}`;
   };
@@ -207,7 +208,11 @@ export default function OriginCityPage() {
   const months = filterOptions?.months || [];
   const years = filterOptions?.years || [];
 
-  const destinationTitle = selectedDestination ? `${city} → ${selectedDestination} Flight Deals` : `${city} Flight Deals`;
+  const destinationTitle = selectedDestination
+    ? selectedDestination === 'all'
+      ? `${city} Flight Deals`
+      : `${city} → ${selectedDestination} Flight Deals`
+    : `${city} Flight Deals`;
 
   if (error) {
     return (
@@ -232,8 +237,12 @@ export default function OriginCityPage() {
             <Plane className="text-blue-600" /> {destinationTitle}
           </h1>
           <p className="text-gray-600">
-            {pages ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded` : 'Loading deals...'}
-            {hasMore && ' — more available'}
+            {!selectedDestination
+              ? 'Choose a destination below to explore deals.'
+              : pages
+                ? `${allDeals.length.toLocaleString()} deal${allDeals.length === 1 ? '' : 's'} loaded`
+                : 'Loading deals...'}
+            {selectedDestination && hasMore && ' — more available'}
           </p>
         </div>
         <p className="text-sm text-gray-500">by: hadileonard</p>
@@ -245,9 +254,9 @@ export default function OriginCityPage() {
           <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 mb-3">Choose a destination</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <button
-              onClick={() => setSelectedDestination(null)}
+              onClick={() => setSelectedDestination('all')}
               className={`text-left w-full bg-white p-4 rounded-xl shadow-sm border transition-all hover:shadow-md hover:border-blue-200 ${
-                !selectedDestination ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
+                selectedDestination === 'all' ? 'border-blue-600 ring-1 ring-blue-600' : 'border-gray-100'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -272,8 +281,10 @@ export default function OriginCityPage() {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+      {selectedDestination && (
+        <>
+          {/* Filters */}
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-gray-500" />
@@ -451,6 +462,8 @@ export default function OriginCityPage() {
             {isLoading && <span className="inline-flex items-center gap-1 ml-2"><Loader2 size={14} className="animate-spin" /> Loading more...</span>}
           </p>
         </div>
+      )}
+      </>
       )}
 
       {selectedDeal && <DealModal deal={selectedDeal} onClose={() => setSelectedDeal(null)} />}
