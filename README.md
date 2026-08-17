@@ -113,6 +113,8 @@ The pipeline stores flights and deals in PostgreSQL via Drizzle ORM, and the Nex
 The multi-agent, LLM-driven parts of the system run on **Vercel**, not in the GitHub Actions pipeline:
 
 - **Itinerary Agent** — triggered on demand when a user opens a `GOOD` deal and the modal calls `POST /api/itinerary`. It combines weather, news, images, and a LangGraph architect/critic loop into a polished Markdown itinerary.
+- **Booking Strategy Agent** — triggered on demand when the user clicks **"Booking Strategy"** in the deal modal and calls `POST /api/booking-strategy`. It identifies transferable points programs, transfer times, and a step-by-step plan to book the award before it disappears.
+- **Logistics & Suitability Agent (Critic)** — triggered on demand when the user clicks **"Analyze Routing"** in the deal modal and calls `POST /api/logistics-check`. It reviews the route, layovers, aircraft, and cabin product to flag risky connections or outdated premium seats.
 - **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend. It runs on demand via `POST /api/email-itinerary` or automatically once a day as a **Vercel Cron** job hitting `GET /api/cron/email-deals`.
 
 ---
@@ -147,6 +149,8 @@ flowchart TD
         L[API Routes]
         M[Deal Modal]
         N[Itinerary API]
+        R[Booking Strategy API]
+        T[Logistics Check API]
         Q[Vercel Cron]
     end
 
@@ -165,9 +169,13 @@ flowchart TD
     L --> K
     K --> M
     M -->|GOOD deal request| N
+    M -->|request| R
+    M -->|request| T
     N -->|weather| D
     N -->|images| E
     N -->|news + AI| F
+    R -->|AI| F
+    T -->|AI| F
     N -->|store itinerary| P
     L -->|on-demand email| G
     Q -->|daily 9am| L
@@ -184,14 +192,22 @@ flowchart LR
     C --> D[Evaluator Service]
     D -->|CPP scoring + categorization| E[(PostgreSQL)]
     E --> F[Next.js Dashboard]
-    F -->|user clicks GOOD deal| G[Itinerary Agent]
+    F -->|GOOD deal opened| G[Itinerary Agent]
+    F -->|Booking Strategy clicked| R[Booking Strategy Agent]
+    F -->|Analyze Routing clicked| T[Logistics & Suitability Agent]
     G --> H[LangGraph Architect/Critic Loop]
+    R --> H
+    T --> H
     H --> I[Destination weather]
     H --> J[Live news]
     H --> K[Wikipedia images]
     H --> L[5-day itinerary]
+    H --> M[Booking strategy]
+    H --> N[Logistics check]
     L --> E
-    E --> M[User's deal modal]
+    M --> F
+    N --> F
+    E --> P[User's deal modal]
 ```
 
 ---
@@ -240,6 +256,8 @@ The dashboard is backed by a set of JSON API routes:
 - `GET /api/deals` — paginated, filterable deals.
 - `GET /api/filter-options` — available airlines, cabins, categories, months, years, and weeks.
 - `POST /api/itinerary` — generate and return the AI itinerary for a GOOD deal.
+- `POST /api/booking-strategy` — generate transferable-points and booking plan for a deal.
+- `POST /api/logistics-check` — analyze the route, layovers, and cabin product for a deal.
 - `POST /api/email-itinerary` — email a specific deal and itinerary to a user.
 - `GET /api/cron/email-deals` — daily digest trigger for Vercel cron.
 
@@ -250,7 +268,7 @@ The dashboard is backed by a set of JSON API routes:
 - Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **100k++ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
 - Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — using the standard points-and-miles benchmark.
 - Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
-- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals.
+- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals, plus on-demand Booking Strategy and Logistics & Suitability agents.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
 - Automated the data pipeline with **GitHub Actions** (running every 5 hours), the daily email digest with **Vercel Cron**, and deployed the dashboard to **Vercel** with a custom domain.
 

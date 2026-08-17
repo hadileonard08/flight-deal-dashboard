@@ -1,6 +1,17 @@
 import { createQuery, getFlights, Passengers } from 'fast-flights-ts';
 import { AIRLINE_NAMES } from '../lib/airlines';
 
+export interface Segment {
+  origin: string;
+  destination: string;
+  departureAt: string;
+  arrivalAt: string;
+  airline: string;
+  aircraft?: string | null;
+  flightNumber?: string | null;
+  durationMinutes: number;
+}
+
 export interface FlightDetails {
   duration: number;          // total one-way duration in minutes
   stops: number;             // number of stops (segments - 1)
@@ -8,6 +19,8 @@ export interface FlightDetails {
   layoverDuration: number | null; // minutes
   cashPrice: number;
   airlines: string[];
+  aircraftType?: string | null;
+  segments?: Segment[];
 }
 
 const RESULTS_CACHE = new Map<string, FlightDetails[] | null>();
@@ -178,6 +191,7 @@ async function fetchDuffel(r: { origin: string; destination: string; cabin: stri
       }
 
       const airlines = Array.from(new Set(segments.map((s: any) => s.operating_carrier?.name || s.marketing_carrier?.name || 'Unknown')));
+      const aircraftType = segments[0]?.aircraft?.name || segments[0]?.aircraft?.iata_code || null;
 
       return {
         duration: totalDuration,
@@ -185,7 +199,18 @@ async function fetchDuffel(r: { origin: string; destination: string; cabin: stri
         layoverAirport,
         layoverDuration,
         cashPrice: Number(o.total_amount) || 0,
-        airlines
+        airlines,
+        aircraftType,
+        segments: segments.map((s: any) => ({
+          origin: s.origin?.iata_code || '',
+          destination: s.destination?.iata_code || '',
+          departureAt: s.departing_at || '',
+          arrivalAt: s.arriving_at || '',
+          airline: s.operating_carrier?.name || s.marketing_carrier?.name || 'Unknown',
+          aircraft: s.aircraft?.name || s.aircraft?.iata_code || null,
+          flightNumber: s.marketing_carrier_flight_number || s.operating_carrier_flight_number || null,
+          durationMinutes: parseDuration(s.duration) || 0
+        }))
       };
     });
 }
@@ -209,7 +234,25 @@ function extractFlightDetails(segments: any[]): Omit<FlightDetails, 'cashPrice' 
     }
   }
 
-  return { duration: totalDuration, stops, layoverAirport, layoverDuration };
+  const mappedSegments: Segment[] = segments.map((s: any) => ({
+    origin: s.from_airport?.code || '',
+    destination: s.to_airport?.code || '',
+    departureAt: s.departure ? new Date(s.departure.date[0], s.departure.date[1] - 1, s.departure.date[2], s.departure.time[0], s.departure.time[1]).toISOString() : '',
+    arrivalAt: s.arrival ? new Date(s.arrival.date[0], s.arrival.date[1] - 1, s.arrival.date[2], s.arrival.time[0], s.arrival.time[1]).toISOString() : '',
+    airline: s.airline || 'Unknown',
+    aircraft: null,
+    flightNumber: s.flight_number || null,
+    durationMinutes: Number(s.duration) || 0
+  }));
+
+  return {
+    duration: totalDuration,
+    stops,
+    layoverAirport,
+    layoverDuration,
+    aircraftType: null,
+    segments: mappedSegments
+  };
 }
 
 function findBestMatch(results: FlightDetails[] | null, airline: string): FlightDetails | null {

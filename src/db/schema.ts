@@ -30,6 +30,8 @@ export const flights = pgTable('flights', {
   stops: integer('stops'),
   layoverAirport: varchar('layover_airport', { length: 5 }),
   layoverDuration: integer('layover_duration'),
+  aircraftType: varchar('aircraft_type', { length: 100 }),
+  segments: text('segments'), // JSON string of representative flight segments
 });
 
 export const deals = pgTable('deals', {

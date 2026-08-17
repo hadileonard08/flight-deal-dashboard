@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2 } from 'lucide-react';
+import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2, Wallet, Plane } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getBookingUrl } from '@/lib/booking-url';
@@ -32,6 +32,11 @@ export function DealModal({ deal, onClose }: DealModalProps) {
   const [emailMessage, setEmailMessage] = useState('');
   const [itinerary, setItinerary] = useState<string | null>(deal.itinerary || null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const [strategy, setStrategy] = useState<string | null>(null);
+  const [isLoadingStrategy, setIsLoadingStrategy] = useState(false);
+  const [logistics, setLogistics] = useState<string | null>(null);
+  const [isLoadingLogistics, setIsLoadingLogistics] = useState(false);
 
   useEffect(() => {
     if (deal.category !== 'GOOD_DEAL' || itinerary || isGenerating) return;
@@ -65,6 +70,42 @@ export function DealModal({ deal, onClose }: DealModalProps) {
   }, [onClose]);
 
   const dp = getDisplayPrice(deal);
+
+  const loadBookingStrategy = async () => {
+    if (strategy || isLoadingStrategy) return;
+    setIsLoadingStrategy(true);
+    try {
+      const res = await fetch('/api/booking-strategy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId: deal.id })
+      });
+      const data = await res.json();
+      setStrategy(data.strategy || data.error || 'No strategy available.');
+    } catch (error) {
+      setStrategy('Failed to load booking strategy.');
+    } finally {
+      setIsLoadingStrategy(false);
+    }
+  };
+
+  const loadLogisticsCheck = async () => {
+    if (logistics || isLoadingLogistics) return;
+    setIsLoadingLogistics(true);
+    try {
+      const res = await fetch('/api/logistics-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dealId: deal.id })
+      });
+      const data = await res.json();
+      setLogistics(data.check || data.error || 'No logistics check available.');
+    } catch (error) {
+      setLogistics('Failed to load logistics check.');
+    } finally {
+      setIsLoadingLogistics(false);
+    }
+  };
 
   const handleSendEmail = async () => {
     if (!email) return;
@@ -192,6 +233,43 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               <ExternalLink size={16} />
               Book This Flight
             </a>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 w-full">
+              <button
+                onClick={loadBookingStrategy}
+                disabled={isLoadingStrategy}
+                className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {isLoadingStrategy ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
+                Booking Strategy
+              </button>
+              <button
+                onClick={loadLogisticsCheck}
+                disabled={isLoadingLogistics}
+                className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {isLoadingLogistics ? <Loader2 size={14} className="animate-spin" /> : <Plane size={14} />}
+                Analyze Routing
+              </button>
+            </div>
+
+            {strategy && (
+              <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Booking Strategy</h3>
+                <div className="prose prose-sm prose-indigo max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{strategy}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {logistics && (
+              <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Logistics & Suitability</h3>
+                <div className="prose prose-sm prose-indigo max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{logistics}</ReactMarkdown>
+                </div>
+              </div>
+            )}
 
             <div className="mt-6 text-left w-full">
               <label className="block text-sm font-medium text-gray-700 mb-2">Subscribe and email me this itinerary</label>

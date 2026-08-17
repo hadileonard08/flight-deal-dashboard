@@ -100,6 +100,8 @@ export function evaluateThreshold(flight: any) {
       if (details.layoverAirport && !flight.layoverAirport) flight.layoverAirport = details.layoverAirport;
       if (details.layoverDuration && !flight.layoverDuration) flight.layoverDuration = details.layoverDuration;
       if (details.airlines?.length && !flight.cashAirline) flight.cashAirline = details.airlines.join(', ');
+      if (details.aircraftType && !flight.aircraftType) flight.aircraftType = details.aircraftType;
+      if (details.segments?.length && !flight.segments) flight.segments = JSON.stringify(details.segments);
     }
 
     const cpp = calculateCPP(flight);

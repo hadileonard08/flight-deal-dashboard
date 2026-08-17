@@ -87,7 +87,9 @@ export async function processFlights(rawFlights: any[]) {
       duration: flight.duration ?? null,
       stops: flight.stops ?? null,
       layoverAirport: flight.layoverAirport ?? null,
-      layoverDuration: flight.layoverDuration ?? null
+      layoverDuration: flight.layoverDuration ?? null,
+      aircraftType: flight.aircraftType ?? null,
+      segments: flight.segments ?? null
     });
 
     dealValues.push({
