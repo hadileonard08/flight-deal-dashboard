@@ -307,7 +307,7 @@ export default function OriginCityPage() {
 
       {loadedPageCount > 1 && (
         <div className="flex flex-col items-center gap-4 mt-10">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             <button
               onClick={goPrev}
               disabled={!canGoPrev}
@@ -317,7 +317,7 @@ export default function OriginCityPage() {
               <ChevronLeft size={20} />
             </button>
 
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-center gap-1">
               {Array.from({ length: loadedPageCount }, (_, i) => (
                 <button
                   key={i}

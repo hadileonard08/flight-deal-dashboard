@@ -142,7 +142,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[100dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative pb-24 md:pb-0">
+      <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[100dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto overflow-x-hidden md:overflow-hidden flex flex-col md:flex-row relative pb-24 md:pb-0">
         <button
           onClick={onClose}
           className="fixed md:absolute top-4 right-4 z-50 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
@@ -256,7 +256,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
             {strategy && (
               <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Booking Strategy</h3>
-                <div className="prose prose-sm prose-indigo max-w-none">
+                <div className="prose prose-sm prose-indigo max-w-none break-words">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{strategy}</ReactMarkdown>
                 </div>
               </div>
@@ -265,7 +265,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
             {logistics && (
               <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
                 <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Logistics & Suitability</h3>
-                <div className="prose prose-sm prose-indigo max-w-none">
+                <div className="prose prose-sm prose-indigo max-w-none break-words">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{logistics}</ReactMarkdown>
                 </div>
               </div>
@@ -337,7 +337,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                   <p className="text-lg font-medium tracking-wide">Creating itinerary</p>
                 </div>
               ) : itinerary ? (
-                <div className="prose prose-sm prose-indigo max-w-none">
+                <div className="prose prose-sm prose-indigo max-w-none break-words">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
