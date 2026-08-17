@@ -1,8 +1,3 @@
-import {
-  formatFlightDetailsSection,
-  generateOccasionItinerary,
-  getRandomOccasion
-} from '@/lib/itinerary-templates';
 import { generateHoneymoonItinerary } from '@/agents/graph';
 import { searchDestinationNews } from '@/agents/news-search';
 import { getWeatherForecast } from '@/agents/weather';
@@ -11,7 +6,10 @@ import { hasAIProvider } from '@/lib/ai-provider';
 import { AIRPORT_NAMES } from '@/lib/config';
 
 export async function generateFullItinerary(flight: any): Promise<{ itinerary: string; occasion: string }> {
-  const flightDetails = formatFlightDetailsSection(flight);
+  if (!hasAIProvider) {
+    throw new Error('AI provider is not configured. Add GEMINI_API_KEY to generate itineraries.');
+  }
+
   const tripStart = new Date(flight.departureDate);
   const tripEnd = flight.returnDate
     ? new Date(flight.returnDate)
@@ -31,22 +29,13 @@ export async function generateFullItinerary(flight: any): Promise<{ itinerary: s
     console.log('Weather lookup failed, continuing without forecast');
   }
 
-  let itineraryText = flightDetails;
-  let occasion: string;
+  let itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
 
-  try {
-    if (hasAIProvider) {
-      itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
-      occasion = 'HONEYMOON';
-    } else {
-      occasion = getRandomOccasion();
-      itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
-    }
-  } catch (error) {
-    console.log('Using fallback itinerary due to API error');
-    occasion = 'LEISURE';
-    itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
-  }
+  // Clean up any accidental double markdown headings the model may have emitted.
+  itineraryText = itineraryText
+    .replace(/^##\s*##\s+/gm, '## ')
+    .replace(/^##\s*#\s+/gm, '## ')
+    .replace(/^#\s*##\s+/gm, '# ');
 
   let destinationImage: string | null = null;
   try {
@@ -59,7 +48,7 @@ export async function generateFullItinerary(flight: any): Promise<{ itinerary: s
     ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
     : '';
 
-  itineraryText = flightDetails + imageMarkdown + itineraryText;
+  itineraryText = imageMarkdown + itineraryText;
 
   try {
     itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
@@ -67,5 +56,5 @@ export async function generateFullItinerary(flight: any): Promise<{ itinerary: s
     console.log('Itinerary image hydration failed, keeping placeholders');
   }
 
-  return { itinerary: itineraryText, occasion };
+  return { itinerary: itineraryText, occasion: 'HONEYMOON' };
 }

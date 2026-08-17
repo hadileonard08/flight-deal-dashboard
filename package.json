@@ -13,6 +13,7 @@
     "@langchain/core": "^0.2.36",
     "@langchain/google-genai": "^0.1.2",
     "@langchain/langgraph": "^0.2.74",
+    "@langchain/openai": "^0.2.11",
     "cheerio": "^1.0.0-rc.10",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.30.10",

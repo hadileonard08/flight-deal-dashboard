@@ -1,14 +1,8 @@
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
-import { evaluateThreshold, getRegion, AIRPORT_NAMES } from '../lib/config';
-import { generateHoneymoonItinerary } from './graph';
-import { searchDestinationNews } from './news-search';
-import { getWeatherForecast } from './weather';
-import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
+import { evaluateThreshold, getRegion } from '../lib/config';
 import { hasAIProvider, getChatModel } from '../lib/ai-provider';
 import { prefetchCashPrices } from './cash-price';
-
-import { formatFlightDetailsSection, formatNewsSection, generateOccasionItinerary, getRandomOccasion } from '../lib/itinerary-templates';
 
 function chunkArray<T>(arr: T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -31,15 +25,10 @@ export async function processFlights(rawFlights: any[]) {
   }));
   await prefetchCashPrices(cashRoutes, 8);
 
-  // Bring back the full agentic workflow, but cap the most expensive calls
-  // so 3 months of data doesn't run away on time/cost.
-  // - AI reasoning for the first 250 GOOD/MAYBE deals.
-  // - Full news/weather/LangGraph itinerary for the first 50 GOOD deals.
-  // - All GOOD deals still get a deterministic flight summary + fallback plan.
+  // Itineraries are generated on demand; the pipeline only writes reasoning.
+  // AI reasoning is capped to keep the agentic workflow fast and cheap.
   const MAX_AI_REASONING = 250;
-  const MAX_AI_ITINERARY = 0;
   let aiReasoningCount = 0;
-  let aiItineraryCount = 0;
 
   const defaultReasoning: Record<string, string> = {
     GOOD_DEAL: "Great deal found with excellent value for this route.",
@@ -74,71 +63,10 @@ export async function processFlights(rawFlights: any[]) {
       }
     }
 
-    // 2 & 3. Full agentic itinerary for the first 50 GOOD
-    let itineraryText = null;
-    let occasion: any = null;
-
-    if (category === 'GOOD_DEAL') {
-      const flightDetails = formatFlightDetailsSection(flight);
-      itineraryText = flightDetails;
-
-      if (aiItineraryCount < MAX_AI_ITINERARY) {
-        aiItineraryCount++;
-        const tripStart = new Date(flight.departureDate);
-        const tripEnd = flight.returnDate ? new Date(flight.returnDate) : new Date(tripStart.getTime() + 5 * 24 * 60 * 60 * 1000);
-
-        let destinationNews: string | null = null;
-        try {
-          destinationNews = await searchDestinationNews(flight.destinationCode, tripStart, tripEnd);
-        } catch (error) {
-          console.log('News search failed, continuing without destination news');
-        }
-
-        let weatherForecast: string | null = null;
-        try {
-          weatherForecast = await getWeatherForecast(flight.destinationCode, tripStart, tripEnd);
-        } catch (error) {
-          console.log('Weather lookup failed, continuing without forecast');
-        }
-
-        try {
-          if (hasAIProvider) {
-            itineraryText = await generateHoneymoonItinerary(flight, destinationNews, weatherForecast);
-            occasion = 'HONEYMOON';
-          } else {
-            occasion = getRandomOccasion();
-            itineraryText = generateOccasionItinerary(flight, occasion, destinationNews, weatherForecast);
-          }
-        } catch (error) {
-          console.log('Using fallback itinerary due to API error');
-          occasion = 'LEISURE';
-          itineraryText = generateOccasionItinerary(flight, 'LEISURE', destinationNews, weatherForecast);
-        }
-
-        let destinationImage: string | null = null;
-        try {
-          destinationImage = await getDestinationImageUrl(flight.destinationCode);
-        } catch (error) {
-          console.log('Destination image lookup failed, continuing without image');
-        }
-
-        const imageMarkdown = destinationImage
-          ? `![${AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode}](${destinationImage})\n\n`
-          : '';
-
-        itineraryText = flightDetails + imageMarkdown + itineraryText;
-
-        try {
-          itineraryText = await hydrateItineraryImages(itineraryText, destinationImage);
-        } catch (error) {
-          console.log('Itinerary image hydration failed, keeping placeholders');
-        }
-      } else {
-        // All other GOOD deals get a deterministic fallback plan
-        occasion = getRandomOccasion();
-        itineraryText = flightDetails + '\n\n' + generateOccasionItinerary(flight, occasion, null, null);
-      }
-    }
+    // Itineraries are generated on demand when a user opens a GOOD deal,
+    // so the pipeline does not pre-generate them here.
+    const itineraryText = null;
+    const occasion = null;
 
     flightsToInsert.push({
       originCode: flight.originCode,

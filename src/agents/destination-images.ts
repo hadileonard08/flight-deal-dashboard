@@ -44,7 +44,8 @@ export async function getImageForTerm(term: string): Promise<string | null> {
 }
 
 export async function hydrateItineraryImages(itinerary: string, fallbackImageUrl: string | null = null): Promise<string> {
-  const placeholderRegex = /!\[IMAGE:\s*([^\]]+)\]/g;
+  // Match placeholders the model may emit, optionally with a fabricated URL.
+  const placeholderRegex = /!\[IMAGE:\s*([^\]]+)\](?:\([^)]*\))?/g;
   const matches = Array.from(itinerary.matchAll(placeholderRegex));
 
   if (matches.length === 0) return itinerary;

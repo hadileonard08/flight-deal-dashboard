@@ -12,7 +12,8 @@ export function getVisaAdvisory(destinationCode: string): string {
 }
 
 export function ensureVisaSection(itinerary: string, destinationCode: string): string {
-  if (/^#{1,3}\s.*visa/i.test(itinerary) || /visa/i.test(itinerary)) {
+  // If the itinerary already contains a Visa/Immigration heading, leave it as-is.
+  if (/^#{1,3}\s.*(?:visa|immigration)/im.test(itinerary) || /visa\s*&\s*immigration/i.test(itinerary)) {
     return itinerary;
   }
   const advisory = getVisaAdvisory(destinationCode);

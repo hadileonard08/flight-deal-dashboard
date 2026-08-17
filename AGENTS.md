@@ -11,10 +11,10 @@
 
 ## Cost & AI Guardrails
 
-- **Agentic workflow is restored with caps to keep runs fast even with up to 1 year of data.**
+- **Heavy AI is on-demand only; the pipeline stays fast even with up to 1 year of data.**
   - `processFlights` uses AI-generated reasoning for the first `MAX_AI_REASONING` (250) `GOOD_DEAL`/`MAYBE_GOOD_DEAL` flights.
-  - `GOOD_DEAL` flights get a full agentic itinerary: live news, Open-Meteo weather, LangGraph/Honeymoon AI itinerary, and Wikipedia images for the first `MAX_AI_ITINERARY` (50) flights.
-  - All other `GOOD_DEAL` flights get a deterministic fallback plan with a flight summary.
+  - The pipeline no longer pre-generates or stores deterministic fallback itineraries.
+  - Full agentic itineraries (live news, Open-Meteo weather, LangGraph AI loop, Wikipedia images) are generated on demand when a user opens a `GOOD_DEAL` in the modal and are then cached in PostgreSQL.
   - Flights and deals are inserted in 1,000-row batches for speed.
 - **Deal quality is based on the standard CPP formula.**
   - `CPP = (Cash Price − Taxes & Fees) / Points Required × 100`.

@@ -1,8 +1,7 @@
 import { StateGraph, START, END, Annotation } from "@langchain/langgraph";
-import { hasAIProvider, getChatModel } from "../lib/ai-provider";
+import { getChatModel } from "../lib/ai-provider";
 import { ensureVisaSection } from "../lib/visa-advisory";
 
-const useRealAI = hasAIProvider;
 const llm = getChatModel(0.4);
 
 const ItineraryStateAnnotation = Annotation.Root({
@@ -31,34 +30,8 @@ const ItineraryStateAnnotation = Annotation.Root({
 });
 
 async function architectNode(state: typeof ItineraryStateAnnotation.State) {
-  if (!useRealAI) {
-    return { 
-      draftItinerary: `# Flight Deal Itinerary for ${state.flightDeal.originCode} to ${state.flightDeal.destinationCode}
-
-## Day 1: Arrival & Luxury Check-in
-- Arrive at ${state.flightDeal.destinationCode} and transfer to 5-star hotel
-- Evening sunset dinner at rooftop restaurant
-
-## Day 2: Cultural Exploration
-- Private guided tour of local attractions
-- Afternoon spa treatment
-
-## Day 3: Adventure & Romance
-- Sunrise hot air balloon ride (weather permitting)
-- Private beach picnic
-
-## Day 4: Culinary Experience
-- Cooking class with local chef
-- Fine dining experience at Michelin-starred restaurant
-
-## Day 5: Departure
-- Morning yoga session
-- Luxury shopping at premium boutiques
-- Departure preparations
-
-*Note: This is a placeholder itinerary. Add your GEMINI_API_KEY to generate AI-powered itineraries.*`,
-      revisionCount: state.revisionCount + 1 
-    };
+  if (!llm) {
+    throw new Error('AI provider is not configured. Add GEMINI_API_KEY to generate itineraries.');
   }
 
   const actualCabin = state.flightDeal?.cabin || 'ECONOMY';
@@ -100,11 +73,8 @@ async function architectNode(state: typeof ItineraryStateAnnotation.State) {
 }
 
 async function criticNode(state: typeof ItineraryStateAnnotation.State) {
-  if (!useRealAI) {
-    return {
-      isApproved: true,
-      criticFeedback: []
-    };
+  if (!llm) {
+    throw new Error('AI provider is not configured. Add GEMINI_API_KEY to generate itineraries.');
   }
 
   const actualCabin = state.flightDeal?.cabin || 'ECONOMY';

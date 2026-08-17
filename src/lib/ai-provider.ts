@@ -1,13 +1,14 @@
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatOpenAI } from '@langchain/openai';
 
 const geminiKey = process.env.GEMINI_API_KEY;
+const openaiKey = process.env.OPENAI_API_KEY;
 
 const hasGemini = !!geminiKey && !geminiKey.includes('your_gemini_api_key');
+const hasOpenAI = !!openaiKey && !openaiKey.includes('your_openai_api_key');
 
-// Gemini is the only AI provider used for reasoning + itinerary generation, as well as
-// the live web search grounding in news-search.ts.
-export const hasAIProvider = hasGemini;
-export const activeProvider: 'gemini' | 'none' = hasGemini ? 'gemini' : 'none';
+export const hasAIProvider = hasGemini || hasOpenAI;
+export const activeProvider: 'gemini' | 'openai' | 'none' = hasGemini ? 'gemini' : hasOpenAI ? 'openai' : 'none';
 
 export function getChatModel(temperature = 0.4) {
   if (hasGemini) {
@@ -18,5 +19,15 @@ export function getChatModel(temperature = 0.4) {
       maxRetries: 3,
     });
   }
+
+  if (hasOpenAI) {
+    return new ChatOpenAI({
+      model: 'gpt-4o-mini',
+      apiKey: openaiKey,
+      temperature,
+      maxRetries: 3,
+    });
+  }
+
   return null;
 }
