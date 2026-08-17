@@ -109,11 +109,84 @@ The pipeline stores everything in PostgreSQL via Drizzle ORM, and the Next.js fr
 
 ---
 
+## Architecture & workflow
+
+> If the diagrams below do not render, view this README on GitHub — it supports native Mermaid rendering.
+
+### Overall app architecture
+
+```mermaid
+flowchart TD
+    subgraph External Data Sources
+        A[Seats.aero API]
+        B[Duffel API]
+        C[Google Flights]
+        D[Open-Meteo]
+        E[Wikipedia / Wikimedia]
+        F[Gemini / OpenAI]
+        G[Resend]
+    end
+
+    subgraph GitHub Actions Pipeline
+        H[Agent 1: Scraper]
+        I[Agent 2: Cash Price]
+        J[Agent 3: Evaluator]
+    end
+
+    subgraph Vercel
+        K[Next.js App]
+        L[API Routes]
+        M[Deal Modal]
+        N[Itinerary API]
+    end
+
+    subgraph Database
+        P[(PostgreSQL)]
+    end
+
+    A -->|award deals| H
+    B -->|live cash| I
+    C -->|fallback cash| I
+    H -->|normalized flights| I
+    I -->|cash prices| J
+    J -->|flights & deals| P
+    P -->|read| L
+    L --> K
+    K --> M
+    M -->|GOOD deal request| N
+    N -->|weather| D
+    N -->|images| E
+    N -->|news + AI| F
+    N -->|store itinerary| P
+    L -->|email| G
+```
+
+### Agent workflow
+
+```mermaid
+flowchart LR
+    A[Seats.aero] -->|real award space| B[Scraper Agent]
+    B --> C[Cash Price Agent<br/>Duffel → Google Flights]
+    C --> D[Evaluator Agent]
+    D -->|CPP scoring + categorization| E[(PostgreSQL)]
+    E --> F[Next.js Dashboard]
+    F -->|user clicks GOOD deal| G[Itinerary Agent]
+    G --> H[LangGraph AI]
+    H --> I[Destination weather]
+    H --> J[Live news]
+    H --> K[Wikipedia images]
+    H --> L[5-day itinerary]
+    L --> E
+    E --> M[User's deal modal]
+```
+
+---
+
 ## Key design decisions
 
 - **Date-specific cash pricing** — cash prices are cached by `route/cabin/date` instead of `route/cabin`, so CPP reflects the actual departure date.
 - **Cheapest-cash fallback** — if the award airline is not available in live cash results, the system falls back to the cheapest cash option for that route and date rather than returning null and using a low static estimate.
-- **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 3-hour pipeline lightweight.
+- **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 5-hour pipeline lightweight.
 - **Batch pagination** — city pages preload 200 deals at a time and render 20 per page, balancing speed and memory on the serverless backend.
 - **Serverless deployment** — the entire app runs on Vercel with dynamic API routes, while the heavy data pipeline runs in GitHub Actions.
 
