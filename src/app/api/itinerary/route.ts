@@ -7,10 +7,26 @@ import { eq } from 'drizzle-orm';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+function itineraryNeedsRefresh(itinerary: string, force: boolean): boolean {
+  if (force) return true;
+  // Re-generate if the stored itinerary is mostly generic destination/flag images
+  // instead of daily landmark images.
+  const imageMatches = Array.from(itinerary.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g));
+  if (imageMatches.length < 2) return true;
+
+  const flagImages = imageMatches.filter(([, url]) =>
+    /flag_of|Flag_of|_flag\.|\/flag\/|emblem_of|coat_of_arms/i.test(url)
+  );
+
+  // If half or more of the images are flags, regenerate.
+  return flagImages.length > 0 && flagImages.length >= imageMatches.length / 2;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const dealId = body.dealId;
+    const force = body.force === true;
 
     if (!dealId) {
       return NextResponse.json({ error: 'dealId is required' }, { status: 400 });
@@ -55,7 +71,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Itinerary generation is only available for GOOD deals' }, { status: 400 });
     }
 
-    if (row.itinerary && row.itinerary.length > 500) {
+    if (row.itinerary && row.itinerary.length > 500 && !itineraryNeedsRefresh(row.itinerary, force)) {
       return NextResponse.json({ itinerary: row.itinerary });
     }
 

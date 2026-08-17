@@ -52,7 +52,7 @@ export async function generateFullItinerary(flight: any): Promise<{ itinerary: s
 
   try {
     const destinationName = AIRPORT_NAMES[flight.destinationCode] || flight.destinationCode;
-    itineraryText = await hydrateItineraryImages(itineraryText, destinationName, destinationImage);
+    itineraryText = await hydrateItineraryImages(itineraryText, destinationName);
   } catch (error) {
     console.log('Itinerary image hydration failed, keeping placeholders');
   }

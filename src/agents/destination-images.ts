@@ -7,7 +7,28 @@ const WIKIPEDIA_CITIES: Record<string, string> = {
   ICN: 'Seoul',
   SIN: 'Singapore',
   BKK: 'Bangkok',
+  TPE: 'Taipei',
+  KUL: 'Kuala Lumpur',
+  MNL: 'Manila',
+  SGN: 'Ho Chi Minh City',
+  HAN: 'Hanoi',
+  DPS: 'Bali',
+  CGK: 'Jakarta'
 };
+
+const FLAG_PATTERNS = [
+  /flag_of/gi,
+  /\/flag\//gi,
+  /_flag\./gi,
+  /emblem_of/gi,
+  /coat_of_arms/gi,
+  /_emblem\./gi
+];
+
+function isFlagUrl(url: string | null | undefined): boolean {
+  if (!url) return true;
+  return FLAG_PATTERNS.some(pattern => pattern.test(url));
+}
 
 interface WikiSummary {
   title?: string;
@@ -17,7 +38,16 @@ interface WikiSummary {
 
 export async function getDestinationImageUrl(destinationCode: string): Promise<string | null> {
   const city = WIKIPEDIA_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationCode;
-  return getImageForTerm(city);
+  if (!city) return null;
+
+  // Prefer a cityscape / skyline image over a flag or coat of arms.
+  const cityscapeUrl = await getImageForTerm(`${city} skyline`, [`${city} cityscape`, `${city} city`]);
+  if (cityscapeUrl && !isFlagUrl(cityscapeUrl)) return cityscapeUrl;
+
+  const cityUrl = await getImageForTerm(city, [`${city} city`, `${city} landmark`]);
+  if (cityUrl && !isFlagUrl(cityUrl)) return cityUrl;
+
+  return null;
 }
 
 function cleanTerm(term: string): string {
@@ -82,24 +112,23 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
   const cleaned = cleanTerm(term);
   if (!cleaned) return null;
 
-  // Try Wikipedia page summary first (most accurate if a page exists).
-  const wikiUrl = await fetchWikipediaImage(cleaned);
-  if (wikiUrl) return wikiUrl;
+  // Always append the term itself to the fallback list, plus some generic helpful variants.
+  const termsToTry = [cleaned];
+  if (!cleaned.toLowerCase().includes('landmark')) termsToTry.push(`${cleaned} landmark`);
+  if (!cleaned.toLowerCase().includes('city')) termsToTry.push(`${cleaned} city`);
+  if (!cleaned.toLowerCase().includes('night')) termsToTry.push(`${cleaned} night`);
 
-  // Fall back to Wikimedia Commons search for the exact term.
-  const commonsUrl = await fetchWikimediaCommonsImage(cleaned);
-  if (commonsUrl) return commonsUrl;
+  for (const t of [...termsToTry, ...fallbackTerms]) {
+    const cleanedT = cleanTerm(t);
+    if (!cleanedT) continue;
 
-  // Try fallback terms (e.g., city name, English translation) one by one.
-  for (const fallback of fallbackTerms) {
-    const cleanedFallback = cleanTerm(fallback);
-    if (!cleanedFallback) continue;
+    // Try Wikipedia page summary first (most accurate if a page exists).
+    const wikiUrl = await fetchWikipediaImage(cleanedT);
+    if (wikiUrl && !isFlagUrl(wikiUrl)) return wikiUrl;
 
-    const fallbackWiki = await fetchWikipediaImage(cleanedFallback);
-    if (fallbackWiki) return fallbackWiki;
-
-    const fallbackCommons = await fetchWikimediaCommonsImage(cleanedFallback);
-    if (fallbackCommons) return fallbackCommons;
+    // Fall back to Wikimedia Commons search for the exact term.
+    const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
+    if (commonsUrl && !isFlagUrl(commonsUrl)) return commonsUrl;
   }
 
   return null;
@@ -107,8 +136,7 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
 
 export async function hydrateItineraryImages(
   itinerary: string,
-  destinationName: string | null = null,
-  fallbackImageUrl: string | null = null
+  destinationName: string | null = null
 ): Promise<string> {
   // Match placeholders the model may emit, optionally with a fabricated URL.
   const placeholderRegex = /!\[IMAGE:\s*([^\]]+)\](?:\([^)]*\))?/g;
@@ -119,11 +147,10 @@ export async function hydrateItineraryImages(
   const imageUrls = await Promise.all(
     matches.map(async (match) => {
       const term = match[1].trim();
-      const fallbackTerms = destinationName ? [destinationName, `${destinationName} landmark`] : [];
-      let url = await getImageForTerm(term, fallbackTerms);
-      if (!url && fallbackImageUrl) {
-        url = fallbackImageUrl;
-      }
+      const fallbackTerms = destinationName && destinationName.toLowerCase() !== cleanTerm(term).toLowerCase()
+        ? [`${destinationName} ${term}`, `${term} ${destinationName}`]
+        : [];
+      const url = await getImageForTerm(term, fallbackTerms);
       return { match: match[0], term, url };
     })
   );
