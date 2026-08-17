@@ -92,15 +92,56 @@ export const TRANSFER_PARTNERS: Record<string, TransferOption[]> = {
   ]
 };
 
+// Common IATA/short-name aliases that Seats.aero or other sources might use.
+const AIRLINE_ALIASES: Record<string, string> = {
+  'JAL': 'Japan Airlines',
+  'Japan Airlines (JAL)': 'Japan Airlines',
+  'JL': 'Japan Airlines',
+  'NH': 'ANA',
+  'KE': 'Korean Air',
+  'OZ': 'Asiana',
+  'CX': 'Cathay Pacific',
+  'DL': 'Delta Air Lines',
+  'EK': 'Emirates',
+  'EY': 'Etihad',
+  'BR': 'EVA Air',
+  'HA': 'Hawaiian Airlines',
+  'SQ': 'Singapore Airlines',
+  'TG': 'Thai Airways',
+  'TK': 'Turkish Airlines',
+  'UA': 'United Airlines',
+  'VS': 'Virgin Atlantic',
+  'QR': 'Qatar Airways',
+  'AA': 'American Airlines',
+  'AS': 'Alaska Airlines'
+};
+
+function normalizeAirline(airline: string): string {
+  return airline
+    .replace(/\([^)]*\)/g, '')
+    .replace(/airlines?/gi, '')
+    .replace(/airways?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function getTransferOptions(airline: string): TransferOption[] | null {
+  // Exact match first.
   const direct = TRANSFER_PARTNERS[airline];
   if (direct) return direct;
 
-  // Try a fuzzy match on the airline name.
-  const normalized = airline.toLowerCase();
-  for (const [key, options] of Object.entries(TRANSFER_PARTNERS)) {
-    if (normalized.includes(key.toLowerCase()) || key.toLowerCase().includes(normalized)) {
-      return options;
+  // Alias match (IATA codes and parenthetical short names).
+  const aliasTarget = AIRLINE_ALIASES[airline];
+  if (aliasTarget && TRANSFER_PARTNERS[aliasTarget]) {
+    return TRANSFER_PARTNERS[aliasTarget];
+  }
+
+  // Fuzzy match on the normalized airline name.
+  const normalized = normalizeAirline(airline).toLowerCase();
+  for (const key of Object.keys(TRANSFER_PARTNERS)) {
+    const keyNormalized = normalizeAirline(key).toLowerCase();
+    if (normalized === keyNormalized || normalized.includes(keyNormalized) || keyNormalized.includes(normalized)) {
+      return TRANSFER_PARTNERS[key];
     }
   }
 
