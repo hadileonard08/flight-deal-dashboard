@@ -1,38 +1,53 @@
 # Flight Deal Dashboard
 
-**Live site:** https://flight-deals-dashboard.vercel.app
+**Live dashboard:** https://flight-deals-dashboard.vercel.app
 
-An autonomous, multi-agent flight-deal dashboard. It scrapes real award space from the US to Asia, values each redemption against the cheapest live one-way cash alternative, categorizes the deal, and generates AI-powered itineraries on demand for the best redemptions.
+An autonomous, multi-agent flight-deal discovery platform. It scrapes real award availability from the US to Asia, values every redemption against the cheapest live one-way cash alternative, categorizes the deal by value, and generates rich AI itineraries on demand for the best redemptions.
 
-Built with Next.js, PostgreSQL, LangChain/LangGraph, and a continuous deal pipeline.
-
----
-
-## What the dashboard shows
-
-The dashboard is split into two levels:
-
-1. **Home page** — a grid of origin-city cards. Each card shows:
-   - The city name.
-   - Total number of deals available from that city.
-   - A breakdown of deal quality: **GOOD**, **MAYBE**, **OKAY**, and **OTHER**.
-   - The lowest points or cash starting price for that city.
-
-2. **City page** (`/origin/[city]`) — every deal from the selected origin. It includes a filter bar and pagination:
-   - **Category** (GOOD / MAYBE / OKAY / OTHER)
-   - **Airline**
-   - **Cabin** (Economy, Premium Economy, Business, First)
-   - **Trip type** (One Way / Round Trip)
-   - **Month**, **Year**, **Week**
-   - **Sort by** Deals, Points, or Date
-
-Click any deal card to open the **Deal Modal** with full details.
+This is a full-stack, data-intensive project built with Next.js, PostgreSQL, LangChain/LangGraph, and a continuous ingestion pipeline.
 
 ---
 
-## Deal categories and how they are scored
+## What it does
 
-Every deal is scored with the points-and-miles metric **cents per point (CPP)**:
+The dashboard ingests real award-space data, applies a points-and-miles valuation framework, and presents the results through a fast, filterable UI.
+
+### Two-level browsing
+
+The interface is built around two views:
+
+1. **Origin-city grid** — the home page shows every departure city as a card. Each card displays:
+   - Total number of deals from that city.
+   - A colored quality breakdown: GOOD, MAYBE, OKAY, and OTHER.
+   - The lowest starting price in points or cash.
+   - The categories are ordered GOOD → MAYBE → OKAY → OTHER so the best opportunities are visible at a glance.
+
+2. **City detail page** (`/origin/[city]`) — every deal from the selected origin. A full filter bar lets users narrow by:
+   - Category (GOOD / MAYBE / OKAY / OTHER)
+   - Airline
+   - Cabin (Economy, Premium Economy, Business, First)
+   - Trip type (One Way / Round Trip)
+   - Month, Year, and ISO Week
+   - Sort by: **Deals** (GOOD first), **Points**, or **Date**
+
+The deals load in batched, paginated sets so the page stays fast even with tens of thousands of records.
+
+### Deal modal
+
+Clicking a deal opens a detail modal with:
+
+- Full route, airline, cabin, and date information.
+- Points required and taxes/fees.
+- A short rationale explaining why the deal is GOOD, MAYBE, OKAY, or OTHER.
+- **Representative Cash Flight Details** — duration, stops, layover airport and duration, and the cash airline. These come from the cheapest one-way cash alternative for the same route, cabin, and date.
+- A live booking link back to the award search on Seats.aero.
+- A one-click email field to send the full itinerary.
+
+---
+
+## How deal quality is scored
+
+Every deal is evaluated using the standard points-and-miles metric **cents per point (CPP)**:
 
 ```
 CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100
@@ -40,180 +55,116 @@ CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100
 
 The thresholds are:
 
-| Category | CPP threshold | Color in the UI |
+| Category | CPP threshold | What it means |
 | --- | --- | --- |
-| **GOOD** | ≥ 2.0¢ | green |
-| **MAYBE** | ≥ 1.5¢ | yellow |
-| **OKAY** | ≥ 1.0¢ | blue |
-| **OTHER** | < 1.0¢ | gray |
+| **GOOD** | ≥ 2.0¢ | Excellent redemption value. |
+| **MAYBE** | ≥ 1.5¢ | Solid, close to great. |
+| **OKAY** | ≥ 1.0¢ | Fair, but not exceptional. |
+| **OTHER** | < 1.0¢ | Paying cash or waiting is usually better. |
 
-A higher CPP means your points are worth more. A GOOD deal means the points redemption is worth at least 2 cents per point, which is the common "great value" benchmark in the points-and-miles community.
+A 2.0¢+ CPP is the widely accepted "great value" benchmark in the points-and-miles community. These thresholds are applied automatically to every scraped deal.
 
-### How Cash Price is determined
+### Cash price logic
 
-The **Cash Price** used in the formula is the cheapest one-way cash flight found for the **same route, cabin, and departure date**. It is looked up from:
+The **Cash Price** in the CPP formula is the cheapest one-way cash flight for the **same origin, destination, cabin, and departure date**. The system looks up this price in priority order:
 
-1. **Duffel API** (preferred, if a `DUFFEL_API_TOKEN` is configured).
-2. **Google Flights** via `fast-flights-ts` (fallback if Duffel fails or is not configured).
-3. **Static route estimate table** (last-resort fallback if both live sources fail).
+1. **Duffel API** — live one-way offers.
+2. **Google Flights** via `fast-flights-ts` — fallback live search.
+3. **Static estimate table** — last-resort fallback if both live sources fail.
 
-Important caveats:
-
-- The cheapest cash option may be on a **different airline** than the award flight. The modal explicitly labels this as the **Representative Cash Flight Details** and says: *"Based on the cheapest one-way cash option found for this route and cabin. Your actual award flight may differ in airline, timing, stops, or layover."*
-- The cash price is now cached and looked up per `route/cabin/date`, so the date you click matters.
-- If the live lookup does not find any cash option, the modal still shows the section but notes that no representative cash details are available.
+The live cash price is cached per `route/cabin/date` so the value reflects the specific departure date. If the cheapest cash option is on a different airline than the award flight, the modal still shows it as the representative market value, with clear wording that the actual award flight may differ in airline, timing, stops, or layover.
 
 ---
 
-## The deal modal
+## On-demand AI itineraries
 
-Opening a deal shows:
+Full AI itineraries are **not** pre-generated for every deal — they are built when a user opens a **GOOD** deal. This keeps the pipeline fast and the API call costs under control.
 
-- **Route, airline, cabin, and date**
-- **Price** — points required, plus taxes and fees when applicable
-- **Why this is a [category] deal** — a short rationale, including the CPP math when a live cash price exists
-- **Representative Cash Flight Details** — duration, stops, layover airport and duration, and the cash airline
-- **Book This Flight** — a direct booking link to the Seats.aero search page
-- **Email this itinerary** — enter an email and the full itinerary is sent via Resend (only for GOOD deals, see below)
+The flow is:
 
----
+1. The user clicks a GOOD deal.
+2. If a full itinerary already exists in the database, it is returned instantly.
+3. If not, the modal calls `POST /api/itinerary`, which runs the agentic generator:
+   - Fetches a 5-day weather forecast from Open-Meteo.
+   - Searches live destination news and events.
+   - Retrieves a destination hero image and daily activity images from Wikipedia/Wikimedia.
+   - Generates a 5-day, cabin-appropriate itinerary through a LangGraph architect/critic loop.
+   - Hydrates the itinerary with images and caches it in PostgreSQL.
 
-## AI Itineraries
-
-Itineraries are **not** pre-generated for every deal. They are created **on demand** when you open a **GOOD** deal.
-
-When you click a GOOD deal, the system:
-
-1. Checks the database for an existing full itinerary.
-2. If one exists, it returns it immediately.
-3. If not, it calls the agentic pipeline to build one and caches it in the database.
-
-The generated itinerary includes:
-
-- Flight and arrival reality check
-- 5-day destination weather outlook from Open-Meteo
-- Recent destination news from a live web search
-- A destination hero image and daily Wikipedia images
-- A 5-day activity plan in a cabin-appropriate tone
-- Direct booking link
-
-Because the heavy AI work happens only when a GOOD deal is opened, the dashboard stays fast and the pipeline stays cheap.
+Each itinerary includes a **reality check** that the airline, cabin, and routing match the booked award — no implied upgrades, partner re-routes, or premium-cabin services unless they are part of the actual booking.
 
 ---
 
-## Data sources and refresh
+## The autonomous pipeline
 
-### Sources
+The system is powered by a multi-stage pipeline that runs automatically every **3 hours** via GitHub Actions:
 
-- **Seats.aero API** — real mileage-program award space (points, airline, cabin, dates, taxes)
-- **Duffel API** — live one-way cash offers
-- **fast-flights-ts / Google Flights** — fallback cash price lookup
-- **Open-Meteo** — 5-day destination weather
-- **Wikipedia / Wikimedia** — destination and daily activity images
-- **Gemini or OpenAI (via LangChain)** — destination news search and AI itinerary generation
-- **Resend** — on-demand and digest email delivery
+1. **Scraper Agent** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing.
+2. **Cash-Price Agent** — prefetches live one-way cash prices for every unique route/cabin/date. It tries Duffel first, falls back to Google Flights, and uses a static estimate only as a last resort.
+3. **Evaluator Agent** — runs the CPP guardrail, assigns the category, writes a short rationale for the top deals, and attaches representative flight details (duration, stops, layovers).
+4. **Itinerary Agent** — available on demand for GOOD deals. It combines weather, news, images, and a LangGraph AI loop into a polished Markdown itinerary.
+5. **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend on demand or in a daily digest.
 
-### Refresh cadence
+The pipeline stores everything in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
 
-The deal pipeline runs automatically every **3 hours** via GitHub Actions (`.github/workflows/pipeline.yml`). It can also be triggered manually from the Actions tab.
+---
 
-The scraper requests award space up to **1 year out** and processes up to **12,000 records** per run. Categories, cash prices, and any on-demand itineraries are stored in PostgreSQL and served by the Next.js API.
+## Key design decisions
+
+- **Date-specific cash pricing** — cash prices are cached by `route/cabin/date` instead of `route/cabin`, so CPP reflects the actual departure date.
+- **Cheapest-cash fallback** — if the award airline is not available in live cash results, the system falls back to the cheapest cash option for that route and date rather than returning null and using a low static estimate.
+- **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 3-hour pipeline lightweight.
+- **Batch pagination** — city pages preload 200 deals at a time and render 20 per page, balancing speed and memory on the serverless backend.
+- **Serverless deployment** — the entire app runs on Vercel with dynamic API routes, while the heavy data pipeline runs in GitHub Actions.
+
+---
+
+## Data sources
+
+- **Seats.aero API** — real mileage-program award space.
+- **Duffel API** — live one-way cash offers.
+- **fast-flights-ts / Google Flights** — fallback cash price lookup.
+- **Open-Meteo** — 5-day destination weather.
+- **Wikipedia / Wikimedia** — destination and daily activity images.
+- **Gemini or OpenAI (via LangChain)** — live destination news search and AI itinerary generation.
+- **Resend** — transactional and digest email delivery.
 
 ---
 
 ## Tech stack
 
-- **Framework**: Next.js 14 (App Router), TypeScript
+- **Frontend**: Next.js 14 App Router, React, TypeScript, Tailwind CSS, SWR
+- **Backend API**: Next.js Route Handlers, Vercel serverless functions
 - **Database**: PostgreSQL + Drizzle ORM
 - **AI & multi-agent**: LangChain + LangGraph, Gemini or OpenAI
 - **Cash pricing**: Duffel API, fast-flights-ts (Google Flights)
-- **UI**: Tailwind CSS, Lucide React, SWR
 - **Email**: Resend, `marked` for Markdown → HTML
+- **Automation**: GitHub Actions every 3 hours
 - **Deployment**: Vercel
-- **Pipeline automation**: GitHub Actions
 
 ---
 
-## API endpoints
+## API surface
 
-The dashboard uses these endpoints internally:
+The dashboard is backed by a set of JSON API routes:
 
-- `GET /api/origins` — origin cities with counts and category breakdowns
-- `GET /api/deals` — paginated deals with filtering
-- `GET /api/filter-options` — available filter values (airlines, cabins, categories, months, years, weeks)
-- `POST /api/itinerary` — generate and return the full AI itinerary for a GOOD deal
-- `POST /api/email-itinerary` — email a specific deal to an address
-- `GET /api/cron/email-deals` — daily digest trigger (intended for Vercel cron)
-
----
-
-## Local setup
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/hadileonard08/flight-deal-dashboard.git
-   cd flight-deal-dashboard
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Copy the environment file and fill in your keys:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Required for the pipeline:
-
-   - `DATABASE_URL` — PostgreSQL connection string
-   - `SEATS_AERO_API_KEY` — award-space source
-   - `GEMINI_API_KEY` or `OPENAI_API_KEY` — reasoning and itineraries
-
-   Optional but recommended:
-
-   - `DUFFEL_API_TOKEN` — more reliable live cash prices
-   - `RESEND_API_KEY` — email sending
-   - `FROM_EMAIL` — sender address
-   - `NOTIFICATION_EMAIL` — daily digest recipient
-
-4. Run the local dev server:
-
-   ```bash
-   npm run dev
-   ```
-
-5. Run the pipeline once to populate the database:
-
-   ```bash
-   npm run clear:db
-   npm run run:pipeline
-   ```
+- `GET /api/origins` — origin cities with total counts and category breakdowns.
+- `GET /api/deals` — paginated, filterable deals.
+- `GET /api/filter-options` — available airlines, cabins, categories, months, years, and weeks.
+- `POST /api/itinerary` — generate and return the AI itinerary for a GOOD deal.
+- `POST /api/email-itinerary` — email a specific deal and itinerary to a user.
+- `GET /api/cron/email-deals` — daily digest trigger for Vercel cron.
 
 ---
 
-## Useful scripts
+## Impressive highlights
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start the Next.js dev server |
-| `npm run build` | Build for production |
-| `npm run run:pipeline` | Scrape, evaluate, and store flights and deals |
-| `npm run clear:db` | Delete all `flights` and `deals` records |
-| `npm run clear:db && npm run run:pipeline` | Full refresh |
-
----
-
-## Important notes for readers
-
-- **Cash prices are estimates.** The system tries to find the cheapest one-way cash option for the exact route, cabin, and date. The actual award flight may be on a different airline, route, or schedule.
-- **"OTHER" deals are not bad flights** — they are redemptions where the CPP is below 1.0¢, meaning paying cash or waiting for a better award is usually a better use of points.
-- **Itineraries are generated on demand.** The first time you open a GOOD deal, the modal may show a brief loading state while the AI builds the plan.
-- **Data refreshes automatically** every 3 hours, but you can run the pipeline manually at any time.
+- Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores tens of thousands of real flight deals automatically.
+- Implemented a **CPP-based valuation guardrail** that turns raw award data into human-readable deal quality categories.
+- Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative.
+- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, images, AI plan).
+- Built a **two-level, filterable Next.js dashboard** that paginates large datasets efficiently on a serverless stack.
+- Automated the entire pipeline with **GitHub Actions** and deployed to **Vercel** with a custom domain.
 
 ---
 
