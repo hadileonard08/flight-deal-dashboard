@@ -87,7 +87,7 @@ The flow is:
 3. If not, the modal calls `POST /api/itinerary`, which runs the agentic generator:
    - Fetches a 5-day weather forecast from Open-Meteo.
    - Searches live destination news and events.
-   - Retrieves a destination hero image and daily activity images from Wikipedia/Wikimedia.
+   - Retrieves a destination hero image and daily activity images. Each placeholder is matched against Wikipedia first, then Wikimedia Commons search, with the destination image as a final fallback.
    - Generates a 5-day, cabin-appropriate itinerary through a LangGraph architect/critic loop.
    - Hydrates the itinerary with images and caches it in PostgreSQL.
 
@@ -187,6 +187,7 @@ flowchart LR
 - **Date-specific cash pricing** — cash prices are cached by `route/cabin/date` instead of `route/cabin`, so CPP reflects the actual departure date.
 - **Cheapest-cash fallback** — if the award airline is not available in live cash results, the system falls back to the cheapest cash option for that route and date rather than returning null and using a low static estimate.
 - **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 5-hour pipeline lightweight.
+- **Multi-source itinerary images** — each `![IMAGE: ...]` placeholder is resolved through Wikipedia first, then Wikimedia Commons search, with the destination image as a fallback.
 - **Batch pagination** — city pages preload 200 deals at a time and render 20 per page, balancing speed and memory on the serverless backend.
 - **Serverless deployment** — the entire app runs on Vercel with dynamic API routes, while the heavy data pipeline runs in GitHub Actions.
 
@@ -198,7 +199,7 @@ flowchart LR
 - **Duffel API** — live one-way cash offers.
 - **fast-flights-ts / Google Flights** — fallback cash price lookup.
 - **Open-Meteo** — 5-day destination weather.
-- **Wikipedia / Wikimedia** — destination and daily activity images.
+- **Wikipedia / Wikimedia** — destination hero images and daily landmark/activity images (Wikipedia page summary + Wikimedia Commons search).
 - **Gemini or OpenAI (via LangChain)** — live destination news search and AI itinerary generation.
 - **Resend** — transactional and digest email delivery.
 
@@ -235,7 +236,7 @@ The dashboard is backed by a set of JSON API routes:
 - Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **85,169+ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
 - Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — currently **3,659 GOOD**, **3,386 MAYBE**, **2,542 OKAY**, and **75,582 OTHER** — using the standard points-and-miles benchmark.
 - Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
-- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, images, AI plan) only for GOOD deals.
+- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
 - Automated the entire pipeline with **GitHub Actions** (running every 5 hours) and deployed it to **Vercel** with a custom domain.
 
