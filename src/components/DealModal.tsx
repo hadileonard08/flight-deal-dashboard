@@ -142,7 +142,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[95dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative">
+      <div id="deal-modal" className="bg-white md:rounded-2xl shadow-2xl w-full h-[100dvh] md:h-auto md:max-w-6xl md:max-h-[90vh] overflow-y-auto md:overflow-hidden flex flex-col md:flex-row relative pb-24 md:pb-0">
         <button
           onClick={onClose}
           className="fixed md:absolute top-4 right-4 z-50 p-2 bg-white/90 hover:bg-gray-100 rounded-full border border-gray-200 text-gray-600 hover:text-gray-900 transition-colors"
@@ -279,7 +279,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
                 <button
                   onClick={handleSendEmail}
