@@ -56,7 +56,7 @@ export default function OriginCityPage() {
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedWeek, setSelectedWeek] = useState('all');
-  const [sortBy, setSortBy] = useState('price');
+  const [sortBy, setSortBy] = useState('deal');
 
   const [targetPage, setTargetPage] = useState(0);
   const [selectedDeal, setSelectedDeal] = useState<any | null>(null);
@@ -271,6 +271,7 @@ export default function OriginCityPage() {
               onChange={(e) => setSortBy(e.target.value)}
               className="border rounded px-3 py-1 text-sm"
             >
+              <option value="deal">Deals</option>
               <option value="price">Points</option>
               <option value="date">Date</option>
             </select>

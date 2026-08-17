@@ -98,7 +98,13 @@ export async function GET(request: Request) {
 
   const orderBy = sortBy === 'date'
     ? [asc(flights.departureDate), asc(deals.id)]
-    : [asc(flights.pointsRequired), asc(deals.id)];
+    : sortBy === 'deal'
+      ? [
+          asc(sql`CASE ${deals.category} WHEN 'GOOD_DEAL' THEN 0 WHEN 'MAYBE_GOOD_DEAL' THEN 1 WHEN 'OKAY_DEAL' THEN 2 ELSE 3 END`),
+          asc(flights.pointsRequired),
+          asc(deals.id)
+        ]
+      : [asc(flights.pointsRequired), asc(deals.id)];
 
   const pageDeals = await db.select({
     id: deals.id,
