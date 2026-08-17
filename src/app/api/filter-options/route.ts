@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { flights, deals } from '@/db/schema';
 import { CITY_MAP } from '@/lib/city-map';
+import { resolveAirlineName } from '@/lib/airlines';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
@@ -65,7 +66,9 @@ export async function GET(request: Request) {
     destinations: destinations.map(r => r.value).sort(),
     cabins: cabins.map(r => r.value).sort(),
     tripTypes: tripTypes.map(r => r.value).sort(),
-    airlines: airlines.map(r => r.value).sort(),
+    airlines: airlines
+      .map(r => ({ code: r.value, name: resolveAirlineName(r.value) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     months: months.map(r => r.value).sort((a, b) => a - b),
     years: years.map(r => r.value).sort((a, b) => a - b),
     weeks: weeks.map(r => r.value).sort((a, b) => a - b),

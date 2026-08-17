@@ -50,11 +50,16 @@ interface DealPage {
   hasMore: boolean;
 }
 
+interface AirlineOption {
+  code: string;
+  name: string;
+}
+
 interface FilterOptions {
   categories: string[];
   cabins: string[];
   tripTypes: string[];
-  airlines: string[];
+  airlines: AirlineOption[];
   months: string[];
   years: string[];
 }
@@ -333,8 +338,8 @@ export default function DestinationCityPage() {
                   className="border rounded px-3 py-1 text-sm"
                 >
                   <option value="all">All Airlines</option>
-                  {airlines.map((airline: string) => (
-                    <option key={airline} value={airline}>{airline}</option>
+                  {airlines.map((airline: AirlineOption) => (
+                    <option key={airline.code} value={airline.code}>{airline.name}</option>
                   ))}
                 </select>
               </div>
