@@ -251,8 +251,4 @@ The dashboard is backed by a set of JSON API routes:
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
 - Automated the data pipeline with **GitHub Actions** (running every 5 hours), the daily email digest with **Vercel Cron**, and deployed the dashboard to **Vercel** with a custom domain.
 
----
 
-## License
-
-MIT
