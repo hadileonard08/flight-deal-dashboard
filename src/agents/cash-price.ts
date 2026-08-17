@@ -21,8 +21,8 @@ const CABIN_MAP: Record<string, string> = {
 
 const DUFFEL_API_KEY = process.env.DUFFEL_API_TOKEN || '';
 
-function routeCabinKey(origin: string, destination: string, cabin: string) {
-  return `${origin}:${destination}:${cabin}`;
+function routeCabinKey(origin: string, destination: string, cabin: string, date: string) {
+  return `${origin}:${destination}:${cabin}:${date}`;
 }
 
 function nameToCode(name: string): string | null {
@@ -48,7 +48,7 @@ function parseDuration(iso: string): number {
 export async function prefetchCashPrices(routes: { origin: string; destination: string; cabin: string; date: string }[], concurrency = 3) {
   const seen = new Map<string, { origin: string; destination: string; cabin: string; date: string }>();
   for (const r of routes) {
-    const key = routeCabinKey(r.origin, r.destination, r.cabin);
+    const key = routeCabinKey(r.origin, r.destination, r.cabin, r.date);
     if (!seen.has(key)) seen.set(key, r);
   }
   const unique = Array.from(seen.values());
@@ -59,7 +59,7 @@ export async function prefetchCashPrices(routes: { origin: string; destination: 
   let completed = 0;
 
   for (const r of unique) {
-    const key = routeCabinKey(r.origin, r.destination, r.cabin);
+    const key = routeCabinKey(r.origin, r.destination, r.cabin, r.date);
     if (RESULTS_CACHE.has(key)) continue;
 
     const promise = fetchOne(key, r).finally(() => {
@@ -214,41 +214,43 @@ function extractFlightDetails(segments: any[]): Omit<FlightDetails, 'cashPrice' 
 
 function findBestMatch(results: FlightDetails[] | null, airline: string): FlightDetails | null {
   if (!results || results.length === 0) return null;
-  if (!airline) return null;
+  if (!airline) return results[0];
+
+  const sorted = [...results].sort((a, b) => a.cashPrice - b.cashPrice);
 
   const airlineLower = airline.toLowerCase();
   const targetCode = nameToCode(airline);
 
   // Prefer the exact airline (e.g. Qatar Airways)
-  const exact = results.find(r =>
+  const exact = sorted.find(r =>
     r.airlines.some(a => a.toLowerCase() === airlineLower) ||
     (targetCode && r.airlines.some(a => nameToCode(a) === targetCode))
   );
   if (exact) return exact;
 
   // Partial match by name substring (e.g. Alaska -> Alaska Airlines)
-  const partial = results.find(r =>
+  const partial = sorted.find(r =>
     r.airlines.some(a => a.toLowerCase().includes(airlineLower) || airlineLower.includes(a.toLowerCase()))
   );
   if (partial) return partial;
 
-  // Guardrail: if the live cash option is for a different airline, don't use it.
-  // This prevents showing Qatar Airways award details with, say, a Manila layover
-  // on a Philippine Airlines cash option.
-  return null;
+  // Fall back to the cheapest cash option for this route/cabin/date.
+  // The UI wording makes clear this is the cheapest one-way cash alternative,
+  // which may differ from the award airline.
+  return sorted[0];
 }
 
-// Get the live cash price for a route/cabin, preferring the deal's airline.
-export function getLiveCashPrice(origin: string, destination: string, cabin: string, _date: string, airline?: string): number | null {
-  const key = routeCabinKey(origin, destination, cabin);
+// Get the live cash price for a route/cabin/date, preferring the deal's airline.
+export function getLiveCashPrice(origin: string, destination: string, cabin: string, date: string, airline?: string): number | null {
+  const key = routeCabinKey(origin, destination, cabin, date);
   const results = RESULTS_CACHE.get(key);
   const match = findBestMatch(results ?? null, airline || '');
   return match?.cashPrice ?? null;
 }
 
-// Get representative flight details for a route/cabin, preferring the deal's airline.
-export function getFlightDetails(origin: string, destination: string, cabin: string, _date: string, airline?: string): FlightDetails | null {
-  const key = routeCabinKey(origin, destination, cabin);
+// Get representative flight details for a route/cabin/date, preferring the deal's airline.
+export function getFlightDetails(origin: string, destination: string, cabin: string, date: string, airline?: string): FlightDetails | null {
+  const key = routeCabinKey(origin, destination, cabin, date);
   const results = RESULTS_CACHE.get(key);
   return findBestMatch(results ?? null, airline || '') ?? null;
 }
