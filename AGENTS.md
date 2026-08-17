@@ -11,7 +11,7 @@
 
 ## Cost & AI Guardrails
 
-- **Agentic workflow is restored with caps to keep 3-month runs fast.**
+- **Agentic workflow is restored with caps to keep runs fast even with up to 1 year of data.**
   - `processFlights` uses AI-generated reasoning for the first `MAX_AI_REASONING` (250) `GOOD_DEAL`/`MAYBE_GOOD_DEAL` flights.
   - `GOOD_DEAL` flights get a full agentic itinerary: live news, Open-Meteo weather, LangGraph/Honeymoon AI itinerary, and Wikipedia images for the first `MAX_AI_ITINERARY` (50) flights.
   - All other `GOOD_DEAL` flights get a deterministic fallback plan with a flight summary.
@@ -20,5 +20,5 @@
   - `CPP = (Cash Price − Taxes & Fees) / Points Required × 100`.
   - `GOOD_DEAL` ≥ 2.0¢, `MAYBE_GOOD_DEAL` ≥ 1.5¢, `OKAY_DEAL` ≥ 1.0¢, otherwise `BAD_DEAL`.
   - Cash Price comes from live Google Flights via `fast-flights-ts`; if it fails, the static estimate table is used.
-- The scraper uses `order_by=lowest_mileage` and searches 90 days (3 months) out with a max of 5,000 records per run.
-- `/api/deals` returns the 4,000 cheapest deals sorted by points to stay under Vercel's response-size limits.
+- The scraper uses `order_by=lowest_mileage` and searches up to 365 days (1 year) out with a max of 12,000 records per run.
+- `/api/deals` is paginated; the dashboard loads 20 deals per page on demand.

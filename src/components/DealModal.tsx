@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp } from 'lucide-react';
+import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getBookingUrl } from '@/lib/booking-url';
@@ -30,6 +30,27 @@ export function DealModal({ deal, onClose }: DealModalProps) {
   const [email, setEmail] = useState('');
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailMessage, setEmailMessage] = useState('');
+  const [itinerary, setItinerary] = useState<string | null>(deal.itinerary || null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    if (deal.category !== 'GOOD_DEAL' || itinerary || isGenerating) return;
+
+    setIsGenerating(true);
+    fetch('/api/itinerary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dealId: deal.id })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.itinerary) {
+          setItinerary(data.itinerary);
+        }
+      })
+      .catch(err => console.error('Failed to generate itinerary:', err))
+      .finally(() => setIsGenerating(false));
+  }, [deal, itinerary, isGenerating]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -202,7 +223,13 @@ export function DealModal({ deal, onClose }: DealModalProps) {
           <>
             {/* Right: itinerary */}
             <div className="w-full md:w-3/5 p-4 pt-12 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
-              {deal.itinerary ? (
+              {isGenerating ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                  <Loader2 size={32} className="animate-spin mb-4 text-blue-600" />
+                  <p className="font-medium">Building your personalized itinerary...</p>
+                  <p className="text-sm text-gray-400 mt-1">This may take a few seconds.</p>
+                </div>
+              ) : itinerary ? (
                 <div className="prose prose-sm prose-indigo max-w-none">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
@@ -216,7 +243,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                       )
                     }}
                   >
-                    {deal.itinerary}
+                    {itinerary}
                   </ReactMarkdown>
                 </div>
               ) : (

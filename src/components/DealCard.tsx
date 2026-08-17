@@ -65,10 +65,10 @@ export function DealCard({ deal, onClick }: DealCardProps) {
         &ldquo;{deal.reasoning}&rdquo;
       </p>
 
-      {deal.itinerary && (
+      {deal.category === 'GOOD_DEAL' && (
         <div className="flex items-center gap-1 text-sm font-medium text-blue-600 group-hover:text-blue-700">
           <Sparkles size={14} />
-          <span>Click to view full itinerary</span>
+          <span>{deal.itinerary ? 'Click to view full itinerary' : 'Click to generate personalized itinerary'}</span>
         </div>
       )}
     </button>

@@ -5,6 +5,18 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push(
+        'node-libcurl',
+        'fast-flights-ts',
+        '@langchain/langgraph',
+        '@langchain/core',
+        '@langchain/core/messages'
+      );
+    }
+    return config;
+  },
   async headers() {
     return [
       {

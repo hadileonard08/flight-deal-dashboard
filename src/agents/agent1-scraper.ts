@@ -46,12 +46,12 @@ export async function scrapeFlightDeals(): Promise<FlightDeal[]> {
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
     const endDate = new Date(today);
-    endDate.setDate(today.getDate() + 90); // 3 months out
+    endDate.setDate(today.getDate() + 365); // up to 1 year out
     const endDateStr = endDate.toISOString().split('T')[0];
 
     const baseParams = `origin_airport=${origins.join(',')}&destination_airport=${asianDestinations.join(',')}&start_date=${startDate}&end_date=${endDateStr}&order_by=lowest_mileage`;
     const take = 5000;
-    const maxTotal = 5000;
+    const maxTotal = 12000;
 
     let cursor: number | undefined;
     let skip = 0;
