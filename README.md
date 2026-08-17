@@ -2,7 +2,7 @@
 
 **Live dashboard:** https://flight-deals-dashboard.vercel.app
 
-An autonomous, multi-agent flight-deal discovery platform. It scrapes real award availability from the US to Asia, values every redemption against the cheapest live one-way cash alternative, categorizes the deal by value, and generates rich AI itineraries on demand for the best redemptions.
+A hybrid flight-deal discovery platform. A fast, deterministic data pipeline scrapes real award availability from the US to Asia, values every redemption against the cheapest live one-way cash alternative, and categorizes the deal by value. Heavy multi-agent LLM workflows are reserved for on-demand itinerary generation when a user opens the best redemptions.
 
 This is a full-stack, data-intensive project built with Next.js, PostgreSQL, LangChain/LangGraph, and a continuous ingestion pipeline.
 
@@ -10,7 +10,7 @@ This is a full-stack, data-intensive project built with Next.js, PostgreSQL, Lan
 
 ## What it does
 
-The dashboard ingests real award-space data, applies a points-and-miles valuation framework, and presents the results through a fast, filterable UI.
+The dashboard ingests real award-space data, applies a deterministic points-and-miles valuation framework, and presents the results through a fast, filterable UI.
 
 ### Two-level browsing
 
@@ -88,7 +88,10 @@ The flow is:
    - Fetches a 5-day weather forecast from Open-Meteo.
    - Searches live destination news and events.
    - Retrieves a destination hero image and daily activity images. Each placeholder is matched against Wikipedia first, then Wikimedia Commons search, with the destination image as a final fallback.
-   - Generates a 5-day, cabin-appropriate itinerary through a LangGraph architect/critic loop.
+   - Generates a 5-day, cabin-appropriate itinerary through a **LangGraph architect/critic loop**:
+     - The **Architect** drafts the itinerary, weaving together weather, news, the booked airline/cabin, and the destination.
+     - The **Critic** reviews the draft specifically for hallucinations that would mislead the traveler. It checks that the plan does not invent premium perks, direct routes, partner airlines, lounges, or upgrades that are not part of the actual booking.
+     - If the Critic finds an issue, the loop sends the feedback back to the Architect, which produces a corrected draft. This continues until the Critic is satisfied.
    - Hydrates the itinerary with images and caches it in PostgreSQL.
 
 Each itinerary includes a **reality check** that the airline, cabin, and routing match the booked award — no implied upgrades, partner re-routes, or premium-cabin services unless they are part of the actual booking.
@@ -97,19 +100,19 @@ Each itinerary includes a **reality check** that the airline, cabin, and routing
 
 ## The autonomous pipeline
 
-The data ingestion pipeline runs automatically every **5 hours** via **GitHub Actions** and is made up of three agents:
+The data ingestion pipeline runs automatically every **5 hours** via **GitHub Actions** and is made up of three deterministic services:
 
-1. **Scraper Agent** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing.
-2. **Cash-Price Agent** — prefetches live one-way cash prices for every unique route/cabin/date. It tries Duffel first, falls back to Google Flights, and uses a static estimate only as a last resort.
-3. **Evaluator Agent** — runs the CPP guardrail, assigns the category, writes a short rationale for the top deals, and attaches representative flight details (duration, stops, layovers).
+1. **Scraper Service** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing. This is a standard API-scraping and data-normalization script with no LLM reasoning.
+2. **Cash-Price Service** — prefetches live one-way cash prices for every unique route/cabin/date through deterministic lookups. It tries the Duffel API first, falls back to Google Flights via `fast-flights-ts`, and uses a static estimate table only as a last resort. No generative model is involved.
+3. **Evaluator Service** — runs the deterministic CPP guardrail to categorize every deal. It also uses a lightweight, single-turn LLM prompt for the first `MAX_AI_REASONING` top deals to write a short rationale string. The actual category comes from the math, not from the LLM.
 
 The pipeline stores flights and deals in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
 
 ### On-demand & serverless agents
 
-Two other agents run on **Vercel**, not in the GitHub Actions pipeline:
+The multi-agent, LLM-driven parts of the system run on **Vercel**, not in the GitHub Actions pipeline:
 
-- **Itinerary Agent** — triggered on demand when a user opens a `GOOD` deal and the modal calls `POST /api/itinerary`. It combines weather, news, images, and a LangGraph AI loop into a polished Markdown itinerary.
+- **Itinerary Agent** — triggered on demand when a user opens a `GOOD` deal and the modal calls `POST /api/itinerary`. It combines weather, news, images, and a LangGraph architect/critic loop into a polished Markdown itinerary.
 - **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend. It runs on demand via `POST /api/email-itinerary` or automatically once a day as a **Vercel Cron** job hitting `GET /api/cron/email-deals`.
 
 ---
@@ -134,9 +137,9 @@ flowchart TD
     end
 
     subgraph GitHub Actions Pipeline
-        H[Agent 1: Scraper]
-        I[Agent 2: Cash Price<br/>Duffel → Google Flights → Static table]
-        J[Agent 3: Evaluator]
+        H[Scraper Service]
+        I[Cash-Price Service<br/>Duffel → Google Flights → Static table]
+        J[Evaluator Service]
     end
 
     subgraph Vercel
@@ -175,14 +178,14 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Seats.aero] -->|real award space| B[Scraper Agent]
-    B --> C[Cash Price Agent<br/>Duffel → Google Flights → Static table]
+    A[Seats.aero] -->|real award space| B[Scraper Service]
+    B --> C[Cash-Price Service<br/>Duffel → Google Flights → Static table]
     S[Static estimate table] -->|last-resort cash| C
-    C --> D[Evaluator Agent]
+    C --> D[Evaluator Service]
     D -->|CPP scoring + categorization| E[(PostgreSQL)]
     E --> F[Next.js Dashboard]
     F -->|user clicks GOOD deal| G[Itinerary Agent]
-    G --> H[LangGraph AI]
+    G --> H[LangGraph Architect/Critic Loop]
     H --> I[Destination weather]
     H --> J[Live news]
     H --> K[Wikipedia images]
