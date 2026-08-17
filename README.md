@@ -97,15 +97,20 @@ Each itinerary includes a **reality check** that the airline, cabin, and routing
 
 ## The autonomous pipeline
 
-The system is powered by a multi-stage pipeline that runs automatically every **5 hours** via GitHub Actions:
+The data ingestion pipeline runs automatically every **5 hours** via **GitHub Actions** and is made up of three agents:
 
 1. **Scraper Agent** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing.
 2. **Cash-Price Agent** — prefetches live one-way cash prices for every unique route/cabin/date. It tries Duffel first, falls back to Google Flights, and uses a static estimate only as a last resort.
 3. **Evaluator Agent** — runs the CPP guardrail, assigns the category, writes a short rationale for the top deals, and attaches representative flight details (duration, stops, layovers).
-4. **Itinerary Agent** — available on demand for GOOD deals. It combines weather, news, images, and a LangGraph AI loop into a polished Markdown itinerary.
-5. **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend on demand or in a daily digest.
 
-The pipeline stores everything in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
+The pipeline stores flights and deals in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
+
+### On-demand & serverless agents
+
+Two other agents run on **Vercel**, not in the GitHub Actions pipeline:
+
+- **Itinerary Agent** — triggered on demand when a user opens a `GOOD` deal and the modal calls `POST /api/itinerary`. It combines weather, news, images, and a LangGraph AI loop into a polished Markdown itinerary.
+- **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend. It runs on demand via `POST /api/email-itinerary` or automatically once a day as a **Vercel Cron** job hitting `GET /api/cron/email-deals`.
 
 ---
 
@@ -125,11 +130,12 @@ flowchart TD
         E[Wikipedia / Wikimedia]
         F[Gemini / OpenAI]
         G[Resend]
+        S[Static estimate table]
     end
 
     subgraph GitHub Actions Pipeline
         H[Agent 1: Scraper]
-        I[Agent 2: Cash Price]
+        I[Agent 2: Cash Price<br/>Duffel → Google Flights → Static table]
         J[Agent 3: Evaluator]
     end
 
@@ -138,6 +144,7 @@ flowchart TD
         L[API Routes]
         M[Deal Modal]
         N[Itinerary API]
+        Q[Vercel Cron]
     end
 
     subgraph Database
@@ -147,6 +154,7 @@ flowchart TD
     A -->|award deals| H
     B -->|live cash| I
     C -->|fallback cash| I
+    S -->|last-resort cash| I
     H -->|normalized flights| I
     I -->|cash prices| J
     J -->|flights & deals| P
@@ -158,7 +166,9 @@ flowchart TD
     N -->|images| E
     N -->|news + AI| F
     N -->|store itinerary| P
-    L -->|email| G
+    L -->|on-demand email| G
+    Q -->|daily 9am| L
+    L -->|digest email| G
 ```
 
 ### Agent workflow
@@ -166,7 +176,8 @@ flowchart TD
 ```mermaid
 flowchart LR
     A[Seats.aero] -->|real award space| B[Scraper Agent]
-    B --> C[Cash Price Agent<br/>Duffel → Google Flights]
+    B --> C[Cash Price Agent<br/>Duffel → Google Flights → Static table]
+    S[Static estimate table] -->|last-resort cash| C
     C --> D[Evaluator Agent]
     D -->|CPP scoring + categorization| E[(PostgreSQL)]
     E --> F[Next.js Dashboard]
@@ -213,7 +224,7 @@ flowchart LR
 - **AI & multi-agent**: LangChain + LangGraph, Gemini or OpenAI
 - **Cash pricing**: Duffel API, fast-flights-ts (Google Flights)
 - **Email**: Resend, `marked` for Markdown → HTML
-- **Automation**: GitHub Actions every 5 hours
+- **Automation**: GitHub Actions every 5 hours for the data pipeline; Vercel Cron for the daily email digest
 - **Deployment**: Vercel
 
 ---
@@ -238,4 +249,10 @@ The dashboard is backed by a set of JSON API routes:
 - Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
 - Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia images, AI plan) only for GOOD deals.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
-- Automated the entire pipeline with **GitHub Actions** (running every 5 hours) and deployed it to **Vercel** with a custom domain.
+- Automated the data pipeline with **GitHub Actions** (running every 5 hours), the daily email digest with **Vercel Cron**, and deployed the dashboard to **Vercel** with a custom domain.
+
+---
+
+## License
+
+MIT
