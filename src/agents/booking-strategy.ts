@@ -42,10 +42,13 @@ ${input.bookingUrl ? `- Booking link: ${input.bookingUrl}` : ''}
 
 ${transferContext}
 
+Critical instruction: before recommending any transfer, double-check that the bank/card currency is actually a direct transfer partner of the loyalty program that will book this ticket. Many awards are partner awards (e.g., an Alaska Airlines award that is actually operated by Korean Air). If the route and airline combination looks like a partner award, say so and adjust the transfer recommendation to the program that issued the award, not just the operating carrier.
+
 Structure your response with these sections:
-1. **Transferable points that work** — list which flexible point currencies (Chase UR, Amex MR, Capital One, Citi, Bilt, or none) can transfer to the airline/partner, with transfer times.
-2. **Step-by-step plan** — short, ordered instructions: (a) confirm the award is still bookable, (b) transfer points if needed and note any transfer delay risk, (c) hold or book the ticket before the space disappears, (d) pay taxes/fees.
-3. **Key risks/tips** — e.g., if the program does not allow holds, if transfers are not instant, or if this is an partner award that must be booked through a different program.
+1. **Is this a partner award?** — Briefly state whether the airline above typically operates this route or whether the flight is likely a partner award. If it is a partner award, name the probable operating airline and the booking program.
+2. **Transferable points that work** — list only the flexible point currencies (Chase UR, Amex MR, Capital One, Citi, Bilt, or none) that are direct 1:1 transfer partners of the **booking program**, with transfer times. Do not list a currency unless it is a confirmed partner.
+3. **Step-by-step plan** — short, ordered instructions: (a) confirm the award is still bookable and which program it should be booked through, (b) transfer points to the correct program and note any transfer delay risk, (c) hold or book the ticket before the space disappears, (d) pay taxes/fees.
+4. **Key risks/tips** — e.g., if the program does not allow holds, if transfers are not instant, or if this is a partner award that must be booked through a different program.
 
 Keep it under 250 words. Use an encouraging but realistic tone.`;
 

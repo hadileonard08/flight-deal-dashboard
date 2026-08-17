@@ -152,7 +152,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
         </button>
 
         {/* Left: flight details & booking */}
-        <div className={`w-full bg-gray-50 p-4 pt-12 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${deal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
+        <div className={`w-full bg-gray-50 p-4 pt-12 pb-20 md:p-8 border-b md:border-b-0 border-gray-200 flex flex-col justify-start items-center text-center shrink-0 md:max-h-full md:overflow-y-auto ${deal.category === 'GOOD_DEAL' ? 'md:w-2/5 md:border-r' : 'md:max-w-2xl md:mx-auto'}`}>
           <div className="w-full max-w-sm">
             <span className={`inline-block text-xs font-bold px-2 py-1 rounded mb-3 md:mb-4 ${CATEGORY_STYLES[deal.category] || 'bg-gray-100 text-gray-700'}`}>
               {CATEGORY_LABELS[deal.category] || deal.category.replace('_', ' ')}
@@ -302,7 +302,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
         {deal.category === 'GOOD_DEAL' && (
           <>
             {/* Right: itinerary */}
-            <div className="w-full md:w-3/5 p-4 pt-12 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
+            <div className="w-full md:w-3/5 p-4 pt-12 pb-20 md:p-8 md:overflow-y-auto bg-white md:min-h-0">
               {isGenerating ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-600">
                   <div className="w-36 h-36 mb-5">
