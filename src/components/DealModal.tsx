@@ -229,48 +229,31 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                 <div className="flex flex-col items-center justify-center py-20 text-gray-600">
                   <div className="w-36 h-36 mb-5">
                     <svg viewBox="0 0 120 120" className="w-full h-full">
-                      {/* Map on the table */}
+                      {/* Map */}
                       <g>
-                        <rect x="15" y="62" width="90" height="48" rx="4" fill="#f3f4f6" stroke="#6b7280" strokeWidth="2" />
-                        <path d="M28 74 H92" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M28 86 H92" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
-                        <path d="M28 98 H92" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
-                        <circle cx="70" cy="86" r="3" fill="#2563eb" opacity="0.6" />
-                        <circle cx="45" cy="74" r="2" fill="#2563eb" opacity="0.4" />
+                        <rect x="12" y="28" width="96" height="64" rx="5" fill="#f3f4f6" stroke="#6b7280" strokeWidth="2" />
+                        <path d="M24 44 H96" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M24 60 H96" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
+                        <path d="M24 76 H96" stroke="#d1d5db" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="45" cy="44" r="3" fill="#2563eb" opacity="0.5" />
+                        <circle cx="75" cy="76" r="3" fill="#2563eb" opacity="0.5" />
                       </g>
 
-                      {/* Stickman body */}
+                      {/* Magnifying glass hovering over the map */}
                       <g>
-                        <line x1="55" y1="55" x2="55" y2="85" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="55" y1="65" x2="40" y2="78" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="55" y1="55" x2="45" y2="38" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="55" y1="85" x2="45" y2="105" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
-                        <line x1="55" y1="85" x2="65" y2="105" stroke="#374151" strokeWidth="3" strokeLinecap="round" />
-                        <circle cx="55" cy="28" r="9" fill="#2563eb" />
-                      </g>
-
-                      {/* Magnifying glass scanning the map */}
-                      <g>
-                        <circle cx="80" cy="78" r="9" fill="none" stroke="#2563eb" strokeWidth="3" />
-                        <line x1="87" y1="85" x2="95" y2="93" stroke="#2563eb" strokeWidth="3" strokeLinecap="round" />
+                        <circle cx="60" cy="60" r="18" fill="rgba(37, 99, 235, 0.08)" stroke="#2563eb" strokeWidth="4" />
+                        <line x1="73" y1="73" x2="95" y2="95" stroke="#2563eb" strokeWidth="5" strokeLinecap="round" />
+                        <circle cx="60" cy="60" r="4" fill="#2563eb" opacity="0.4">
+                          <animate attributeName="opacity" values="0.4;0.9;0.4" dur="1.4s" repeatCount="indefinite" />
+                        </circle>
                         <animateTransform
                           attributeName="transform"
                           type="translate"
-                          values="-18 0; 12 0; -18 0"
-                          dur="2.2s"
+                          values="-22 0; 22 0; -22 0"
+                          dur="2.5s"
                           repeatCount="indefinite"
                         />
                       </g>
-
-                      {/* Stickman arm holding the magnifying glass */}
-                      <line x1="55" y1="55" x2="80" y2="65" stroke="#374151" strokeWidth="3" strokeLinecap="round">
-                        <animate
-                          attributeName="x2"
-                          values="62;92;62"
-                          dur="2.2s"
-                          repeatCount="indefinite"
-                        />
-                      </line>
                     </svg>
                   </div>
                   <p className="text-lg font-medium tracking-wide">Creating itinerary</p>
