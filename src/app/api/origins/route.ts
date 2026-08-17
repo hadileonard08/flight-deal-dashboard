@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
 import { CITY_MAP } from '@/lib/city-map';
-import { eq, count, sql } from 'drizzle-orm';
+import { and, eq, count, sql, inArray } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,29 @@ interface OriginCity {
   minCash: number | null;
 }
 
-export async function GET() {
+function getCityCodes(cityName: string): string[] | null {
+  const normalizedCity = cityName.trim().toLowerCase();
+  const codes = Object.entries(CITY_MAP)
+    .filter(([, info]) => info.city.toLowerCase() === normalizedCity)
+    .map(([code]) => code);
+  return codes.length > 0 ? codes : null;
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const destinationCity = searchParams.get('destinationCity') || undefined;
+
+  const conditions = [];
+
+  if (destinationCity && destinationCity !== 'all') {
+    const codes = getCityCodes(destinationCity);
+    if (codes) {
+      conditions.push(inArray(flights.destinationCode, codes));
+    }
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
   const rows = await db
     .select({
       code: flights.originCode,
@@ -26,6 +48,7 @@ export async function GET() {
     })
     .from(deals)
     .innerJoin(flights, eq(deals.flightId, flights.id))
+    .where(whereClause)
     .groupBy(flights.originCode, deals.category);
 
   const cityMap = new Map<string, OriginCity>();
