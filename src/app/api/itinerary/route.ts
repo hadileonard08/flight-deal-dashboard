@@ -9,17 +9,19 @@ export const maxDuration = 60;
 
 function itineraryNeedsRefresh(itinerary: string, force: boolean): boolean {
   if (force) return true;
-  // Re-generate if the stored itinerary is mostly generic destination/flag images
-  // instead of daily landmark images.
+
   const imageMatches = Array.from(itinerary.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g));
   if (imageMatches.length < 2) return true;
 
-  const flagImages = imageMatches.filter(([, url]) =>
-    /flag_of|Flag_of|_flag\.|\/flag\/|emblem_of|coat_of_arms/i.test(url)
-  );
-
-  // If half or more of the images are flags, regenerate.
-  return flagImages.length > 0 && flagImages.length >= imageMatches.length / 2;
+  // Re-generate if any image is from Wikipedia (not Wikimedia Commons), is a flag,
+  // or if half or more are flags.
+  return imageMatches.some(([, url]) => {
+    if (/flag_of|Flag_of|_flag\.|\/flag\/|emblem_of|coat_of_arms/i.test(url)) return true;
+    // Wikipedia API-served images carry a utm_source like en.wikipedia.org.
+    // Wikimedia Commons-served images carry a utm_source like commons.wikimedia.org.
+    if (/utm_source=[^&]*wikipedia\.org/i.test(url) && !/utm_source=commons\.wikimedia\.org/i.test(url)) return true;
+    return false;
+  });
 }
 
 export async function POST(request: Request) {

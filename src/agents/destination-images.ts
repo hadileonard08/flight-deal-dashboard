@@ -30,12 +30,6 @@ function isFlagUrl(url: string | null | undefined): boolean {
   return FLAG_PATTERNS.some(pattern => pattern.test(url));
 }
 
-interface WikiSummary {
-  title?: string;
-  thumbnail?: { source: string; width: number; height: number };
-  originalimage?: { source: string; width: number; height: number };
-}
-
 export async function getDestinationImageUrl(destinationCode: string): Promise<string | null> {
   const city = WIKIPEDIA_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationCode;
   if (!city) return null;
@@ -56,20 +50,6 @@ function cleanTerm(term: string): string {
     .replace(/^IMAGE:\s*/i, '')
     .replace(/\b(Night|Market|Temple|Palace|Park|Stream|Village|Tower|District|Garden|Castle|Bridge|Beach|Mountain|Plaza|Square|Street|Walk|Station)\b/gi, '$1')
     .trim();
-}
-
-async function fetchWikipediaImage(term: string): Promise<string | null> {
-  try {
-    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`, {
-      headers: { 'Accept': 'application/json' },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as WikiSummary;
-    return data.originalimage?.source || data.thumbnail?.source || null;
-  } catch (error) {
-    console.log('Wikipedia image lookup failed for', term, ':', (error as Error).message);
-    return null;
-  }
 }
 
 async function fetchWikimediaCommonsImage(term: string): Promise<string | null> {
@@ -122,11 +102,7 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
     const cleanedT = cleanTerm(t);
     if (!cleanedT) continue;
 
-    // Try Wikipedia page summary first (most accurate if a page exists).
-    const wikiUrl = await fetchWikipediaImage(cleanedT);
-    if (wikiUrl && !isFlagUrl(wikiUrl)) return wikiUrl;
-
-    // Fall back to Wikimedia Commons search for the exact term.
+    // Use Wikimedia Commons search only.
     const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
     if (commonsUrl && !isFlagUrl(commonsUrl)) return commonsUrl;
   }
