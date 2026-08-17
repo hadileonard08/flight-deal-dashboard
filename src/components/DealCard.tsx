@@ -7,7 +7,7 @@ const CATEGORY_STYLES: Record<string, string> = {
   GOOD_DEAL: 'bg-green-100 text-green-700',
   MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
   OKAY_DEAL: 'bg-blue-100 text-blue-700',
-  BAD_DEAL: 'bg-red-100 text-red-700',
+  BAD_DEAL: 'bg-gray-100 text-gray-700',
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
