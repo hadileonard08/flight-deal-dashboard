@@ -97,7 +97,7 @@ Each itinerary includes a **reality check** that the airline, cabin, and routing
 
 ## The autonomous pipeline
 
-The system is powered by a multi-stage pipeline that runs automatically every **3 hours** via GitHub Actions:
+The system is powered by a multi-stage pipeline that runs automatically every **5 hours** via GitHub Actions:
 
 1. **Scraper Agent** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing.
 2. **Cash-Price Agent** — prefetches live one-way cash prices for every unique route/cabin/date. It tries Duffel first, falls back to Google Flights, and uses a static estimate only as a last resort.
@@ -139,7 +139,7 @@ The pipeline stores everything in PostgreSQL via Drizzle ORM, and the Next.js fr
 - **AI & multi-agent**: LangChain + LangGraph, Gemini or OpenAI
 - **Cash pricing**: Duffel API, fast-flights-ts (Google Flights)
 - **Email**: Resend, `marked` for Markdown → HTML
-- **Automation**: GitHub Actions every 3 hours
+- **Automation**: GitHub Actions every 5 hours
 - **Deployment**: Vercel
 
 ---
@@ -164,7 +164,7 @@ The dashboard is backed by a set of JSON API routes:
 - Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
 - Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, images, AI plan) only for GOOD deals.
 - Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
-- Automated the entire pipeline with **GitHub Actions** (running every 3 hours) and deployed it to **Vercel** with a custom domain.
+- Automated the entire pipeline with **GitHub Actions** (running every 5 hours) and deployed it to **Vercel** with a custom domain.
 
 ---
 
