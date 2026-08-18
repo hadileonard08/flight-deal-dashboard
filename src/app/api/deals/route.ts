@@ -136,7 +136,9 @@ export async function GET(request: Request) {
     duration: flights.duration,
     stops: flights.stops,
     layoverAirport: flights.layoverAirport,
-    layoverDuration: flights.layoverDuration
+    layoverDuration: flights.layoverDuration,
+    aircraftType: flights.aircraftType,
+    segments: flights.segments
   })
   .from(deals)
   .innerJoin(flights, eq(deals.flightId, flights.id))
@@ -177,6 +179,8 @@ export async function GET(request: Request) {
     let stops = deal.stops;
     let layoverAirport = deal.layoverAirport;
     let layoverDuration = deal.layoverDuration;
+    let aircraftType = deal.aircraftType;
+    let segments = deal.segments;
     let isCashEstimate = false;
 
     if (!cashAirline && estimatedCash) {
@@ -190,7 +194,9 @@ export async function GET(request: Request) {
         stops = details.stops ?? stops;
         layoverAirport = details.layoverAirport ?? layoverAirport;
         layoverDuration = details.layoverDuration ?? layoverDuration;
+        aircraftType = details.aircraftType ?? aircraftType;
         cashAirline = details.airlines?.join(', ') ?? cashAirline;
+        segments = details.segments ? JSON.stringify(details.segments) : segments;
         isCashEstimate = !!details.isEstimate;
       }
     }
@@ -206,7 +212,9 @@ export async function GET(request: Request) {
       duration,
       stops,
       layoverAirport,
-      layoverDuration
+      layoverDuration,
+      aircraftType,
+      segments
     };
   });
 

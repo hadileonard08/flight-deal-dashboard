@@ -406,16 +406,41 @@ async function tryDataAPI(r: { origin: string; destination: string; date: string
       const stopCount = Number(item.transfers) || 0;
       const airports = extractAirportsFromLink(item.link || '', stopCount);
       const layover = stopCount === 1 ? airports[1] : null;
+      const duration = Number(item.duration) || Number(item.duration_to) || 0;
+      const airline = findAirlineName(item.airline) || item.airline;
+
+      // Build a segment list from the airport chain if we can derive one.
+      const segmentAirports = airports.length >= 2 ? airports : [item.origin_airport, item.destination_airport];
+      const legDuration = Math.max(0, Math.round(duration / Math.max(1, segmentAirports.length - 1)));
+      const departureAt = new Date(item.departure_at).getTime();
+      const segments: Segment[] = [];
+      let currentTime = departureAt;
+
+      for (let i = 0; i < segmentAirports.length - 1; i++) {
+        const arrTime = currentTime + legDuration * 60 * 1000;
+        segments.push({
+          origin: segmentAirports[i],
+          destination: segmentAirports[i + 1],
+          departureAt: new Date(currentTime).toISOString(),
+          arrivalAt: new Date(arrTime).toISOString(),
+          airline,
+          aircraft: null,
+          flightNumber: null,
+          durationMinutes: legDuration
+        });
+        currentTime = arrTime;
+      }
 
       return {
-        duration: Number(item.duration) || Number(item.duration_to) || 0,
+        duration,
         stops: stopCount,
         layoverAirport: layover,
         layoverDuration: null,
         cashPrice: Number(item.price) || 0,
-        airlines: [findAirlineName(item.airline) || item.airline].filter(Boolean),
+        airlines: [airline].filter(Boolean),
         redirectUrl: `https://www.aviasales.com${item.link}`,
-        cabin: 'ECONOMY'
+        cabin: 'ECONOMY',
+        segments
       };
     });
   } catch (error) {

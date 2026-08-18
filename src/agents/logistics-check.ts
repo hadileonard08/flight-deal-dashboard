@@ -48,6 +48,39 @@ export async function getLogisticsCheck(input: LogisticsInput): Promise<string> 
     parsedSegments = [];
   }
 
+  // If the database has no segment details, build a high-level routing from the summary.
+  if (parsedSegments.length === 0) {
+    const totalStops = input.stops ?? 0;
+    const depTime = isNaN(new Date(input.departureDate).getTime())
+      ? Date.now()
+      : new Date(input.departureDate).getTime();
+    const layover = input.layoverAirport;
+    const stopCount = Math.max(0, totalStops);
+    const stops = stopCount > 0 && layover ? [layover] : [];
+    const points = [input.originCode, ...stops, input.destinationCode];
+    const legCount = Math.max(1, points.length - 1);
+    // Reserve layover time between legs; if unknown, assume a reasonable default (75 min).
+    const layoverMinutes = input.layoverDuration ?? 75;
+    const knownDuration = input.duration && input.duration > 0 ? input.duration : 0;
+    const availableFlightMinutes = Math.max(0, knownDuration - (stopCount * layoverMinutes));
+    const legDuration = knownDuration > 0 ? Math.max(1, Math.round(availableFlightMinutes / legCount)) : 0;
+
+    for (let i = 0; i < legCount; i++) {
+      const legDep = depTime + i * (legDuration + layoverMinutes) * 60_000;
+      const legArr = legDuration > 0 ? legDep + legDuration * 60_000 : legDep;
+      parsedSegments.push({
+        origin: points[i],
+        destination: points[i + 1],
+        departureAt: new Date(legDep).toISOString(),
+        arrivalAt: new Date(legArr).toISOString(),
+        airline: input.airline,
+        aircraft: input.aircraftType,
+        flightNumber: null,
+        durationMinutes: legDuration
+      });
+    }
+  }
+
   const segmentLines = parsedSegments.length
     ? parsedSegments
         .map(
@@ -83,7 +116,7 @@ Write three short sections:
 2. **Product Quality Check** — Evaluate the cabin and aircraft. If business or first, warn if the aircraft is known to have an outdated premium product (e.g., angle-flat vs lie-flat) for this airline/route. If you do not know the aircraft type, say so and give general guidance.
 3. **Overall Verdict** — One sentence: who this routing is good for and who should avoid it.
 
-Be honest, concise, and do not hallucinate specific flight numbers, terminals, or amenities that are not in the data. Under 250 words.`;
+Use the available summary data (stops, layover airport, duration, aircraft) even if detailed segment data is limited. Be honest, concise, and do not hallucinate specific flight numbers, terminals, or amenities that are not in the data. Under 250 words.`;
 
   try {
     const res = await model.invoke(prompt);
