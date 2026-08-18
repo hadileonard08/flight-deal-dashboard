@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2, Wallet, Plane } from 'lucide-react';
+import { Calendar, ExternalLink, X, MapPin, Mail, ArrowUp, Loader2, Plane } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getBookingUrl } from '@/lib/booking-url';
@@ -34,8 +34,6 @@ export function DealModal({ deal, onClose }: DealModalProps) {
   const [itinerary, setItinerary] = useState<string | null>(deal.itinerary || null);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const [strategy, setStrategy] = useState<string | null>(null);
-  const [isLoadingStrategy, setIsLoadingStrategy] = useState(false);
   const [logistics, setLogistics] = useState<string | null>(null);
   const [isLoadingLogistics, setIsLoadingLogistics] = useState(false);
 
@@ -72,24 +70,6 @@ export function DealModal({ deal, onClose }: DealModalProps) {
 
   const dp = getDisplayPrice(deal);
   const airlineInfo = getAirlineInfo(deal.airlineCode || deal.airline);
-
-  const loadBookingStrategy = async () => {
-    if (strategy || isLoadingStrategy) return;
-    setIsLoadingStrategy(true);
-    try {
-      const res = await fetch('/api/booking-strategy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dealId: deal.id })
-      });
-      const data = await res.json();
-      setStrategy(data.strategy || data.error || 'No strategy available.');
-    } catch (error) {
-      setStrategy('Failed to load booking strategy.');
-    } finally {
-      setIsLoadingStrategy(false);
-    }
-  };
 
   const loadLogisticsCheck = async () => {
     if (logistics || isLoadingLogistics) return;
@@ -240,33 +220,16 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               Book This Flight
             </a>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 w-full">
-              <button
-                onClick={loadBookingStrategy}
-                disabled={isLoadingStrategy}
-                className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {isLoadingStrategy ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-                Booking Strategy
-              </button>
+            <div className="mt-4 w-full">
               <button
                 onClick={loadLogisticsCheck}
                 disabled={isLoadingLogistics}
-                className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 w-full"
               >
                 {isLoadingLogistics ? <Loader2 size={14} className="animate-spin" /> : <Plane size={14} />}
                 Analyze Routing
               </button>
             </div>
-
-            {strategy && (
-              <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Booking Strategy</h3>
-                <div className="prose prose-sm prose-indigo max-w-none break-words">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{strategy}</ReactMarkdown>
-                </div>
-              </div>
-            )}
 
             {logistics && (
               <div className="mt-4 text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200">
