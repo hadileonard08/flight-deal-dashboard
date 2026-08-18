@@ -73,7 +73,7 @@ function parseDuration(iso: string): number {
 
 // Pre-fetch live one-way cash prices and representative flight details from Duffel.
 // Falls back to fast-flights-ts if Duffel fails, then to the static estimate table.
-export async function prefetchCashPrices(routes: { origin: string; destination: string; cabin: string; date: string }[], concurrency = 3) {
+export async function prefetchCashPrices(routes: { origin: string; destination: string; cabin: string; date: string }[], concurrency = 2) {
   const seen = new Map<string, { origin: string; destination: string; cabin: string; date: string }>();
   for (const r of routes) {
     const key = routeCabinKey(r.origin, r.destination, r.cabin, r.date);
@@ -111,15 +111,20 @@ export async function prefetchCashPrices(routes: { origin: string; destination: 
 
 async function fetchOne(key: string, r: { origin: string; destination: string; cabin: string; date: string }) {
   if (DUFFEL_API_KEY) {
-    try {
-      const duffel = await fetchDuffel(r);
-      if (duffel && duffel.length > 0) {
-        RESULTS_CACHE.set(key, duffel.sort((a, b) => a.cashPrice - b.cashPrice));
-        return;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const duffel = await fetchDuffel(r);
+        if (duffel && duffel.length > 0) {
+          RESULTS_CACHE.set(key, duffel.sort((a, b) => a.cashPrice - b.cashPrice));
+          return;
+        }
+      } catch (error) {
+        const message = (error as Error).message || String(error);
+        console.log(`  Duffel attempt ${attempt} failed for ${r.origin}-${r.destination} ${r.date}: ${message}`);
+        if (attempt < 3) await new Promise(res => setTimeout(res, attempt * 1_000));
       }
-    } catch (error) {
-      console.log(`  Duffel failed for ${r.origin}-${r.destination}, falling back to Google Flights`);
     }
+    console.log(`  Duffel exhausted for ${r.origin}-${r.destination} ${r.date}, falling back to Google Flights`);
   }
 
   try {
@@ -132,7 +137,7 @@ async function fetchOne(key: string, r: { origin: string; destination: string; c
       currency: 'USD'
     });
 
-    const results = await getFlights(query, { timeout: 12_000, maxRetries: 1, retryDelay: 2_000 });
+    const results = await getFlights(query, { timeout: 20_000, maxRetries: 2, retryDelay: 3_000 });
     const flights = Array.isArray(results) ? results : [];
     const withPrice = flights
       .filter((f: any) => typeof f?.price === 'number' && f.price > 0)
@@ -148,7 +153,7 @@ async function fetchOne(key: string, r: { origin: string; destination: string; c
       return;
     }
   } catch (error) {
-    // silence
+    console.log(`  Google Flights failed for ${r.origin}-${r.destination} ${r.date}: ${(error as Error).message}`);
   }
 
   RESULTS_CACHE.set(key, null);

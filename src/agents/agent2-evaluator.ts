@@ -23,7 +23,7 @@ export async function processFlights(rawFlights: any[]) {
     cabin: f.cabin,
     date: f.departureDate instanceof Date ? f.departureDate.toISOString().split('T')[0] : String(f.departureDate).slice(0, 10)
   }));
-  await prefetchCashPrices(cashRoutes, 8);
+  await prefetchCashPrices(cashRoutes, 2);
 
   // Itineraries are generated on demand; the pipeline only writes reasoning.
   // AI reasoning is capped to keep the agentic workflow fast and cheap.
