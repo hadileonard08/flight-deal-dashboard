@@ -465,19 +465,40 @@ export async function prefetchCabinEstimates(routes: { origin: string; destinati
   await Promise.all(inFlight);
 }
 
+// Try live sources in priority order: Travelpayouts real-time, then Data API (economy),
+// then Duffel. Returns all matching offers or null.
+async function getLiveResults(r: { origin: string; destination: string; cabin: string; date: string }): Promise<FlightDetails[] | null> {
+  // 1. Travelpayouts real-time affiliate search (requires approval).
+  if (TP_TOKEN) {
+    const realtime = await tryRealtimeSearch(r);
+    if (realtime && realtime.length > 0) return realtime;
+  }
+
+  // 2. Travelpayouts Data API for economy routes.
+  if (TP_TOKEN && r.cabin === 'ECONOMY') {
+    const dataResults = await tryDataAPI(r);
+    if (dataResults && dataResults.length > 0) return dataResults;
+  }
+
+  // 3. Duffel for real-time prices in any cabin.
+  if (DUFFEL_API_TOKEN) {
+    const duffel = await tryDuffel(r);
+    if (duffel && duffel.length > 0) return duffel;
+  }
+
+  return null;
+}
+
 // Fetch a live economy price and apply the requested cabin multiplier.
 // Returns a single estimated FlightDetails for business/first class when
 // real-time search is not yet approved.
 export async function getCabinEstimate(origin: string, destination: string, date: string, cabin: string): Promise<FlightDetails | null> {
-  // Try Duffel first for real business/first prices.
-  if (DUFFEL_API_TOKEN) {
-    const duffelResults = await tryDuffel({ origin, destination, cabin: cabin.toUpperCase(), date });
-    if (duffelResults && duffelResults.length > 0) {
-      const cheapest = duffelResults.sort((a, b) => a.cashPrice - b.cashPrice)[0];
-      const key = routeCabinKey(origin, destination, cabin.toUpperCase(), date);
-      RESULTS_CACHE.set(key, [cheapest]);
-      return cheapest;
-    }
+  const results = await getLiveResults({ origin, destination, cabin: cabin.toUpperCase(), date });
+  if (results && results.length > 0) {
+    const cheapest = results.sort((a, b) => a.cashPrice - b.cashPrice)[0];
+    const key = routeCabinKey(origin, destination, cabin.toUpperCase(), date);
+    RESULTS_CACHE.set(key, [cheapest]);
+    return cheapest;
   }
 
   const multiplier = CABIN_MULTIPLIERS[cabin.toUpperCase()];
@@ -503,34 +524,13 @@ export async function getCabinEstimate(origin: string, destination: string, date
 }
 
 async function fetchOne(key: string, r: { origin: string; destination: string; cabin: string; date: string }) {
-  // Try Duffel first for real-time prices in any cabin.
-  if (DUFFEL_API_TOKEN) {
-    const duffel = await tryDuffel(r);
-    if (duffel && duffel.length > 0) {
-      RESULTS_CACHE.set(key, duffel.sort((a, b) => a.cashPrice - b.cashPrice));
-      return;
-    }
+  const results = await getLiveResults(r);
+  if (results && results.length > 0) {
+    RESULTS_CACHE.set(key, results.sort((a, b) => a.cashPrice - b.cashPrice));
+    return;
   }
 
-  // Try Travelpayouts real-time affiliate search. This requires separate approval.
-  if (TP_TOKEN) {
-    const realtime = await tryRealtimeSearch(r);
-    if (realtime && realtime.length > 0) {
-      RESULTS_CACHE.set(key, realtime.sort((a, b) => a.cashPrice - b.cashPrice));
-      return;
-    }
-  }
-
-  // Use the cached Travelpayouts Data API for economy routes.
-  if (TP_TOKEN && r.cabin === 'ECONOMY') {
-    const dataResults = await tryDataAPI(r);
-    if (dataResults && dataResults.length > 0) {
-      RESULTS_CACHE.set(key, dataResults.sort((a, b) => a.cashPrice - b.cashPrice));
-      return;
-    }
-  }
-
-  // For business/first, estimate from the cheapest economy result.
+  // Last resort: estimate business/first from economy prices.
   if (CABIN_MULTIPLIERS[r.cabin]) {
     const estimate = await getCabinEstimate(r.origin, r.destination, r.date, r.cabin);
     if (estimate) {
@@ -633,34 +633,22 @@ export async function searchFlights(params: FlightSearchParams): Promise<{ succe
     }
   };
 
-  // 1. Duffel for real-time prices in any cabin.
-  const duffel = DUFFEL_API_TOKEN ? await tryDuffel(r) : null;
-  if (duffel && duffel.length > 0) {
-    // Attach the best Travelpayouts affiliate redirect we can find for the same route.
-    const tpData = TP_TOKEN ? await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date }) : null;
-    const redirectUrl = tpData?.[0]?.redirectUrl;
-    const flights = duffel
-      .sort((a, b) => a.cashPrice - b.cashPrice)
-      .slice(0, 10)
-      .map(f => ({ ...f, redirectUrl: redirectUrl || f.redirectUrl }));
-    return { success: true, currency: 'USD', flights };
-  }
-
-  // 2. Travelpayouts real-time (if/when approved).
-  const realtime = await tryRealtimeSearch(r);
-  if (realtime && realtime.length > 0) {
-    return { success: true, currency: 'USD', flights: realtime };
-  }
-
-  // 3. Travelpayouts Data API for one-way economy.
-  if (cabin === 'ECONOMY') {
-    const cached = await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date });
-    if (cached && cached.length > 0) {
-      return { success: true, currency: 'USD', flights: cached };
+  // 1. Travelpayouts real-time (if/when approved) and Data API / Duffel fallback.
+  const live = await getLiveResults(r);
+  if (live && live.length > 0) {
+    // If the source was Duffel, attach the best Travelpayouts affiliate redirect we can find.
+    const hasRedirect = live.some(f => f.redirectUrl);
+    if (!hasRedirect && TP_TOKEN) {
+      const tpData = await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date });
+      const redirectUrl = tpData?.[0]?.redirectUrl;
+      if (redirectUrl) {
+        return { success: true, currency: 'USD', flights: live.slice(0, 10).map(f => ({ ...f, redirectUrl })) };
+      }
     }
+    return { success: true, currency: 'USD', flights: live.slice(0, 10) };
   }
 
-  // 4. Estimate business/first from the cheapest economy result.
+  // 2. Estimate business/first from the cheapest economy result.
   if (CABIN_MULTIPLIERS[cabin]) {
     const estimate = await getCabinEstimate(r.origin, r.destination, r.date, cabin);
     if (estimate) {
