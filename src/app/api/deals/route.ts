@@ -4,6 +4,7 @@ import { deals, flights } from '@/db/schema';
 import { resolveAirlineName, getAirlineInfo } from '@/lib/airlines';
 import { getEstimatedCashValue } from '@/lib/config';
 import { getFlightDetails } from '@/agents/cash-price';
+import { prefetchCabinEstimates } from '@/agents/travelpayouts';
 import { CITY_MAP } from '@/lib/city-map';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
@@ -147,6 +148,23 @@ export async function GET(request: Request) {
   const hasMore = pageDeals.length > limit;
   const trimmedDeals = hasMore ? pageDeals.slice(0, limit) : pageDeals;
 
+  // Pre-fetch business/first class estimates from economy prices so the UI
+  // can display "Est. Business: $X" on the card.
+  const estimateRoutes = trimmedDeals
+    .filter(d => (d.cabin === 'BUSINESS' || d.cabin === 'FIRST') && !d.cashAirline)
+    .map(d => ({
+      origin: d.originCode,
+      destination: d.destinationCode,
+      cabin: d.cabin,
+      date: d.departureDate instanceof Date
+        ? d.departureDate.toISOString().split('T')[0]
+        : String(d.departureDate).slice(0, 10)
+    }));
+
+  if (estimateRoutes.length > 0) {
+    await prefetchCabinEstimates(estimateRoutes, 5);
+  }
+
   const resolvedDeals = trimmedDeals.map(deal => {
     const info = getAirlineInfo(deal.airline);
     const estimatedCash = getEstimatedCashValue(deal);
@@ -159,6 +177,7 @@ export async function GET(request: Request) {
     let stops = deal.stops;
     let layoverAirport = deal.layoverAirport;
     let layoverDuration = deal.layoverDuration;
+    let isCashEstimate = false;
 
     if (!cashAirline && estimatedCash) {
       cashPrice = String(estimatedCash);
@@ -172,6 +191,7 @@ export async function GET(request: Request) {
         layoverAirport = details.layoverAirport ?? layoverAirport;
         layoverDuration = details.layoverDuration ?? layoverDuration;
         cashAirline = details.airlines?.join(', ') ?? cashAirline;
+        isCashEstimate = !!details.isEstimate;
       }
     }
 
@@ -182,6 +202,7 @@ export async function GET(request: Request) {
       airlineDescription: info.description,
       cashPrice,
       cashAirline,
+      isCashEstimate,
       duration,
       stops,
       layoverAirport,

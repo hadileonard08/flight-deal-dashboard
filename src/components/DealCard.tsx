@@ -4,6 +4,12 @@ import { Calendar, Sparkles } from 'lucide-react';
 import { formatDate, formatNumber, getDisplayPrice } from '@/lib/format';
 import { getAirlineInfo } from '@/lib/airlines';
 
+function formatCash(cash: any): string {
+  const n = Number(cash || 0);
+  if (!n || n <= 0) return '';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+
 const CATEGORY_STYLES: Record<string, string> = {
   GOOD_DEAL: 'bg-green-100 text-green-700',
   MAYBE_GOOD_DEAL: 'bg-yellow-100 text-yellow-700',
@@ -52,6 +58,11 @@ export function DealCard({ deal, onClick }: DealCardProps) {
         <div className="text-right">
           <p className="text-2xl font-bold text-blue-600">{formatNumber(dp.value)} pts</p>
           {dp.suffix && <p className="text-xs text-gray-500">{dp.suffix}</p>}
+          {deal.cashPrice && (deal.cabin === 'BUSINESS' || deal.cabin === 'FIRST') && (
+            <p className="text-sm font-semibold text-green-700 mt-1">
+              Est. {deal.cabin.replace('_', ' ')}: ${formatCash(deal.cashPrice)}
+            </p>
+          )}
         </div>
       </div>
 

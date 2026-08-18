@@ -23,6 +23,7 @@ export interface FlightDetails {
   segments?: Segment[];
   redirectUrl?: string;
   cabin?: string;
+  isEstimate?: boolean;
 }
 
 export interface FlightSearchParams {
@@ -51,6 +52,11 @@ const CABIN_MAP: Record<string, string> = {
   PREMIUM_ECONOMY: 'premium-economy',
   BUSINESS: 'business',
   FIRST: 'first'
+};
+
+const CABIN_MULTIPLIERS: Record<string, number> = {
+  BUSINESS: 3.5,
+  FIRST: 6.5
 };
 
 const SEARCH_CABIN_MAP: Record<string, string> = {
@@ -340,6 +346,55 @@ function extractAirportsFromLink(link: string, stops: number): string[] {
   }
 }
 
+// Batch-prefetch cabin estimates for a list of business/first routes.
+export async function prefetchCabinEstimates(routes: { origin: string; destination: string; cabin: string; date: string }[], concurrency = 5) {
+  const seen = new Map<string, { origin: string; destination: string; cabin: string; date: string }>();
+  for (const r of routes) {
+    const key = routeCabinKey(r.origin, r.destination, r.cabin, r.date);
+    if (!seen.has(key)) seen.set(key, r);
+  }
+
+  const inFlight: Promise<void>[] = [];
+  for (const r of seen.values()) {
+    const promise = getCabinEstimate(r.origin, r.destination, r.date, r.cabin).then(() => {});
+    inFlight.push(promise);
+
+    if (inFlight.length >= concurrency) {
+      await Promise.race(inFlight);
+      inFlight.splice(inFlight.findIndex(p => p === promise), 1);
+    }
+  }
+  await Promise.all(inFlight);
+}
+
+// Fetch a live economy price and apply the requested cabin multiplier.
+// Returns a single estimated FlightDetails for business/first class when
+// real-time search is not yet approved.
+export async function getCabinEstimate(origin: string, destination: string, date: string, cabin: string): Promise<FlightDetails | null> {
+  if (!TP_TOKEN) return null;
+
+  const multiplier = CABIN_MULTIPLIERS[cabin.toUpperCase()];
+  if (!multiplier) return null;
+
+  const economyResults = await tryDataAPI({ origin, destination, date });
+  if (!economyResults || economyResults.length === 0) return null;
+
+  const cheapest = economyResults.sort((a, b) => a.cashPrice - b.cashPrice)[0];
+  const estimatedPrice = Math.round(cheapest.cashPrice * multiplier);
+
+  const estimate: FlightDetails = {
+    ...cheapest,
+    cabin: cabin.toUpperCase(),
+    cashPrice: estimatedPrice,
+    isEstimate: true
+  };
+
+  const key = routeCabinKey(origin, destination, cabin.toUpperCase(), date);
+  RESULTS_CACHE.set(key, [estimate]);
+
+  return estimate;
+}
+
 async function fetchOne(key: string, r: { origin: string; destination: string; cabin: string; date: string }) {
   if (!TP_TOKEN) {
     RESULTS_CACHE.set(key, null);
@@ -358,6 +413,15 @@ async function fetchOne(key: string, r: { origin: string; destination: string; c
     const dataResults = await tryDataAPI(r);
     if (dataResults && dataResults.length > 0) {
       RESULTS_CACHE.set(key, dataResults.sort((a, b) => a.cashPrice - b.cashPrice));
+      return;
+    }
+  }
+
+  // For business/first, estimate from the cheapest economy result.
+  if (CABIN_MULTIPLIERS[r.cabin]) {
+    const estimate = await getCabinEstimate(r.origin, r.destination, r.date, r.cabin);
+    if (estimate) {
+      RESULTS_CACHE.set(key, [estimate]);
       return;
     }
   }
@@ -467,6 +531,14 @@ export async function searchFlights(params: FlightSearchParams): Promise<{ succe
     const cached = await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date });
     if (cached && cached.length > 0) {
       return { success: true, currency: 'USD', flights: cached };
+    }
+  }
+
+  // Estimate business/first from the cheapest economy result.
+  if (CABIN_MULTIPLIERS[cabin]) {
+    const estimate = await getCabinEstimate(r.origin, r.destination, r.date, cabin);
+    if (estimate) {
+      return { success: true, currency: 'USD', flights: [estimate] };
     }
   }
 
