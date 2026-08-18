@@ -48,41 +48,71 @@ function cleanTerm(term: string): string {
   return term
     .replace(/\[|\]/g, '')
     .replace(/^IMAGE:\s*/i, '')
-    .replace(/\b(Night|Market|Temple|Palace|Park|Stream|Village|Tower|District|Garden|Castle|Bridge|Beach|Mountain|Plaza|Square|Street|Walk|Station)\b/gi, '$1')
     .trim();
+}
+
+function scoreImageRelevance(title: string, term: string): number {
+  const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ');
+  const titleWords = normalize(title).split(/\s+/).filter(Boolean);
+  const termWords = normalize(term).split(/\s+/).filter(w => w.length > 2);
+  if (termWords.length === 0) return 0;
+  let matches = 0;
+  for (const word of termWords) {
+    if (titleWords.some(t => t.includes(word) || word.includes(t) || t.replace(/s$/, '') === word.replace(/s$/, ''))) matches++;
+  }
+  return matches / termWords.length;
+}
+
+function expandImageTerm(term: string): string[] {
+  const variants: string[] = [];
+  const base = term.trim();
+  if (!base) return variants;
+
+  variants.push(base);
+
+  if (!base.toLowerCase().includes('landmark')) variants.push(`${base} landmark`);
+  if (!base.toLowerCase().includes('city')) variants.push(`${base} city`);
+
+  // Strip generic suffixes and try the shorter name (e.g. "Senso-ji Temple" -> "Senso-ji").
+  const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine)$/i, '').trim();
+  if (stripped && stripped !== base) {
+    variants.push(stripped);
+  }
+
+  return [...new Set(variants)];
 }
 
 async function fetchWikimediaCommonsImage(term: string): Promise<string | null> {
   try {
     const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' };
     const searchRes = await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srnamespace=6&srlimit=3&format=json&origin=*`,
+      `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|thumb|size&iiurlwidth=800&format=json&origin=*`,
       { headers }
     );
     if (!searchRes.ok) return null;
-    const searchData = (await searchRes.json()) as any;
-    const results = searchData?.query?.search || [];
+    const data = (await searchRes.json()) as any;
+    const pages = data?.query?.pages;
+    if (!pages) return null;
 
-    for (const result of results) {
-      const title = result.title;
-      const infoRes = await fetch(
-        `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url|thumb|size&iiurlwidth=800&format=json&origin=*`,
-        { headers }
-      );
-      if (!infoRes.ok) continue;
-      const infoData = (await infoRes.json()) as any;
-      const pages = infoData?.query?.pages;
-      if (!pages) continue;
+    const candidates: { url: string; title: string; score: number }[] = [];
 
-      for (const pageId in pages) {
-        const imageinfo = pages[pageId]?.imageinfo;
-        if (imageinfo && imageinfo.length > 0) {
-          return imageinfo[0].thumburl || imageinfo[0].url || null;
+    for (const pageId in pages) {
+      const page = pages[pageId];
+      const imageinfo = page?.imageinfo;
+      const title = page?.title;
+      if (imageinfo && imageinfo.length > 0) {
+        const url = imageinfo[0].thumburl || imageinfo[0].url;
+        if (url && !isFlagUrl(url)) {
+          candidates.push({ url, title, score: scoreImageRelevance(title, term) });
         }
       }
     }
 
-    return null;
+    if (candidates.length === 0) return null;
+
+    // Prefer the image whose filename/title most closely matches the search term.
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0].url;
   } catch (error) {
     console.log('Wikimedia Commons image lookup failed for', term, ':', (error as Error).message);
     return null;
@@ -95,11 +125,7 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
   const cleaned = cleanTerm(term);
   if (!cleaned) return null;
 
-  // Always append the term itself to the fallback list, plus some generic helpful variants.
-  const termsToTry = [cleaned];
-  if (!cleaned.toLowerCase().includes('landmark')) termsToTry.push(`${cleaned} landmark`);
-  if (!cleaned.toLowerCase().includes('city')) termsToTry.push(`${cleaned} city`);
-  if (!cleaned.toLowerCase().includes('night')) termsToTry.push(`${cleaned} night`);
+  const termsToTry = expandImageTerm(cleaned);
 
   for (const t of [...termsToTry, ...fallbackTerms]) {
     const cleanedT = cleanTerm(t);
