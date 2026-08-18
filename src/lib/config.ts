@@ -62,7 +62,7 @@ function estimateOneWayCashValue(originCode: string, destinationCode: string, ca
   return Math.round(base * (REGION_MULTIPLIER[region] ?? 1.0));
 }
 
-// Get the best available cash value for a redemption: live Google Flights price
+// Get the best available cash value for a redemption: live Duffel/Travelpayouts price
 // for the deal's airline (or the cheapest alternative), or the static estimate table as fallback.
 export function getEstimatedCashValue(flight: any): number | null {
   const { getLiveCashPrice } = require('../agents/cash-price');
@@ -112,6 +112,29 @@ export function evaluateThreshold(flight: any) {
       if (details.airlines?.length && !flight.cashAirline) flight.cashAirline = details.airlines.join(', ');
       if (details.aircraftType && !flight.aircraftType) flight.aircraftType = details.aircraftType;
       if (details.segments?.length && !flight.segments) flight.segments = JSON.stringify(details.segments);
+    }
+
+    // If live sources returned no details, build a high-level summary from the route.
+    // This ensures the modal and logistics check always have at least a single segment.
+    if (estimatedCashValue && (!details || !details.segments?.length)) {
+      if (typeof flight.stops !== 'number') flight.stops = 0;
+      if (!flight.layoverAirport) flight.layoverAirport = null;
+      if (!flight.layoverDuration) flight.layoverDuration = null;
+      if (!flight.aircraftType) flight.aircraftType = null;
+      if (!flight.cashAirline) flight.cashAirline = 'Estimate (no live airline match)';
+      if (!flight.segments) {
+        const segment = {
+          origin: flight.originCode,
+          destination: flight.destinationCode,
+          departureAt: `${dateStr}T00:00:00.000Z`,
+          arrivalAt: `${dateStr}T00:00:00.000Z`,
+          airline: flight.airline,
+          aircraft: null,
+          flightNumber: null,
+          durationMinutes: 0
+        };
+        flight.segments = JSON.stringify([segment]);
+      }
     }
 
     const cpp = calculateCPP(flight);
