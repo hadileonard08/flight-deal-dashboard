@@ -57,8 +57,8 @@ const CABIN_MAP: Record<string, string> = {
 };
 
 const CABIN_MULTIPLIERS: Record<string, number> = {
-  BUSINESS: 4,
-  FIRST: 7
+  BUSINESS: 5,
+  FIRST: 10
 };
 
 const SEARCH_CABIN_MAP: Record<string, string> = {
