@@ -38,18 +38,28 @@ export function getRegion(airportCode: string) {
 // estimate cents-per-point (CPP) value for award redemptions. These are ballpark
 // figures, not live pricing - CPP is a heuristic, not an exact valuation.
 const ONE_WAY_CASH_ESTIMATE: Record<string, Record<string, number>> = {
-  HND: { ECONOMY: 500, PREMIUM_ECONOMY: 900, BUSINESS: 1700, FIRST: 3000 },
-  NRT: { ECONOMY: 480, PREMIUM_ECONOMY: 850, BUSINESS: 1600, FIRST: 2800 },
-  HKG: { ECONOMY: 550, PREMIUM_ECONOMY: 950, BUSINESS: 1900, FIRST: 3300 },
-  ICN: { ECONOMY: 520, PREMIUM_ECONOMY: 900, BUSINESS: 1800, FIRST: 3100 },
-  SIN: { ECONOMY: 580, PREMIUM_ECONOMY: 1000, BUSINESS: 2000, FIRST: 3500 },
-  BKK: { ECONOMY: 520, PREMIUM_ECONOMY: 950, BUSINESS: 1850, FIRST: 3200 },
+  // Base one-way cash estimates per destination and cabin. These are intentionally
+  // conservative West-Coast floors; origin region multipliers are applied below.
+  HND: { ECONOMY: 650, PREMIUM_ECONOMY: 1100, BUSINESS: 2200, FIRST: 4000 },
+  NRT: { ECONOMY: 630, PREMIUM_ECONOMY: 1050, BUSINESS: 2100, FIRST: 3800 },
+  HKG: { ECONOMY: 700, PREMIUM_ECONOMY: 1200, BUSINESS: 2400, FIRST: 4200 },
+  ICN: { ECONOMY: 650, PREMIUM_ECONOMY: 1100, BUSINESS: 2100, FIRST: 4000 },
+  SIN: { ECONOMY: 750, PREMIUM_ECONOMY: 1250, BUSINESS: 2500, FIRST: 4500 },
+  BKK: { ECONOMY: 700, PREMIUM_ECONOMY: 1150, BUSINESS: 2300, FIRST: 4200 },
 };
 
-function estimateOneWayCashValue(destinationCode: string, cabin: string): number | null {
+const REGION_MULTIPLIER: Record<string, number> = {
+  WEST_COAST: 1.0,
+  CENTRAL: 1.15,
+  EAST_COAST: 1.3,
+};
+
+function estimateOneWayCashValue(originCode: string, destinationCode: string, cabin: string): number | null {
   const cabinMap = ONE_WAY_CASH_ESTIMATE[destinationCode];
   if (!cabinMap) return null;
-  return cabinMap[cabin] ?? cabinMap['ECONOMY'];
+  const base = cabinMap[cabin] ?? cabinMap['ECONOMY'];
+  const region = getRegion(originCode);
+  return Math.round(base * (REGION_MULTIPLIER[region] ?? 1.0));
 }
 
 // Get the best available cash value for a redemption: live Google Flights price
@@ -61,7 +71,7 @@ export function getEstimatedCashValue(flight: any): number | null {
     : String(flight.departureDate).slice(0, 10);
   const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr, flight.airline);
 
-  return liveCash ?? estimateOneWayCashValue(flight.destinationCode, flight.cabin);
+  return liveCash ?? estimateOneWayCashValue(flight.originCode, flight.destinationCode, flight.cabin);
 }
 
 // Cents-per-point (CPP) value of a redemption using the canonical formula:

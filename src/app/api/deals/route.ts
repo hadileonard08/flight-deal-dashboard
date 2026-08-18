@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { deals, flights } from '@/db/schema';
 import { resolveAirlineName, getAirlineInfo } from '@/lib/airlines';
+import { getEstimatedCashValue } from '@/lib/config';
+import { getFlightDetails } from '@/agents/cash-price';
 import { CITY_MAP } from '@/lib/city-map';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
@@ -147,11 +149,43 @@ export async function GET(request: Request) {
 
   const resolvedDeals = trimmedDeals.map(deal => {
     const info = getAirlineInfo(deal.airline);
+    const estimatedCash = getEstimatedCashValue(deal);
+
+    // If no live cash details were captured, recompute the representative
+    // cash price and details on the fly so the modal math stays current.
+    let cashPrice = deal.cashPrice;
+    let cashAirline = deal.cashAirline;
+    let duration = deal.duration;
+    let stops = deal.stops;
+    let layoverAirport = deal.layoverAirport;
+    let layoverDuration = deal.layoverDuration;
+
+    if (!cashAirline && estimatedCash) {
+      cashPrice = String(estimatedCash);
+      const dateStr = deal.departureDate instanceof Date
+        ? deal.departureDate.toISOString().split('T')[0]
+        : String(deal.departureDate).slice(0, 10);
+      const details = getFlightDetails(deal.originCode, deal.destinationCode, deal.cabin, dateStr, deal.airline);
+      if (details) {
+        duration = details.duration ?? duration;
+        stops = details.stops ?? stops;
+        layoverAirport = details.layoverAirport ?? layoverAirport;
+        layoverDuration = details.layoverDuration ?? layoverDuration;
+        cashAirline = details.airlines?.join(', ') ?? cashAirline;
+      }
+    }
+
     return {
       ...deal,
       airline: info.name,
       airlineCode: deal.airline,
-      airlineDescription: info.description
+      airlineDescription: info.description,
+      cashPrice,
+      cashAirline,
+      duration,
+      stops,
+      layoverAirport,
+      layoverDuration
     };
   });
 
