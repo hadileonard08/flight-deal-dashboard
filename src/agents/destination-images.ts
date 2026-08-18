@@ -123,13 +123,19 @@ export async function hydrateItineraryImages(
 
   if (matches.length === 0) return itinerary;
 
+  // Cache a generic destination image as a fallback for any day without a match.
+  const defaultImage = destinationName ? await getImageForTerm(destinationName) : null;
+
   const imageUrls = await Promise.all(
     matches.map(async (match) => {
       const term = match[1].trim();
       const fallbackTerms = destinationName && destinationName.toLowerCase() !== cleanTerm(term).toLowerCase()
         ? [`${destinationName} ${term}`, `${term} ${destinationName}`]
         : [];
-      const url = await getImageForTerm(term, fallbackTerms);
+      let url = await getImageForTerm(term, fallbackTerms);
+      if (!url && defaultImage) {
+        url = defaultImage;
+      }
       return { match: match[0], term, url };
     })
   );
