@@ -206,9 +206,9 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               ) : null}
             </div>
 
-            {(deal.cashAirline && !deal.cashAirline.includes('Estimate') || deal.duration != null || deal.stops != null || deal.layoverAirport) && (
+            {(deal.cashAirline && !deal.cashAirline.includes('Estimate') || deal.duration != null || deal.stops > 0 || deal.layoverAirport) && (
               <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Representative cash flight details</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Airline info</h3>
                 <ul className="text-sm text-gray-700 space-y-1">
                   {deal.cashAirline && !deal.cashAirline.includes('Estimate') && (
                     <li><span className="font-medium">Airline:</span> {deal.cashAirline}</li>
@@ -216,7 +216,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                   {deal.duration != null && (
                     <li><span className="font-medium">Duration:</span> {Math.floor(Number(deal.duration) / 60)}h {Number(deal.duration) % 60}m</li>
                   )}
-                  {deal.stops != null && (
+                  {deal.stops > 0 && (
                     <li><span className="font-medium">Stops:</span> {Number(deal.stops)}</li>
                   )}
                   {deal.layoverAirport && (
