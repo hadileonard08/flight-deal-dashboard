@@ -51,8 +51,8 @@ interface DealPage {
 }
 
 interface AirlineOption {
-  code: string;
   name: string;
+  codes: string[];
 }
 
 interface FilterOptions {
@@ -339,7 +339,7 @@ export default function OriginCityPage() {
             >
               <option value="all">All Airlines</option>
               {airlines.map((airline: AirlineOption) => (
-                <option key={airline.code} value={airline.code}>{airline.name}</option>
+                <option key={airline.name} value={airline.codes.join(',')}>{airline.name}</option>
               ))}
             </select>
           </div>

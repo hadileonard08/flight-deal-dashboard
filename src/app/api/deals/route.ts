@@ -72,7 +72,12 @@ export async function GET(request: Request) {
   }
 
   if (airline && airline !== 'all') {
-    conditions.push(eq(flights.airline, airline));
+    const airlines = airline.split(',').map(s => s.trim()).filter(Boolean);
+    if (airlines.length === 1) {
+      conditions.push(eq(flights.airline, airlines[0]));
+    } else if (airlines.length > 1) {
+      conditions.push(inArray(flights.airline, airlines));
+    }
   }
 
   if (month && month !== 'all') {

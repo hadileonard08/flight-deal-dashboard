@@ -66,9 +66,18 @@ export async function GET(request: Request) {
     destinations: destinations.map(r => r.value).sort(),
     cabins: cabins.map(r => r.value).sort(),
     tripTypes: tripTypes.map(r => r.value).sort(),
-    airlines: airlines
-      .map(r => ({ code: r.value, name: resolveAirlineName(r.value) }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    airlines: Object.values(
+      airlines.reduce((acc, r) => {
+        const name = resolveAirlineName(r.value);
+        if (!acc[name]) {
+          acc[name] = { name, codes: [] };
+        }
+        if (!acc[name].codes.includes(r.value)) {
+          acc[name].codes.push(r.value);
+        }
+        return acc;
+      }, {} as Record<string, { name: string; codes: string[] }>)
+    ).sort((a, b) => a.name.localeCompare(b.name)),
     months: months.map(r => r.value).sort((a, b) => a - b),
     years: years.map(r => r.value).sort((a, b) => a - b),
     weeks: weeks.map(r => r.value).sort((a, b) => a - b),
