@@ -44,6 +44,8 @@ const TP_MARKER = process.env.TRAVELPAYOUTS_MARKER || '';
 const TP_HOST = process.env.TRAVELPAYOUTS_HOST || 'flight-deals-dashboard.vercel.app';
 const TP_USER_IP = '127.0.0.1';
 
+const DUFFEL_API_TOKEN = process.env.DUFFEL_API_TOKEN || '';
+
 const SEARCH_API_BASE = 'https://tickets-api.travelpayouts.com';
 const DATA_API_BASE = 'https://api.travelpayouts.com';
 
@@ -65,6 +67,16 @@ const SEARCH_CABIN_MAP: Record<string, string> = {
   BUSINESS: 'C',
   FIRST: 'F'
 };
+
+// Parse an ISO 8601 duration like PT11H44M to minutes.
+function parseDuration(iso: string): number {
+  const match = iso.match(/P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!match) return 0;
+  const days = parseInt(match[1] || '0', 10);
+  const hours = parseInt(match[2] || '0', 10);
+  const minutes = parseInt(match[3] || '0', 10);
+  return days * 24 * 60 + hours * 60 + minutes;
+}
 
 function routeCabinKey(origin: string, destination: string, cabin: string, date: string) {
   return `${origin}:${destination}:${cabin}:${date}`;
@@ -279,6 +291,92 @@ function parseRealtimeResults(data: any, searchId: string): FlightDetails[] | nu
   }
 }
 
+// Try Duffel's live offer request API for real-time one-way prices in any cabin.
+async function tryDuffel(r: { origin: string; destination: string; cabin: string; date: string }): Promise<FlightDetails[] | null> {
+  if (!DUFFEL_API_TOKEN) return null;
+
+  try {
+    const res = await fetch('https://api.duffel.com/air/offer_requests?return_offers=true&limit=50', {
+      method: 'POST',
+      headers: {
+        'Accept-Encoding': 'gzip',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Duffel-Version': 'v2',
+        'Authorization': `Bearer ${DUFFEL_API_TOKEN}`
+      },
+      body: JSON.stringify({
+        data: {
+          slices: [{ origin: r.origin, destination: r.destination, departure_date: r.date }],
+          passengers: [{ type: 'adult' }],
+          cabin_class: CABIN_MAP[r.cabin] || 'economy'
+        }
+      })
+    });
+
+    if (!res.ok) {
+      console.log(`  Duffel HTTP ${res.status}`);
+      return null;
+    }
+
+    const json: any = await res.json();
+    const offers = json.data?.offers || [];
+
+    return offers
+      .filter((o: any) => o.slices?.[0]?.segments?.length > 0)
+      .map((o: any) => {
+        const slice = o.slices[0];
+        const segments = slice.segments;
+        const totalDuration = parseDuration(slice.duration);
+        const stops = Math.max(0, segments.length - 1);
+
+        let layoverAirport: string | null = null;
+        let layoverDuration: number | null = null;
+
+        if (stops > 0 && segments.length >= 2) {
+          const first = segments[0];
+          const second = segments[1];
+          layoverAirport = first.destination?.iata_code || null;
+
+          if (first.arriving_at && second.departing_at) {
+            const arr = new Date(first.arriving_at);
+            const dep = new Date(second.departing_at);
+            if (!isNaN(arr.getTime()) && !isNaN(dep.getTime())) {
+              layoverDuration = Math.max(0, Math.round((dep.getTime() - arr.getTime()) / (1000 * 60)));
+            }
+          }
+        }
+
+        const airlines = Array.from(new Set(segments.map((s: any) => s.operating_carrier?.name || s.marketing_carrier?.name || 'Unknown')));
+        const aircraftType = segments[0]?.aircraft?.name || segments[0]?.aircraft?.iata_code || null;
+
+        return {
+          duration: totalDuration,
+          stops,
+          layoverAirport,
+          layoverDuration,
+          cashPrice: Number(o.total_amount) || 0,
+          airlines,
+          aircraftType,
+          cabin: r.cabin,
+          segments: segments.map((s: any) => ({
+            origin: s.origin?.iata_code || '',
+            destination: s.destination?.iata_code || '',
+            departureAt: s.departing_at || '',
+            arrivalAt: s.arriving_at || '',
+            airline: s.operating_carrier?.name || s.marketing_carrier?.name || 'Unknown',
+            aircraft: s.aircraft?.name || s.aircraft?.iata_code || null,
+            flightNumber: s.marketing_carrier_flight_number || s.operating_carrier_flight_number || null,
+            durationMinutes: parseDuration(s.duration) || 0
+          }))
+        };
+      });
+  } catch (error) {
+    console.log(`  Duffel error: ${(error as Error).message}`);
+    return null;
+  }
+}
+
 // Fetch cached economy prices from the Travelpayouts Data API v3 prices_for_dates endpoint.
 // This works out of the box with the free token and returns a redirect `link`.
 async function tryDataAPI(r: { origin: string; destination: string; date: string }): Promise<FlightDetails[] | null> {
@@ -371,7 +469,16 @@ export async function prefetchCabinEstimates(routes: { origin: string; destinati
 // Returns a single estimated FlightDetails for business/first class when
 // real-time search is not yet approved.
 export async function getCabinEstimate(origin: string, destination: string, date: string, cabin: string): Promise<FlightDetails | null> {
-  if (!TP_TOKEN) return null;
+  // Try Duffel first for real business/first prices.
+  if (DUFFEL_API_TOKEN) {
+    const duffelResults = await tryDuffel({ origin, destination, cabin: cabin.toUpperCase(), date });
+    if (duffelResults && duffelResults.length > 0) {
+      const cheapest = duffelResults.sort((a, b) => a.cashPrice - b.cashPrice)[0];
+      const key = routeCabinKey(origin, destination, cabin.toUpperCase(), date);
+      RESULTS_CACHE.set(key, [cheapest]);
+      return cheapest;
+    }
+  }
 
   const multiplier = CABIN_MULTIPLIERS[cabin.toUpperCase()];
   if (!multiplier) return null;
@@ -396,20 +503,26 @@ export async function getCabinEstimate(origin: string, destination: string, date
 }
 
 async function fetchOne(key: string, r: { origin: string; destination: string; cabin: string; date: string }) {
-  if (!TP_TOKEN) {
-    RESULTS_CACHE.set(key, null);
-    return;
+  // Try Duffel first for real-time prices in any cabin.
+  if (DUFFEL_API_TOKEN) {
+    const duffel = await tryDuffel(r);
+    if (duffel && duffel.length > 0) {
+      RESULTS_CACHE.set(key, duffel.sort((a, b) => a.cashPrice - b.cashPrice));
+      return;
+    }
   }
 
-  // Try real-time affiliate search first. This requires separate Travelpayouts approval.
-  const realtime = await tryRealtimeSearch(r);
-  if (realtime && realtime.length > 0) {
-    RESULTS_CACHE.set(key, realtime.sort((a, b) => a.cashPrice - b.cashPrice));
-    return;
+  // Try Travelpayouts real-time affiliate search. This requires separate approval.
+  if (TP_TOKEN) {
+    const realtime = await tryRealtimeSearch(r);
+    if (realtime && realtime.length > 0) {
+      RESULTS_CACHE.set(key, realtime.sort((a, b) => a.cashPrice - b.cashPrice));
+      return;
+    }
   }
 
-  // Real-time unavailable or not approved. Use the cached Data API for economy routes.
-  if (r.cabin === 'ECONOMY') {
+  // Use the cached Travelpayouts Data API for economy routes.
+  if (TP_TOKEN && r.cabin === 'ECONOMY') {
     const dataResults = await tryDataAPI(r);
     if (dataResults && dataResults.length > 0) {
       RESULTS_CACHE.set(key, dataResults.sort((a, b) => a.cashPrice - b.cashPrice));
@@ -520,13 +633,26 @@ export async function searchFlights(params: FlightSearchParams): Promise<{ succe
     }
   };
 
-  // Real-time first (will work when/if access is approved).
+  // 1. Duffel for real-time prices in any cabin.
+  const duffel = DUFFEL_API_TOKEN ? await tryDuffel(r) : null;
+  if (duffel && duffel.length > 0) {
+    // Attach the best Travelpayouts affiliate redirect we can find for the same route.
+    const tpData = TP_TOKEN ? await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date }) : null;
+    const redirectUrl = tpData?.[0]?.redirectUrl;
+    const flights = duffel
+      .sort((a, b) => a.cashPrice - b.cashPrice)
+      .slice(0, 10)
+      .map(f => ({ ...f, redirectUrl: redirectUrl || f.redirectUrl }));
+    return { success: true, currency: 'USD', flights };
+  }
+
+  // 2. Travelpayouts real-time (if/when approved).
   const realtime = await tryRealtimeSearch(r);
   if (realtime && realtime.length > 0) {
     return { success: true, currency: 'USD', flights: realtime };
   }
 
-  // Cached Data API for one-way economy.
+  // 3. Travelpayouts Data API for one-way economy.
   if (cabin === 'ECONOMY') {
     const cached = await tryDataAPI({ origin: r.origin, destination: r.destination, date: r.date });
     if (cached && cached.length > 0) {
@@ -534,7 +660,7 @@ export async function searchFlights(params: FlightSearchParams): Promise<{ succe
     }
   }
 
-  // Estimate business/first from the cheapest economy result.
+  // 4. Estimate business/first from the cheapest economy result.
   if (CABIN_MULTIPLIERS[cabin]) {
     const estimate = await getCabinEstimate(r.origin, r.destination, r.date, cabin);
     if (estimate) {

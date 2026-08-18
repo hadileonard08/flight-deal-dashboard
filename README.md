@@ -69,9 +69,10 @@ A 2.0¢+ CPP is the widely accepted "great value" benchmark in the points-and-mi
 
 The **Cash Price** in the CPP formula is the cheapest one-way cash flight for the **same origin, destination, cabin, and departure date**. The system looks up this price in priority order:
 
-1. **Travelpayouts Flight Search API** — real-time one-way offers (requires affiliate approval).
-2. **Travelpayouts Data API** (`aviasales/v3/prices_for_dates`) — free cached economy search with affiliate `redirect_url`.
-3. **Static estimate table** — last-resort fallback for premium cabins and when the affiliate API is unavailable.
+1. **Duffel API** — real-time one-way offers in any cabin (live token required for real prices; test token returns simulated data).
+2. **Travelpayouts Flight Search API** — real-time one-way offers (requires affiliate approval).
+3. **Travelpayouts Data API** (`aviasales/v3/prices_for_dates`) — free cached economy search with affiliate `redirect_url`.
+4. **Static estimate table** — last-resort fallback for premium cabins and when the affiliate API is unavailable.
 
 The live cash price is cached per `route/cabin/date` so the value reflects the specific departure date. If the cheapest cash option is on a different airline than the award flight, the modal still shows it as the representative market value, with clear wording that the actual award flight may differ in airline, timing, stops, or layover.
 
@@ -228,6 +229,7 @@ flowchart LR
 ## Data sources
 
 - **Seats.aero API** — real mileage-program award space.
+- **Duffel API** — real-time one-way cash offers in any cabin.
 - **Travelpayouts Flight Search API** — real-time one-way cash offers (requires separate affiliate approval).
 - **Travelpayouts Data API** — free cached economy prices with affiliate redirect links.
 - **Open-Meteo** — 5-day destination weather.
