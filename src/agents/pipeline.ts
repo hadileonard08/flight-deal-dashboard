@@ -2,7 +2,6 @@
 import { scrapeFlightDeals } from './agent1-scraper';
 import { scrapeFlightDealsFromWeb } from './web-scraper';
 import { scrapeRealFlightDeals } from './real-web-scraper';
-import { scrapeGoogleFlights } from './google-flights-scraper';
 import { processFlights } from './agent2-evaluator';
 
 export async function runPipeline() {
@@ -22,20 +21,7 @@ export async function runPipeline() {
     console.log('❌ API method failed, trying real web scraping...');
   }
 
-  // Method 2: Try Google Flights scraping (no API key needed)
-  if (scrapedFlights.length === 0) {
-    console.log('🔍 Attempting Google Flights scraping...');
-    try {
-      scrapedFlights = await scrapeGoogleFlights();
-      if (scrapedFlights.length > 0) {
-        console.log(`✅ Google Flights scraping found ${scrapedFlights.length} deals`);
-      }
-    } catch (error) {
-      console.log('❌ Google Flights scraping failed, trying real web scraping...');
-    }
-  }
-
-  // Method 3: Try real web scraping (actual HTTP requests)
+  // Method 2: Try real web scraping (actual HTTP requests)
   if (scrapedFlights.length === 0) {
     console.log('🌐 Attempting real web scraping...');
     try {

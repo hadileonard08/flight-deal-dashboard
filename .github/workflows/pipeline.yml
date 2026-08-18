@@ -25,7 +25,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SEATS_AERO_API_KEY: ${{ secrets.SEATS_AERO_API_KEY }}
-          DUFFEL_API_TOKEN: ${{ secrets.DUFFEL_API_TOKEN }}
+          TRAVELPAYOUTS_API_TOKEN: ${{ secrets.TRAVELPAYOUTS_API_TOKEN }}
+          TRAVELPAYOUTS_MARKER: ${{ secrets.TRAVELPAYOUTS_MARKER }}
           AVIATIONSTACK_API_KEY: ${{ secrets.AVIATIONSTACK_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           FROM_EMAIL: ${{ secrets.FROM_EMAIL }}

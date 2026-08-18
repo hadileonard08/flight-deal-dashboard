@@ -69,9 +69,9 @@ A 2.0¢+ CPP is the widely accepted "great value" benchmark in the points-and-mi
 
 The **Cash Price** in the CPP formula is the cheapest one-way cash flight for the **same origin, destination, cabin, and departure date**. The system looks up this price in priority order:
 
-1. **Duffel API** — live one-way offers.
-2. **Google Flights** via `fast-flights-ts` — fallback live search.
-3. **Static estimate table** — last-resort fallback if both live sources fail.
+1. **Travelpayouts Flight Search API** — real-time one-way offers (requires affiliate approval).
+2. **Travelpayouts Data API** (`aviasales/v3/prices_for_dates`) — free cached economy search with affiliate `redirect_url`.
+3. **Static estimate table** — last-resort fallback for premium cabins and when the affiliate API is unavailable.
 
 The live cash price is cached per `route/cabin/date` so the value reflects the specific departure date. If the cheapest cash option is on a different airline than the award flight, the modal still shows it as the representative market value, with clear wording that the actual award flight may differ in airline, timing, stops, or layover.
 
@@ -104,7 +104,7 @@ Each itinerary includes a **reality check** that the airline, cabin, and routing
 The data ingestion pipeline runs automatically every **5 hours** via **GitHub Actions** and is made up of three deterministic services:
 
 1. **Scraper Service** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing. This is a standard API-scraping and data-normalization script with no LLM reasoning.
-2. **Cash-Price Service** — prefetches live one-way cash prices for every unique route/cabin/date through deterministic lookups. It tries the Duffel API first, falls back to Google Flights via `fast-flights-ts`, and uses a static estimate table only as a last resort. No generative model is involved.
+2. **Cash-Price Service** — prefetches live one-way cash prices for every unique route/cabin/date through deterministic lookups. It tries the Travelpayouts affiliate API first (real-time Flight Search when approved, otherwise the free Data API for economy), and falls back to a static estimate table for premium cabins or when the affiliate API is unavailable. No generative model is involved.
 3. **Evaluator Service** — runs the deterministic CPP guardrail to categorize every deal. It also uses a lightweight, single-turn LLM prompt for the first `MAX_AI_REASONING` top deals to write a short rationale string. The actual category comes from the math, not from the LLM.
 
 The pipeline stores flights and deals in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
@@ -130,8 +130,8 @@ The multi-agent, LLM-driven parts of the system run on **Vercel**, not in the Gi
 flowchart TD
     subgraph External Data Sources
         A[Seats.aero API]
-        B[Duffel API]
-        C[Google Flights]
+        B[Travelpayouts Flight Search API]
+        C[Travelpayouts Data API]
         D[Open-Meteo]
         E[Wikipedia / Wikimedia]
         F[Gemini / OpenAI]
@@ -141,7 +141,7 @@ flowchart TD
 
     subgraph GitHub Actions Pipeline
         H[Scraper Service]
-        I[Cash-Price Service<br/>Duffel → Google Flights → Static table]
+        I[Cash-Price Service<br/>Travelpayouts → Static table]
         J[Evaluator Service]
     end
 
@@ -188,7 +188,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     A[Seats.aero] -->|real award space| B[Scraper Service]
-    B --> C[Cash-Price Service<br/>Duffel → Google Flights → Static table]
+    B --> C[Cash-Price Service<br/>Travelpayouts → Static table]
     S[Static estimate table] -->|last-resort cash| C
     C --> D[Evaluator Service]
     D -->|CPP scoring + categorization| E[(PostgreSQL)]
@@ -228,8 +228,8 @@ flowchart LR
 ## Data sources
 
 - **Seats.aero API** — real mileage-program award space.
-- **Duffel API** — live one-way cash offers.
-- **fast-flights-ts / Google Flights** — fallback cash price lookup.
+- **Travelpayouts Flight Search API** — real-time one-way cash offers (requires separate affiliate approval).
+- **Travelpayouts Data API** — free cached economy prices with affiliate redirect links.
 - **Open-Meteo** — 5-day destination weather.
 - **Wikipedia / Wikimedia** — destination hero images and daily landmark/activity images (Wikipedia page summary + Wikimedia Commons search).
 - **Gemini or OpenAI (via LangChain)** — live destination news search and AI itinerary generation.
@@ -243,7 +243,7 @@ flowchart LR
 - **Backend API**: Next.js Route Handlers, Vercel serverless functions
 - **Database**: PostgreSQL + Drizzle ORM
 - **AI & multi-agent**: LangChain + LangGraph, Gemini or OpenAI
-- **Cash pricing**: Duffel API, fast-flights-ts (Google Flights)
+- **Cash pricing & affiliate search**: Travelpayouts Flight Search + Data API
 - **Email**: Resend, `marked` for Markdown → HTML
 - **Automation**: GitHub Actions every 5 hours for the data pipeline; Vercel Cron for the daily email digest
 - **Deployment**: Vercel

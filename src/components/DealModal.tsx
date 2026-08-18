@@ -197,7 +197,7 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               </p>
               {deal.fareType === 'POINTS' && deal.cashPrice && deal.pointsRequired ? (
                 <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
-                  Cash price is the cheapest one-way cash fare found for this airline on Duffel/Google Flights, or a static route estimate when no matching live offer exists.<br />
+                  Cash price is the cheapest one-way cash fare found via the Travelpayouts affiliate API, or a static route estimate when no matching live offer exists.<br />
                   CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100<br />
                   CPP = (${formatNumber(Number(deal.cashPrice))} − ${formatNumber(Number(deal.taxesAndFees || 0))}) ÷ {formatNumber(Number(deal.pointsRequired))} × 100 = {((Math.max(0, Number(deal.cashPrice) - Number(deal.taxesAndFees || 0)) / Number(deal.pointsRequired)) * 100).toFixed(1)}¢ per point.
                 </p>
