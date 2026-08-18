@@ -142,3 +142,18 @@ export function getAirlineDescription(code: string): string | undefined {
 export function getAirlineInfo(code: string): AirlineInfo {
   return findAirlineInfo(code) || { name: (code || '').trim() };
 }
+
+export function getAirlineCode(name: string): string | null {
+  const key = (name || '').trim().toLowerCase();
+  if (!key) return null;
+
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    if (info.name.toLowerCase() === key) return code;
+  }
+
+  for (const [code, info] of Object.entries(AIRLINE_INFO)) {
+    if (info.name.toLowerCase().includes(key)) return code;
+  }
+
+  return null;
+}

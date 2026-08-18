@@ -205,7 +205,8 @@ export async function GET(request: Request) {
       deal.destinationCode,
       dateStr,
       deal.cabin,
-      deal.pointsRequired
+      deal.pointsRequired,
+      deal.airline
     );
 
     // If no live cash details were captured, recompute the representative

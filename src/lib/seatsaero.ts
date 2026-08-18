@@ -1,4 +1,4 @@
-import { resolveAirlineName } from './airlines';
+import { resolveAirlineName, getAirlineCode } from './airlines';
 
 const SEATS_AERO_API_BASE = 'https://seats.aero/partnerapi';
 
@@ -30,11 +30,11 @@ const CABIN_API: Record<string, string> = {
   FIRST: 'first'
 };
 
-const CABIN_AVAILABILITY: Record<string, { availableKey: string; mileageKey: string; rawMileageKey: string }> = {
-  economy: { availableKey: 'YAvailable', mileageKey: 'YMileageCost', rawMileageKey: 'YMileageCostRaw' },
-  premium: { availableKey: 'WAvailable', mileageKey: 'WMileageCost', rawMileageKey: 'WMileageCostRaw' },
-  business: { availableKey: 'JAvailable', mileageKey: 'JMileageCost', rawMileageKey: 'JMileageCostRaw' },
-  first: { availableKey: 'FAvailable', mileageKey: 'FMileageCost', rawMileageKey: 'FMileageCostRaw' }
+const CABIN_AVAILABILITY: Record<string, { availableKey: string; mileageKey: string; rawMileageKey: string; airlinesKey: string }> = {
+  economy: { availableKey: 'YAvailable', mileageKey: 'YMileageCost', rawMileageKey: 'YMileageCostRaw', airlinesKey: 'YAirlines' },
+  premium: { availableKey: 'WAvailable', mileageKey: 'WMileageCost', rawMileageKey: 'WMileageCostRaw', airlinesKey: 'WAirlines' },
+  business: { availableKey: 'JAvailable', mileageKey: 'JMileageCost', rawMileageKey: 'JMileageCostRaw', airlinesKey: 'JAirlines' },
+  first: { availableKey: 'FAvailable', mileageKey: 'FMileageCost', rawMileageKey: 'FMileageCostRaw', airlinesKey: 'FAirlines' }
 };
 
 function getApiKey() {
@@ -59,13 +59,15 @@ export async function getSeatsAeroTripDetails(
   destination: string,
   date: string,
   cabin: string,
-  pointsRequired?: number | null
+  pointsRequired?: number | null,
+  airline?: string | null
 ): Promise<SeatsAeroTripDetails | null> {
   const apiKey = getApiKey();
   if (!apiKey) return null;
 
   const cabinSlug = CABIN_API[cabin.toUpperCase()] || 'economy';
-  const { availableKey, mileageKey } = CABIN_AVAILABILITY[cabinSlug];
+  const { availableKey, mileageKey, airlinesKey } = CABIN_AVAILABILITY[cabinSlug];
+  const airlineCode = airline ? getAirlineCode(airline) : null;
 
   const searchParams = new URLSearchParams({
     origin_airport: origin,
@@ -90,11 +92,18 @@ export async function getSeatsAeroTripDetails(
     const results = searchData?.data || [];
     if (!results.length) return null;
 
+    const airlineHasCode = (r: any, code: string | null) => {
+      if (!code) return true;
+      const airlines = r[airlinesKey] || '';
+      return airlines.split(',').map((c: string) => c.trim()).includes(code);
+    };
+
     const match = results.find((r: any) => {
       const available = r[availableKey];
       const cost = parseInt(r[mileageKey], 10);
-      return !!available && cost > 0 && (!pointsRequired || cost === pointsRequired);
-    }) || results.find((r: any) => !!r[availableKey]);
+      return !!available && cost > 0 && airlineHasCode(r, airlineCode) && (!pointsRequired || cost === pointsRequired);
+    }) || results.find((r: any) => !!r[availableKey] && airlineHasCode(r, airlineCode))
+      || results.find((r: any) => !!r[availableKey]);
 
     if (!match) return null;
 
@@ -105,7 +114,10 @@ export async function getSeatsAeroTripDetails(
     const trips = tripData?.data || [];
     if (!trips.length) return null;
 
-    const trip = trips.find((t: any) => t.Cabin === cabinSlug) || trips[0];
+    const trip = trips.find((t: any) => {
+      const carriers = t.Carriers ? t.Carriers.split(',').map((c: string) => c.trim()) : [];
+      return t.Cabin === cabinSlug && (!airlineCode || carriers.includes(airlineCode));
+    }) || trips.find((t: any) => t.Cabin === cabinSlug) || trips[0];
     const segmentsRaw = trip.AvailabilitySegments || [];
 
     const segments: SeatsAeroSegment[] = segmentsRaw.map((s: any) => ({
