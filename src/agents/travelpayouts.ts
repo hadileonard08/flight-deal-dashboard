@@ -542,10 +542,13 @@ export async function searchFlights(params: FlightSearchParams): Promise<{ succe
     }
   }
 
+  const isPremium = cabin === 'BUSINESS' || cabin === 'FIRST';
   return {
     success: false,
     currency: 'USD',
     flights: [],
-    error: 'No results found. For business/first class, the real-time Flight Search API requires Travelpayouts approval.'
+    error: isPremium
+      ? 'No results found. For business/first class, the real-time Flight Search API requires Travelpayouts approval.'
+      : 'No results found for this route and date in the Travelpayouts Data API.'
   };
 }
