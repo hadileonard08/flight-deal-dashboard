@@ -206,18 +206,22 @@ export function DealModal({ deal, onClose }: DealModalProps) {
               ) : null}
             </div>
 
-            <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Representative cash flight details</h3>
-              <p className="text-xs text-gray-500 mb-2 italic">
-                Based on the cheapest one-way cash option found for this route and cabin. Your actual award flight may differ in airline, timing, stops, or layover.
-              </p>
-              {deal.duration !== null && deal.duration !== undefined ? (
+            {(deal.cashAirline || deal.duration != null || deal.layoverAirport) && (
+              <div className="text-left w-full bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Representative cash flight details</h3>
+                <p className="text-xs text-gray-500 mb-2 italic">
+                  Based on the cheapest one-way cash option found for this route and cabin. Your actual award flight may differ in airline, timing, stops, or layover.
+                </p>
                 <ul className="text-sm text-gray-700 space-y-1">
                   {deal.cashAirline && (
                     <li><span className="font-medium">Airline:</span> {deal.cashAirline}</li>
                   )}
-                  <li><span className="font-medium">Duration:</span> {Math.floor(Number(deal.duration) / 60)}h {Number(deal.duration) % 60}m</li>
-                  <li><span className="font-medium">Stops:</span> {Number(deal.stops)}</li>
+                  {deal.duration != null && (
+                    <li><span className="font-medium">Duration:</span> {Math.floor(Number(deal.duration) / 60)}h {Number(deal.duration) % 60}m</li>
+                  )}
+                  {deal.stops != null && (
+                    <li><span className="font-medium">Stops:</span> {Number(deal.stops)}</li>
+                  )}
                   {deal.layoverAirport && (
                     <li>
                       <span className="font-medium">Layover:</span>{' '}
@@ -226,10 +230,8 @@ export function DealModal({ deal, onClose }: DealModalProps) {
                     </li>
                   )}
                 </ul>
-              ) : (
-                <p className="text-sm text-gray-500">No representative cash flight details available for this route/cabin.</p>
-              )}
-            </div>
+              </div>
+            )}
 
             <a
               href={getBookingUrl(deal)}
