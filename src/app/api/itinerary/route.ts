@@ -11,7 +11,7 @@ function itineraryNeedsRefresh(itinerary: string, force: boolean): boolean {
   if (force) return true;
 
   const imageMatches = Array.from(itinerary.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g));
-  if (imageMatches.length < 2) return true;
+  if (imageMatches.length < 1) return true;
 
   // Re-generate if any image is from Wikipedia (not Wikimedia Commons), is a flag,
   // or if half or more are flags.

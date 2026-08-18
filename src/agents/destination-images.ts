@@ -54,8 +54,10 @@ function cleanTerm(term: string): string {
 
 async function fetchWikimediaCommonsImage(term: string): Promise<string | null> {
   try {
+    const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' };
     const searchRes = await fetch(
-      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srnamespace=6&srlimit=3&format=json&origin=*`
+      `https://commons.wikimedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srnamespace=6&srlimit=3&format=json&origin=*`,
+      { headers }
     );
     if (!searchRes.ok) return null;
     const searchData = (await searchRes.json()) as any;
@@ -64,7 +66,8 @@ async function fetchWikimediaCommonsImage(term: string): Promise<string | null> 
     for (const result of results) {
       const title = result.title;
       const infoRes = await fetch(
-        `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url|thumb|size&iiurlwidth=800&format=json&origin=*`
+        `https://commons.wikimedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=imageinfo&iiprop=url|thumb|size&iiurlwidth=800&format=json&origin=*`,
+        { headers }
       );
       if (!infoRes.ok) continue;
       const infoData = (await infoRes.json()) as any;
