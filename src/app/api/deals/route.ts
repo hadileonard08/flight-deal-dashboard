@@ -4,6 +4,7 @@ import { deals, flights } from '@/db/schema';
 import { resolveAirlineName, getAirlineInfo } from '@/lib/airlines';
 import { getEstimatedCashValue } from '@/lib/config';
 import { getFlightDetails } from '@/agents/cash-price';
+import { getSeatsAeroTripDetails } from '@/lib/seatsaero';
 import { prefetchCabinEstimates } from '@/agents/travelpayouts';
 import { CITY_MAP } from '@/lib/city-map';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -11,6 +12,29 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 15;
+
+async function mapLimit<T, R>(items: T[], concurrency: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  const queue = [...items.entries()];
+  const executing: Promise<void>[] = [];
+
+  async function runNext() {
+    const next = queue.shift();
+    if (!next) return;
+    const [index, item] = next;
+    try {
+      results[index] = await fn(item, index);
+    } catch {}
+    await runNext();
+  }
+
+  for (let i = 0; i < concurrency && queue.length > 0; i++) {
+    executing.push(runNext());
+  }
+
+  await Promise.all(executing);
+  return results;
+}
 
 function getCityCodes(cityName: string): string[] | null {
   const normalizedCity = cityName.trim().toLowerCase();
@@ -167,9 +191,22 @@ export async function GET(request: Request) {
     await prefetchCabinEstimates(estimateRoutes, 5);
   }
 
-  const resolvedDeals = trimmedDeals.map(deal => {
+  const resolvedDeals = await mapLimit(trimmedDeals, 5, async (deal) => {
     const info = getAirlineInfo(deal.airline);
     const estimatedCash = getEstimatedCashValue(deal);
+
+    // Fetch real trip details from Seats.aero on demand for displayed deals.
+    const dateStr = deal.departureDate instanceof Date
+      ? deal.departureDate.toISOString().split('T')[0]
+      : String(deal.departureDate).slice(0, 10);
+
+    const seatsDetails = await getSeatsAeroTripDetails(
+      deal.originCode,
+      deal.destinationCode,
+      dateStr,
+      deal.cabin,
+      deal.pointsRequired
+    );
 
     // If no live cash details were captured, recompute the representative
     // cash price and details on the fly so the modal math stays current.
@@ -183,11 +220,16 @@ export async function GET(request: Request) {
     let segments = deal.segments;
     let isCashEstimate = false;
 
-    if (!cashAirline && estimatedCash) {
+    if (seatsDetails) {
+      duration = seatsDetails.duration ?? duration;
+      stops = seatsDetails.stops ?? stops;
+      layoverAirport = seatsDetails.layoverAirport ?? layoverAirport;
+      layoverDuration = seatsDetails.layoverDuration ?? layoverDuration;
+      aircraftType = seatsDetails.aircraftType ?? aircraftType;
+      cashAirline = seatsDetails.airlines?.join(', ') ?? cashAirline;
+      segments = seatsDetails.segments?.length ? JSON.stringify(seatsDetails.segments) : segments;
+    } else if (!cashAirline && estimatedCash) {
       cashPrice = String(estimatedCash);
-      const dateStr = deal.departureDate instanceof Date
-        ? deal.departureDate.toISOString().split('T')[0]
-        : String(deal.departureDate).slice(0, 10);
       const details = getFlightDetails(deal.originCode, deal.destinationCode, deal.cabin, dateStr, deal.airline);
       if (details) {
         duration = details.duration ?? duration;
