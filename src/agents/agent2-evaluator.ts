@@ -40,11 +40,19 @@ export async function processFlights(rawFlights: any[]) {
   const flightsToInsert: any[] = [];
   const dealValues: any[] = [];
 
+  // Only persist deals that are good enough and within the next 6 months.
+  const cutoff = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000);
+
   for (const flight of rawFlights) {
     const category = evaluateThreshold(flight);
+    const departure = flight.departureDate instanceof Date ? flight.departureDate : new Date(flight.departureDate);
+    const skip = category === 'BAD_DEAL' || departure > cutoff;
+
     if (flightsToInsert.length % 100 === 0) {
-      console.log(`  ... ${flightsToInsert.length}/${rawFlights.length} categorized (${category})`);
+      console.log(`  ... ${flightsToInsert.length}/${rawFlights.length} categorized (${skip ? 'SKIPPED' : category})`);
     }
+
+    if (skip) continue;
 
     let reasoning = defaultReasoning[category] || defaultReasoning.OKAY_DEAL;
 
