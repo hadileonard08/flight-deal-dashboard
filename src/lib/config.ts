@@ -54,13 +54,23 @@ const REGION_MULTIPLIER: Record<string, number> = {
   EAST_COAST: 1.3,
 };
 
-function estimateOneWayCashValue(originCode: string, destinationCode: string, cabin: string): number | null {
+export function estimateOneWayCashValue(originCode: string, destinationCode: string, cabin: string): number | null {
   const cabinMap = ONE_WAY_CASH_ESTIMATE[destinationCode];
   if (!cabinMap) return null;
   const base = cabinMap[cabin] ?? cabinMap['ECONOMY'];
   const region = getRegion(originCode);
   return Math.round(base * (REGION_MULTIPLIER[region] ?? 1.0));
 }
+
+// Sanity cap on live cash prices: if a live source returns an outlier that is far
+// above the static route estimate, use the static estimate instead. This prevents
+// wrong-cabin results (e.g. a Duffel business/first offer) from inflating CPP.
+export const CASH_PRICE_CAP_MULTIPLIER: Record<string, number> = {
+  ECONOMY: 2,
+  PREMIUM_ECONOMY: 2,
+  BUSINESS: 3,
+  FIRST: 3
+};
 
 // Get the best available cash value for a redemption: live Duffel/Travelpayouts price
 // for the deal's airline (or the cheapest alternative), or the static estimate table as fallback.
@@ -70,8 +80,13 @@ export function getEstimatedCashValue(flight: any): number | null {
     ? flight.departureDate.toISOString().split('T')[0]
     : String(flight.departureDate).slice(0, 10);
   const liveCash = getLiveCashPrice(flight.originCode, flight.destinationCode, flight.cabin, dateStr, flight.airline);
+  const estimate = estimateOneWayCashValue(flight.originCode, flight.destinationCode, flight.cabin);
 
-  return liveCash ?? estimateOneWayCashValue(flight.originCode, flight.destinationCode, flight.cabin);
+  if (liveCash == null || liveCash <= 0) return estimate;
+  if (estimate == null) return liveCash;
+
+  const cap = CASH_PRICE_CAP_MULTIPLIER[flight.cabin] || 2;
+  return liveCash <= estimate * cap ? liveCash : estimate;
 }
 
 // Cents-per-point (CPP) value of a redemption using the canonical formula:
