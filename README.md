@@ -230,7 +230,7 @@ src/
 6. **Deploy to Vercel:**
    ```bash
    npx vercel --prod
-   npx vercel alias <deployment-url> flight-deals-dashboard.vercel.app
+   npx vercel alias <deployment-url> jalan-ai.vercel.app
    ```
 
 ---

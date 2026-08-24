@@ -9,7 +9,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://flight-deals-dashboard.vercel.app'),
+  metadataBase: new URL('https://jalan-ai.vercel.app'),
   title: 'Jalan AI — Your AI Travel Companion',
   description: 'Chat with Jalan AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
   openGraph: {
