@@ -378,6 +378,12 @@ function criticRouter(state: typeof ConversationStateAnnotation.State) {
 }
 
 async function respondNode(state: typeof ConversationStateAnnotation.State) {
+  if (state.entities.intent === 'greeting') {
+    return {
+      finalResponse: `Hi! I'm Trip AI, your travel planning assistant. Tell me where you want to go and when — for example, "I want to plan a trip to Tokyo in October" — and I'll build a day-by-day itinerary, check the weather, find points flight deals, and suggest what to pack.`,
+    };
+  }
+
   const destination = state.entities.destination || '';
   const startDate = state.entities.startDate;
   const endDate = state.entities.endDate;

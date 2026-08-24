@@ -32,10 +32,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <AuthProvider>
-      <html lang="en" className="overflow-x-hidden">
-        <body className="overflow-x-hidden">{children}</body>
-      </html>
-    </AuthProvider>
+    <html lang="en" className="overflow-x-hidden">
+      <body className="overflow-x-hidden">
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </body>
+    </html>
   )
 }
