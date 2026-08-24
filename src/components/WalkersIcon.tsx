@@ -1,8 +1,6 @@
 /**
- * Custom "Walkers" icon — a stick figure viewed from the side, walking and
- * holding a small map with both hands in front. The side angle makes both
- * the person and the map clearly visible. Matches lucide-react's stroke
- * style (24x24 viewBox, currentColor).
+ * Custom "Walker" icon — a big stick figure in a walking stride.
+ * Matches lucide-react's stroke style (24x24 viewBox, currentColor).
  */
 type Props = {
   size?: number | string;
@@ -13,7 +11,7 @@ type Props = {
 export default function WalkersIcon({
   size = 24,
   className,
-  strokeWidth = 1.25,
+  strokeWidth = 1.5,
 }: Props) {
   return (
     <svg
@@ -29,30 +27,29 @@ export default function WalkersIcon({
       className={className}
       aria-hidden="true"
     >
-      {/* Head (facing right) */}
-      <circle cx="6" cy="5" r="1.7" />
+      {/* Head */}
+      <circle cx="13" cy="4" r="2" />
 
-      {/* Torso */}
-      <path d="M6 6.7 L6 12" />
+      {/* Torso (leaning slightly forward) */}
+      <path d="M12.5 6 L10.5 13" />
 
-      {/* Both arms reaching forward to hold the map */}
-      <path d="M6 8.3 L10 9.2" />
-      <path d="M6 8.8 L10 10" />
+      {/* Back arm (swinging back) */}
+      <path d="M12 8 L8.5 10" />
 
-      {/* Small map held in front (to the right of the figure) */}
-      <path d="M10 8.5 L15.5 8.5 L15.5 12.5 L10 12.5 Z" />
-      {/* Fold line down the middle of the map */}
-      <path d="M12.75 8.5 L12.75 12.5" />
-      {/* A little route/path drawn on the map */}
-      <path d="M11 10.2 L12 9.8 L13 10.5 L14.5 10" opacity="0.6" />
+      {/* Front arm (reaching forward) */}
+      <path d="M12 8 L15.5 6.5" />
 
-      {/* Legs in a walking stride */}
-      <path d="M6 12 L9 17" />
-      <path d="M6 12 L3 16" />
+      {/* Front leg (stepping forward) */}
+      <path d="M10.5 13 L14 18" />
 
-      {/* Feet */}
-      <path d="M9 17 L11 18.5" />
-      <path d="M3 16 L1.5 18" />
+      {/* Back leg (pushing off) */}
+      <path d="M10.5 13 L6 16" />
+
+      {/* Front foot */}
+      <path d="M14 18 L16.5 19.5" />
+
+      {/* Back foot */}
+      <path d="M6 16 L3.5 18" />
     </svg>
   );
 }
