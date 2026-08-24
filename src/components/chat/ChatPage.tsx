@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
-import type { ChatMessageUI, ChatPayload, SavedTrip } from '@/lib/chat-state';
+import type { ChatMessageUI, ChatPayload, SavedTrip, RouteLink } from '@/lib/chat-state';
 import OneStopPanel from './OneStopPanel';
 
 interface Conversation {
@@ -125,6 +125,33 @@ function DealsList({ deals }: { deals?: any[] }) {
   );
 }
 
+function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
+  if (!routeLinks || routeLinks.length === 0) return null;
+  return (
+    <div className="my-3">
+      <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
+        <Map size={18} /> Daily Routes
+      </div>
+      <div className="grid gap-2">
+        {routeLinks.map((link, i) => (
+          <a
+            key={i}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 hover:border-blue-300 hover:shadow-sm transition-all no-underline"
+          >
+            <div className="font-medium text-gray-900">
+              Day {link.day}: {link.title || 'Route'}
+            </div>
+            <div className="text-xs text-blue-600 font-medium">Open in Google Maps →</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MessageContent({ message, onSaveTrip }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
@@ -163,6 +190,7 @@ function RichPayload({ payload, onSaveTrip }: { payload: ChatPayload; onSaveTrip
       <WeatherCard weather={payload.weather} />
       <PackingCard packingTips={payload.packingTips} />
       <DealsList deals={payload.deals} />
+      <RouteLinks routeLinks={payload.routeLinks} />
     </div>
   );
 }

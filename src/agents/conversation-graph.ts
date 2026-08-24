@@ -3,7 +3,7 @@ import { getChatModel, getReasoningModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
-import { verifyItineraryLandmarks } from './itinerary-guardrails';
+import { verifyItineraryLandmarks, buildRouteLinks } from './itinerary-guardrails';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
@@ -14,6 +14,7 @@ import type {
   ExtractedEntities,
   ClarifyingQuestion,
   PersistedMessage,
+  RouteLink,
 } from '../lib/chat-state';
 
 const llm = getChatModel(0.4);
@@ -33,6 +34,7 @@ const ConversationStateAnnotation = Annotation.Root({
   deals: Annotation<any[]>({ reducer: (_curr, next) => next, default: () => [] }),
   images: Annotation<Record<string, string>>({ reducer: (_curr, next) => next, default: () => ({}) }),
   itinerary: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  routeLinks: Annotation<RouteLink[]>({ reducer: (_curr, next) => next, default: () => [] }),
   packingTips: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   criticFeedback: Annotation<string[]>({ reducer: (_curr, next) => next, default: () => [] }),
   isApproved: Annotation<boolean>({ reducer: (_curr, next) => next, default: () => false }),
@@ -275,12 +277,15 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     generatePackingTips(subState),
   ]);
 
+  const routeLinks = destination ? buildRouteLinks(itinerary, destination) : [];
+
   return {
     weather: weatherResult,
     news: newsResult,
     deals: dealsResult,
     images: { destination: imageResult || '' },
     itinerary,
+    routeLinks,
     packingTips,
   };
 }
@@ -399,10 +404,15 @@ Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.
 - Include a day-by-day plan. For each day, after the heading include exactly one image placeholder: ![IMAGE: specific English landmark name]. No URLs. Pick iconic, specific places (e.g. "Senso-ji Temple", not "Tokyo").
+- Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Shinjuku Gyoen**, **Omoide Yokocho**, **Senso-ji Temple**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
 - Keep the tone warm, like a friend sharing recommendations.
 - CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative.
+
+Getting around / transport:
+- Include a short "Getting Around" section near the top with general city transit tips (e.g. IC card, metro pass, walking, local trains).
+- For each day, include a brief transport note (1-2 sentences) summarizing how to move between the main stops. You may mention approximate time and common transit modes, but do NOT invent exact train names, line colors, departure times, or station names you are unsure about. Use general, clearly real options (e.g., "Tokyo Metro/Toei subway", "BTS Skytrain", "a short walk").
 
 Output the response as markdown.
 `;
@@ -535,6 +545,7 @@ Check for:
 6. Hallucinated or closed attractions, invented restaurants, fake transit lines, or made-up schedules.
 7. Any landmark that cannot be verified as a real place (e.g., if it has no Wikipedia presence).
 8. Inconsistent number of days with the requested trip length.
+9. In the "Getting Around" or day transport notes, invented transit lines, exact schedules, or unverifiable station names. Prefer general advice over specific unverifiable details.
 
 Respond ONLY in JSON:
 {

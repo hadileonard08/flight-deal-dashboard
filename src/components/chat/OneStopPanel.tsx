@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Plus, Trash2, CheckSquare, Square, Plane, Clipboard, StickyNote, MapPin, Calendar } from 'lucide-react';
+import { X, Plus, Trash2, CheckSquare, Square, Plane, Clipboard, StickyNote, MapPin, Calendar, Map } from 'lucide-react';
 import type { SavedTrip, ChatPayload } from '@/lib/chat-state';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import ReactMarkdown from 'react-markdown';
@@ -35,7 +35,7 @@ function formatStops(stops?: number | null): string {
 }
 
 function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: SavedTrip) => void }) {
-  const [activeTab, setActiveTab] = useState<'deals' | 'itinerary' | 'packing' | 'todos' | 'notes'>('deals');
+  const [activeTab, setActiveTab] = useState<'deals' | 'itinerary' | 'routes' | 'packing' | 'todos' | 'notes'>('deals');
   const [todoText, setTodoText] = useState('');
 
   const addTodo = () => {
@@ -95,7 +95,7 @@ function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: S
       </div>
 
       <div className="flex overflow-x-auto border-b border-gray-200">
-        {(['deals', 'itinerary', 'packing', 'todos', 'notes'] as const).map((tab) => (
+        {(['deals', 'itinerary', 'routes', 'packing', 'todos', 'notes'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -161,6 +161,30 @@ function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: S
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.itinerary}</ReactMarkdown>
             ) : (
               <div className="text-sm text-gray-500">No itinerary saved.</div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'routes' && (
+          <div className="space-y-2">
+            {payload.routeLinks && payload.routeLinks.length > 0 ? (
+              payload.routeLinks.map((link, i) => (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
+                >
+                  <div className="flex items-center gap-2 font-medium text-gray-900">
+                    <Map size={16} className="text-blue-600" />
+                    Day {link.day}: {link.title || 'Route'}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">Open in Google Maps →</div>
+                </a>
+              ))
+            ) : (
+              <div className="text-sm text-gray-500">No routes saved.</div>
             )}
           </div>
         )}
@@ -247,6 +271,9 @@ function buildTripSummary(trip: SavedTrip): string {
     summary += '\n';
   }
   if (p.itinerary) summary += `Itinerary:\n${p.itinerary}\n\n`;
+  if (p.routeLinks && p.routeLinks.length > 0) {
+    summary += `Routes:\n${p.routeLinks.map((r) => `- Day ${r.day}: ${r.url}`).join('\n')}\n\n`;
+  }
   if (p.packingTips) summary += `Packing:\n${p.packingTips}\n\n`;
   if (trip.notes) summary += `Notes:\n${trip.notes}\n\n`;
   if (trip.todos.length > 0) summary += `To-dos:\n${trip.todos.map((t) => `- [${t.done ? 'x' : ' '}] ${t.text}`).join('\n')}\n`;

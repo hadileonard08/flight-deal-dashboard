@@ -18,6 +18,12 @@ export interface ClarifyingQuestion {
   examples: string[];
 }
 
+export interface RouteLink {
+  day: string;
+  title: string;
+  url: string;
+}
+
 export interface ChatPayload {
   entities?: ExtractedEntities;
   weather?: any;
@@ -25,6 +31,7 @@ export interface ChatPayload {
   deals?: any[];
   images?: Record<string, string>;
   itinerary?: string;
+  routeLinks?: RouteLink[];
   packingTips?: string;
   feedback?: string[];
 }

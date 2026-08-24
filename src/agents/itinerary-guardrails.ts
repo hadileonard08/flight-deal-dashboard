@@ -1,5 +1,11 @@
 const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 
+export interface RouteLink {
+  day: string;
+  title: string;
+  url: string;
+}
+
 function extractLandmarkNames(itinerary: string): string[] {
   const matches = Array.from(itinerary.matchAll(/!\[IMAGE:\s*([^\]]+)\]/g));
   const names = matches.map((m) => m[1].trim()).filter(Boolean);
@@ -37,3 +43,75 @@ export async function verifyItineraryLandmarks(itinerary: string, destination?: 
 
   return unverified;
 }
+
+const GENERIC_ROUTE_WORDS = new Set([
+  'morning', 'afternoon', 'evening', 'night', 'lunch', 'dinner', 'breakfast', 'snack',
+  'arrive', 'arrival', 'depart', 'departure', 'check-in', 'check-out', 'check in', 'check out',
+  'day', 'itinerary', 'trip', 'travel', 'flight', 'airport', 'hotel', 'accommodation',
+  'city', 'country', 'neighborhood', 'district', 'area', 'downtown', 'metro', 'subway',
+  'train', 'bus', 'taxi', 'walk', 'walking', 'stroll', 'explore', 'visit', 'see', 'do',
+  'free', 'budget', 'affordable', 'cheap', 'quick', 'easy', 'short', 'long', 'tour', 'guide',
+]);
+
+const TRANSIT_ROUTE_WORDS = /\b(line|subway|metro|train|railway|station|airport|bus|taxi|walk|transfer|suica|pasmo|ic card|fare|ticket|pass|express|shinkansen|bullet train|jr |yamanote|toei|tokyo metro|toei subway|ginza|hibiya|marunouchi|chiyoda|namboku|fukutoshin|yurakucho|honancho|hazo|ozaki|miyanosaka|shinjuku line|saitama|keihin|keikyu|keisei|monorail|tram|ferry)\b/i;
+
+function isRouteCandidate(text: string): boolean {
+  const cleaned = text.trim().replace(/\s+/g, ' ');
+  if (cleaned.length < 3) return false;
+  if (cleaned.toLowerCase().startsWith('day ')) return false;
+  if (GENERIC_ROUTE_WORDS.has(cleaned.toLowerCase())) return false;
+  // Ignore bullet/section labels like "Morning:", "Afternoon:"
+  if (/^(morning|afternoon|evening|lunch|dinner|breakfast|snack|hotel|airport)$/i.test(cleaned)) return false;
+  // Ignore transit-mode names like "JR Yamanote Line", "Tokyo Metro", etc.
+  if (TRANSIT_ROUTE_WORDS.test(cleaned)) return false;
+  return true;
+}
+
+export function buildRouteLinks(itinerary: string, destination: string): RouteLink[] {
+  if (!itinerary || !destination) return [];
+
+  // Split by day headings. Keep the delimiter with lookahead.
+  const dayBlocks = itinerary.split(/(?=###\s+Day\s+\d+)/i).filter(Boolean);
+  const links: RouteLink[] = [];
+
+  for (const block of dayBlocks) {
+    const headingMatch = block.match(/###\s+Day\s+(\d+)(?:\s*:\s*(.*))?/i);
+    if (!headingMatch) continue;
+
+    const day = headingMatch[1];
+    const title = (headingMatch[2] || '').trim();
+
+    const candidates: string[] = [];
+
+    // Image placeholders are explicit landmarks.
+    for (const m of block.matchAll(/!\[IMAGE:\s*([^\]]+)\]/g)) {
+      candidates.push(m[1].trim());
+    }
+
+    // Bold text is expected to be landmark/neighborhood names from the prompt.
+    for (const m of block.matchAll(/\*\*(.*?)\*\*/g)) {
+      const text = m[1].trim();
+      if (isRouteCandidate(text)) candidates.push(text);
+    }
+
+    // Deduplicate while preserving order.
+    const places: string[] = [];
+    for (const name of candidates) {
+      if (!places.includes(name)) places.push(name);
+    }
+
+    // Limit to 5 stops to keep Google Maps URLs short and useful.
+    const stops = places.slice(0, 5);
+    if (stops.length < 2) continue;
+
+    const segments = stops.map((place) => encodeURIComponent(`${place}, ${destination}`)).join('/');
+    links.push({
+      day,
+      title,
+      url: `https://www.google.com/maps/dir/${segments}`,
+    });
+  }
+
+  return links;
+}
+
