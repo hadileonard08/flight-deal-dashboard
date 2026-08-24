@@ -4,14 +4,21 @@ import { useEffect, useState } from 'react';
 import { Plane, ArrowRight } from 'lucide-react';
 import WalkersIcon from '@/components/WalkersIcon';
 
-const SPLASH_COOKIE = 'jalanai-welcomed';
+const SPLASH_COOKIE = 'jalan-welcomed';
 const REDIRECT_SECONDS = 5;
+const NEW_URL = 'https://jalan-ai.vercel.app';
 
 export default function SplashRedirect({ children }: { children: React.ReactNode }) {
   const [showSplash, setShowSplash] = useState(false);
   const [countdown, setCountdown] = useState(REDIRECT_SECONDS);
 
   useEffect(() => {
+    // Redirect old domains to the new canonical URL at the edge.
+    if (typeof window !== 'undefined' && window.location.origin !== NEW_URL) {
+      window.location.replace(`${NEW_URL}${window.location.pathname}${window.location.search}`);
+      return;
+    }
+
     // Check if the user has already seen the splash.
     const seen = document.cookie
       .split('; ')
@@ -24,6 +31,14 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
     }
   }, []);
 
+  const finish = () => {
+    if (typeof window !== 'undefined' && window.location.origin !== NEW_URL) {
+      window.location.replace(`${NEW_URL}${window.location.pathname}${window.location.search}`);
+    } else {
+      setShowSplash(false);
+    }
+  };
+
   useEffect(() => {
     if (!showSplash) return;
 
@@ -31,7 +46,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          setShowSplash(false);
+          finish();
           return 0;
         }
         return prev - 1;
@@ -49,7 +64,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       <div className="mb-8 text-center opacity-60">
         <div className="flex items-center justify-center gap-2 text-lg font-medium">
           <Plane size={20} />
-          Flight Deal Dashboard
+          Jalan AI
         </div>
         <div className="text-sm mt-1 text-blue-200">has evolved</div>
       </div>
@@ -78,10 +93,10 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       {/* Countdown */}
       <div className="mt-12 text-center">
         <div className="text-blue-200 text-sm mb-2">
-          Taking you to the new experience in {countdown}...
+          Taking you to the new Jalan experience in {countdown}...
         </div>
         <button
-          onClick={() => setShowSplash(false)}
+          onClick={finish}
           className="text-sm bg-white/20 hover:bg-white/30 backdrop-blur-sm px-6 py-2 rounded-full transition-colors"
         >
           Enter now →
