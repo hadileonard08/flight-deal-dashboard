@@ -1,5 +1,5 @@
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
-import { getChatModel } from '../lib/ai-provider';
+import { getChatModel, getReasoningModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl } from './destination-images';
@@ -325,7 +325,8 @@ Output only a markdown bullet list.
 }
 
 async function criticNode(state: typeof ConversationStateAnnotation.State) {
-  if (!llm) throw new Error('AI provider not configured');
+  const reasoningModel = getReasoningModel(0.2);
+  if (!reasoningModel) throw new Error('AI provider not configured');
 
   const prompt = `
 You are a strict travel QA reviewer. Evaluate the assembled itinerary and data before it is shown to the user.
@@ -359,7 +360,7 @@ Respond ONLY in JSON:
 }
 `;
 
-  const res = await llm.invoke(prompt);
+  const res = await reasoningModel.invoke(prompt);
   const parsed = await parseJsonResponse(res.content as string);
   const isApproved = !!parsed?.isApproved;
   const feedback: string = parsed?.feedback || '';
