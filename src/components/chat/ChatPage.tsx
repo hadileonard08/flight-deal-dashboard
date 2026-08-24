@@ -484,9 +484,7 @@ export default function ChatPage() {
       <main className="flex-1 flex flex-col min-w-0">
         {/* Mobile header */}
         <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-lg">
-            <WalkersIcon className="text-blue-600" size={22} /> Jalan
-          </div>
+          <div className="font-bold text-lg">Jalan</div>
           <div className="flex items-center gap-2">
             {isSignedIn ? (
               <button
@@ -514,9 +512,7 @@ export default function ChatPage() {
 
         {/* Desktop header */}
         <div className="hidden md:flex items-center justify-between bg-white border-b border-gray-200 px-6 py-3">
-          <div className="flex items-center gap-2 font-bold text-lg text-gray-900">
-            <WalkersIcon className="text-blue-600" size={22} /> Jalan
-          </div>
+          <div className="font-bold text-lg text-gray-900">Jalan</div>
           <div className="flex items-center gap-3">
             {isSignedIn ? (
               <button
