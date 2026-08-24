@@ -417,7 +417,7 @@ export default function ChatPage() {
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
         <div className="p-4 border-b border-gray-200 flex items-center gap-2">
           <Plane className="text-blue-600" size={24} />
-          <span className="font-bold text-lg">Trip AI</span>
+          <span className="font-bold text-lg">Roam AI</span>
         </div>
         <div className="p-3">
           <button
@@ -476,7 +476,7 @@ export default function ChatPage() {
         {/* Mobile header */}
         <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-lg">
-            <Plane className="text-blue-600" size={22} /> Trip AI
+            <Plane className="text-blue-600" size={22} /> Roam AI
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -498,7 +498,7 @@ export default function ChatPage() {
         {/* Desktop header */}
         <div className="hidden md:flex items-center justify-between bg-white border-b border-gray-200 px-6 py-3">
           <div className="flex items-center gap-2 font-bold text-lg text-gray-900">
-            <Plane className="text-blue-600" size={22} /> Trip AI
+            <Plane className="text-blue-600" size={22} /> Roam AI
           </div>
           <div className="flex items-center gap-3">
             <button

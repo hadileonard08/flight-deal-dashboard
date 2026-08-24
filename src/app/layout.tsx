@@ -10,19 +10,19 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://flight-deals-dashboard.vercel.app'),
-  title: 'Flight Deal Tracker',
-  description: 'Autonomous flight deal tracking and AI trip planner for US–Asia award and cash deals',
+  title: 'Roam AI — Your AI Travel Companion',
+  description: 'Chat with Roam AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
   openGraph: {
-    title: 'Flight Deal Tracker',
-    description: 'Autonomous flight deal tracking and AI trip planner for US–Asia award and cash deals',
+    title: 'Roam AI — Your AI Travel Companion',
+    description: 'Chat with Roam AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
     type: 'website',
     url: '/',
-    siteName: 'Flight Deal Tracker',
+    siteName: 'Roam AI',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Flight Deal Tracker',
-    description: 'Autonomous flight deal tracking and AI trip planner for US–Asia award and cash deals',
+    title: 'Roam AI — Your AI Travel Companion',
+    description: 'Chat with Roam AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
   },
 }
 
