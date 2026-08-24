@@ -1,6 +1,8 @@
 /**
- * Custom "Walkers" icon — a stick figure walking while holding a small map
- * with both hands. Matches lucide-react's stroke style (24x24, currentColor).
+ * Custom "Walkers" icon — a stick figure viewed from the side, walking and
+ * holding a small map with both hands in front. The side angle makes both
+ * the person and the map clearly visible. Matches lucide-react's stroke
+ * style (24x24 viewBox, currentColor).
  */
 type Props = {
   size?: number | string;
@@ -11,7 +13,7 @@ type Props = {
 export default function WalkersIcon({
   size = 24,
   className,
-  strokeWidth = 1.75,
+  strokeWidth = 1.25,
 }: Props) {
   return (
     <svg
@@ -27,27 +29,30 @@ export default function WalkersIcon({
       className={className}
       aria-hidden="true"
     >
-      {/* Head */}
-      <circle cx="12" cy="4.5" r="1.8" />
+      {/* Head (facing right) */}
+      <circle cx="6" cy="5" r="1.7" />
 
       {/* Torso */}
-      <path d="M12 6.3 L12 12" />
+      <path d="M6 6.7 L6 12" />
 
       {/* Both arms reaching forward to hold the map */}
-      <path d="M12 8 L9.8 11" />
-      <path d="M12 8 L14.2 11" />
+      <path d="M6 8.3 L10 9.2" />
+      <path d="M6 8.8 L10 10" />
 
-      {/* Small map held with both hands */}
-      <path d="M9.4 11 L14.6 11 L14.6 13.5 L9.4 13.5 Z" />
-      <path d="M12 11 L12 13.5" />
+      {/* Small map held in front (to the right of the figure) */}
+      <path d="M10 8.5 L15.5 8.5 L15.5 12.5 L10 12.5 Z" />
+      {/* Fold line down the middle of the map */}
+      <path d="M12.75 8.5 L12.75 12.5" />
+      {/* A little route/path drawn on the map */}
+      <path d="M11 10.2 L12 9.8 L13 10.5 L14.5 10" opacity="0.6" />
 
-      {/* Legs (walking stride) */}
-      <path d="M12 12 L9 17" />
-      <path d="M12 12 L15 17" />
+      {/* Legs in a walking stride */}
+      <path d="M6 12 L9 17" />
+      <path d="M6 12 L3 16" />
 
       {/* Feet */}
-      <path d="M9 17 L7.5 19.5" />
-      <path d="M15 17 L16.5 19.5" />
+      <path d="M9 17 L11 18.5" />
+      <path d="M3 16 L1.5 18" />
     </svg>
   );
 }
