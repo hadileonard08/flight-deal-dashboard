@@ -1,279 +1,244 @@
-# Flight Deal Dashboard
+# Trip AI — Conversational Travel Itinerary Planner
 
-**Live dashboard:** https://flight-deals-dashboard.vercel.app
+**Live app:** https://flight-deals-dashboard.vercel.app
 
-A hybrid flight-deal discovery platform. A fast, deterministic data pipeline scrapes real award availability from the US to Asia, values every redemption against the cheapest live one-way cash alternative, and categorizes the deal by value. Heavy multi-agent LLM workflows are reserved for on-demand itinerary generation when a user opens the best redemptions.
+A conversational travel planning assistant that turns natural-language requests into full day-by-day itineraries with live weather, real points flight deals, packing lists, daily Google Maps route links, and hallucination guardrails — all powered by a LangGraph multi-agent loop.
 
-This is a full-stack, data-intensive project built with Next.js, PostgreSQL, LangChain/LangGraph, and a continuous ingestion pipeline.
+Built with Next.js 14, LangChain/LangGraph, PostgreSQL, Clerk auth, and the Seats.aero Partner API.
 
 ---
 
 ## What it does
 
-The dashboard ingests real award-space data, applies a deterministic points-and-miles valuation framework, and presents the results through a fast, filterable UI.
+Users chat with **Trip AI**, a friendly travel companion that:
 
-### Two-level browsing
-
-The interface is built around two views:
-
-1. **Origin-city grid** — the home page shows every departure city as a card. Each card displays:
-   - Total number of deals from that city.
-   - A colored quality breakdown: GOOD, MAYBE, OKAY, and OTHER.
-   - The lowest starting price in points or cash.
-   - The categories are ordered GOOD → MAYBE → OKAY → OTHER so the best opportunities are visible at a glance.
-
-2. **City detail page** (`/origin/[city]`) — every deal from the selected origin. A full filter bar lets users narrow by:
-   - Category (GOOD / MAYBE / OKAY / OTHER)
-   - Airline
-   - Cabin (Economy, Premium Economy, Business, First)
-   - Trip type (One Way / Round Trip)
-   - Month, Year, and ISO Week
-   - Sort by: **Deals** (GOOD first), **Points**, or **Date**
-
-The deals load in batched, paginated sets so the page stays fast even with tens of thousands of records.
-
-### Deal modal
-
-Clicking a deal opens a detail modal with:
-
-- Full route, airline, cabin, and date information.
-- Points required and taxes/fees.
-- A short rationale explaining why the deal is GOOD, MAYBE, OKAY, or OTHER.
-- **Representative Cash Flight Details** — duration, stops, layover airport and duration, and the cash airline. These come from the cheapest one-way cash alternative for the same route, cabin, and date.
-- A live booking link back to the award search on Seats.aero.
-- A one-click email field to send the full itinerary.
-- **Booking Strategy** and **Analyze Routing** on-demand agents (one click each) that generate a points transfer plan and a layover/cabin-product critique.
+1. **Understands natural-language trip requests** — e.g. *"Tokyo in October"*, *"honeymoon in Thailand"*, *"find any deal to Bangkok in January"*.
+2. **Asks clarifying questions** when details are missing — dates, origin, budget, cabin, trip length.
+3. **Generates a full day-by-day itinerary** with:
+   - Real weather forecast from Open-Meteo.
+   - Live destination news and events.
+   - Wikipedia/Wikimedia landmark images for each day.
+   - A "Getting Around" section with local transit tips.
+   - Per-day transport notes (walking/transit guidance).
+4. **Searches live award flight deals** via the Seats.aero Partner API — returns the top 5 lowest-mileage options with duration, stops, taxes, and direct airline booking links.
+5. **Provides daily Google Maps route links** — each day's landmarks are turned into a clickable Google Maps directions URL.
+6. **Suggests a packing list** based on destination and weather.
+7. **Lets users save trips** to a **One Stop** panel with to-dos, notes, deals, itinerary, routes, and packing list.
 
 ---
 
-## How deal quality is scored
+## Architecture
 
-Every deal is evaluated using the standard points-and-miles metric **cents per point (CPP)**:
+### LangGraph conversation pipeline
 
-```
-CPP = (Cash Price − Taxes & Fees) ÷ Points Required × 100
-```
-
-The thresholds are:
-
-| Category | CPP threshold | What it means |
-| --- | --- | --- |
-| **GOOD** | ≥ 2.0¢ | Excellent redemption value. |
-| **MAYBE** | ≥ 1.5¢ | Solid, close to great. |
-| **OKAY** | ≥ 1.0¢ | Fair, but not exceptional. |
-| **OTHER** | < 1.0¢ | Paying cash or waiting is usually better. |
-
-A 2.0¢+ CPP is the widely accepted "great value" benchmark in the points-and-miles community. These thresholds are applied automatically to every scraped deal.
-
-### Cash price logic
-
-The **Cash Price** in the CPP formula is the cheapest one-way cash flight for the **same origin, destination, cabin, and departure date**. The system looks up this price in priority order:
-
-1. **Duffel API** — real-time one-way offers in any cabin (live token required for real prices; test token returns simulated data).
-2. **Travelpayouts Flight Search API** — real-time one-way offers (requires affiliate approval).
-3. **Travelpayouts Data API** (`aviasales/v3/prices_for_dates`) — free cached economy search with affiliate `redirect_url`.
-4. **Static estimate table** — last-resort fallback for premium cabins and when the affiliate API is unavailable.
-
-The live cash price is cached per `route/cabin/date` so the value reflects the specific departure date. If the cheapest cash option is on a different airline than the award flight, the modal still shows it as the representative market value, with clear wording that the actual award flight may differ in airline, timing, stops, or layover.
-
----
-
-## On-demand AI itineraries
-
-Full AI itineraries are **not** pre-generated for every deal — they are built when a user opens a **GOOD** deal. This keeps the pipeline fast and the API call costs under control.
-
-The flow is:
-
-1. The user clicks a GOOD deal.
-2. If a full itinerary already exists in the database, it is returned instantly.
-3. If not, the modal calls `POST /api/itinerary`, which runs the agentic generator:
-   - Fetches a 5-day weather forecast from Open-Meteo.
-   - Searches live destination news and events.
-   - Retrieves a destination hero image and daily activity images. The LLM is required to emit a specific English landmark or activity name for each day (e.g. "Victoria Peak", "Tian Tan Buddha"), not the destination city, "skyline", or "flag". Each placeholder is resolved through Wikipedia and Wikimedia Commons; flag and emblem images are rejected, and the destination image is never used as the fallback for daily images.
-   - Generates a 5-day, cabin-appropriate itinerary through a **LangGraph architect/critic loop**:
-     - The **Architect** drafts the itinerary, weaving together weather, news, the booked airline/cabin, and the destination.
-     - The **Critic** reviews the draft specifically for hallucinations that would mislead the traveler. It checks that the plan does not invent premium perks, direct routes, partner airlines, lounges, or upgrades that are not part of the actual booking.
-     - If the Critic finds an issue, the loop sends the feedback back to the Architect, which produces a corrected draft. This continues until the Critic is satisfied.
-   - Hydrates the itinerary with images and caches it in PostgreSQL.
-
-Each itinerary includes a **reality check** that the airline, cabin, and routing match the booked award — no implied upgrades, partner re-routes, or premium-cabin services unless they are part of the actual booking.
-
----
-
-## The autonomous pipeline
-
-The data ingestion pipeline runs automatically every **5 hours** via **GitHub Actions** and is made up of three deterministic services:
-
-1. **Scraper Service** — pulls real award space from the Seats.aero Partner API, searching up to **1 year out** and ingesting thousands of records per run. It normalizes airline, cabin, origin/destination, points, taxes, dates, and routing. This is a standard API-scraping and data-normalization script with no LLM reasoning.
-2. **Cash-Price Service** — prefetches live one-way cash prices for every unique route/cabin/date through deterministic lookups. It tries the Travelpayouts affiliate API first (real-time Flight Search when approved, otherwise the free Data API for economy), and falls back to a static estimate table for premium cabins or when the affiliate API is unavailable. No generative model is involved.
-3. **Evaluator Service** — runs the deterministic CPP guardrail to categorize every deal. It also uses a lightweight, single-turn LLM prompt for the first `MAX_AI_REASONING` top deals to write a short rationale string. The actual category comes from the math, not from the LLM.
-
-The pipeline stores flights and deals in PostgreSQL via Drizzle ORM, and the Next.js frontend reads from there.
-
-### On-demand & serverless agents
-
-The multi-agent, LLM-driven parts of the system run on **Vercel**, not in the GitHub Actions pipeline:
-
-- **Itinerary Agent** — triggered on demand when a user opens a `GOOD` deal and the modal calls `POST /api/itinerary`. It combines weather, news, images, and a LangGraph architect/critic loop into a polished Markdown itinerary.
-- **Booking Strategy Agent** — triggered on demand when the user clicks **"Booking Strategy"** in the deal modal and calls `POST /api/booking-strategy`. It identifies transferable points programs, transfer times, and a step-by-step plan to book the award before it disappears.
-- **Logistics & Suitability Agent (Critic)** — triggered on demand when the user clicks **"Analyze Routing"** in the deal modal and calls `POST /api/logistics-check`. It reviews the route, layovers, aircraft, and cabin product to flag risky connections or outdated premium seats.
-- **Email Agent** — converts the Markdown itinerary to HTML and delivers it through Resend. It runs on demand via `POST /api/email-itinerary` or automatically once a day as a **Vercel Cron** job hitting `GET /api/cron/email-deals`.
-
----
-
-## Architecture & workflow
-
-> If the diagrams below do not render, view this README on GitHub — it supports native Mermaid rendering.
-
-### Overall app architecture
+The chat backend is a LangGraph state machine with the following nodes:
 
 ```mermaid
 flowchart TD
-    subgraph External Data Sources
-        A[Seats.aero API]
-        B[Travelpayouts Flight Search API]
-        C[Travelpayouts Data API]
-        D[Open-Meteo]
-        E[Wikipedia / Wikimedia]
-        F[Gemini / OpenAI]
-        G[Resend]
-        S[Static estimate table]
-    end
-
-    subgraph GitHub Actions Pipeline
-        H[Scraper Service]
-        I[Cash-Price Service<br/>Travelpayouts → Static table]
-        J[Evaluator Service]
-    end
-
-    subgraph Vercel
-        K[Next.js App]
-        L[API Routes]
-        M[Deal Modal]
-        N[Itinerary API]
-        R[Booking Strategy API]
-        T[Logistics Check API]
-        Q[Vercel Cron]
-    end
-
-    subgraph Database
-        P[(PostgreSQL)]
-    end
-
-    A -->|award deals| H
-    B -->|live cash| I
-    C -->|fallback cash| I
-    S -->|last-resort cash| I
-    H -->|normalized flights| I
-    I -->|cash prices| J
-    J -->|flights & deals| P
-    P -->|read| L
-    L --> K
-    K --> M
-    M -->|GOOD deal request| N
-    M -->|request| R
-    M -->|request| T
-    N -->|weather| D
-    N -->|images| E
-    N -->|news + AI| F
-    R -->|AI| F
-    T -->|AI| F
-    N -->|store itinerary| P
-    L -->|on-demand email| G
-    Q -->|daily 9am| L
-    L -->|digest email| G
+    START --> extract[Extract<br/>parse intent + entities]
+    extract -->|greeting| respond[Respond]
+    extract -->|ask_question + missing fields| clarify[Clarify]
+    extract -->|ask_question| answer[Answer<br/>deal lookup]
+    extract -->|plan_trip + missing fields| clarify
+    extract -->|plan_trip/refine| gather[Gather<br/>weather + news + deals + itinerary]
+    clarify --> END
+    answer --> END
+    gather --> guardrails[Guardrails<br/>verify landmarks via Wikipedia]
+    guardrails --> critic[Critic<br/>QA review for hallucinations]
+    critic -->|approved| respond
+    critic -->|needs revision| gather
+    respond --> END
 ```
 
-### Agent workflow
+- **Extract** — uses `chrono-node` + LLM to parse destination, dates, duration, cabin, travelers, budget, and intent from the user's message.
+- **Clarify** — asks follow-up questions for missing required fields (destination, dates).
+- **Gather** — fetches weather (Open-Meteo), news, live deals (Seats.aero), destination image, generates the itinerary and packing list in parallel.
+- **Guardrails** — extracts every landmark from the itinerary and verifies each one exists on Wikipedia. Flags any unverified places as potential hallucinations.
+- **Critic** — a strict QA reviewer that checks for hallucinated flights, fake attractions, invented transit lines, missing weather, inconsistent day counts, and unverified landmarks. Sends feedback back to the gather node if the itinerary needs revision (up to 2 revisions).
+- **Respond** — hydrates image placeholders with real Wikimedia URLs, assembles the final markdown response with deals, weather, packing tips, and route links.
+- **Answer** — handles deal-only lookups (e.g. *"find deals to Tokyo in December"*) with live Seats.aero search.
 
-```mermaid
-flowchart LR
-    A[Seats.aero] -->|real award space| B[Scraper Service]
-    B --> C[Cash-Price Service<br/>Travelpayouts → Static table]
-    S[Static estimate table] -->|last-resort cash| C
-    C --> D[Evaluator Service]
-    D -->|CPP scoring + categorization| E[(PostgreSQL)]
-    E --> F[Next.js Dashboard]
-    F -->|GOOD deal opened| G[Itinerary Agent]
-    F -->|Booking Strategy clicked| R[Booking Strategy Agent]
-    F -->|Analyze Routing clicked| T[Logistics & Suitability Agent]
-    G --> H[LangGraph Architect/Critic Loop]
-    R --> H
-    T --> H
-    H --> I[Destination weather]
-    H --> J[Live news]
-    H --> K[Wikipedia images]
-    H --> L[5-day itinerary]
-    H --> M[Booking strategy]
-    H --> N[Logistics check]
-    L --> E
-    M --> F
-    N --> F
-    E --> P[User's deal modal]
-```
+### Live deal search (Seats.aero)
 
----
+When the agent needs flight deals:
 
-## Key design decisions
+1. Searches the local PostgreSQL cache first.
+2. If no cached deals match, calls the Seats.aero Partner API live:
+   - Searches across major US gateways (JFK, LAX, SFO, ORD, DFW, etc.) if no origin is specified.
+   - Returns up to 100 candidates, sorted by lowest mileage.
+   - Enriches the top 5 with trip details (duration, stops, layover, aircraft) from the Seats.aero `/trips/{id}` endpoint.
+3. Each deal includes a direct booking link to the airline's website (Delta, American, United, JAL, etc.) via `src/lib/airline-booking.ts`.
 
-- **Date-specific cash pricing** — cash prices are cached by `route/cabin/date` instead of `route/cabin`, so CPP reflects the actual departure date.
-- **Cheapest-cash fallback** — if the award airline is not available in live cash results, the system falls back to the cheapest cash option for that route and date rather than returning null and using a low static estimate.
-- **On-demand heavy AI** — itineraries, news, weather, and image generation happen only when a GOOD deal is opened, keeping the 5-hour pipeline lightweight.
-- **Multi-source itinerary images** — each `![IMAGE: ...]` placeholder is resolved through Wikipedia and Wikimedia Commons. The architect is instructed to use specific English landmark/activity names; the critic rejects generic terms, flags, or skyline-only placeholders. Flag, emblem, and coat-of-arms images are filtered out at the source, and the destination image is not reused as a daily fallback.
-- **Responsive mobile UX** — the modal uses a proper viewport meta tag, full dynamic viewport height, bottom-safe padding, and `overflow-x-hidden` so the page never requires horizontal panning. Inputs use a 16px font size to prevent iOS zoom.
-- **Batch pagination** — city pages preload 200 deals at a time and render 20 per page, balancing speed and memory on the serverless backend.
-- **Serverless deployment** — the entire app runs on Vercel with dynamic API routes, while the heavy data pipeline runs in GitHub Actions.
+### Hallucination guardrails
 
----
+- **Wikipedia landmark verification** — every `![IMAGE: ...]` placeholder in the itinerary is checked against Wikipedia's search API. Unverified landmarks are flagged.
+- **Critic prompt** — explicitly checks for invented attractions, closed venues, fake transit lines, made-up schedules, and inconsistent day counts.
+- **Itinerary generator prompt** — instructed to only include real, well-known attractions and to not invent transit lines, schedules, or booking details.
+- **Route link filtering** — the Google Maps route builder filters out generic words (morning, afternoon, hotel) and transit-mode names (JR Yamanote Line, Tokyo Metro) so only real places become waypoints.
 
-## Data sources
+### One Stop panel
 
-- **Seats.aero API** — real mileage-program award space.
-- **Duffel API** — real-time one-way cash offers in any cabin.
-- **Travelpayouts Flight Search API** — real-time one-way cash offers (requires separate affiliate approval).
-- **Travelpayouts Data API** — free cached economy prices with affiliate redirect links.
-- **Open-Meteo** — 5-day destination weather.
-- **Wikipedia / Wikimedia** — destination hero images and daily landmark/activity images (Wikipedia page summary + Wikimedia Commons search).
-- **Gemini or OpenAI (via LangChain)** — live destination news search and AI itinerary generation.
-- **Resend** — transactional and digest email delivery.
+A slide-out panel accessible from the top-right of the chat that lets users:
+
+- **Save** any assistant response (deals, itinerary, packing list, route links).
+- **View saved trips** organized by destination and dates.
+- **Manage to-dos** — add, check off, and delete tasks per trip.
+- **Write notes** — free-form notes per trip.
+- **Copy trip summary** — copies everything to clipboard.
+- **Persist locally** — saved trips are stored in `localStorage`.
 
 ---
 
 ## Tech stack
 
-- **Frontend**: Next.js 14 App Router, React, TypeScript, Tailwind CSS, SWR
-- **Backend API**: Next.js Route Handlers, Vercel serverless functions
-- **Database**: PostgreSQL + Drizzle ORM
-- **AI & multi-agent**: LangChain + LangGraph, Gemini or OpenAI
-- **Cash pricing & affiliate search**: Travelpayouts Flight Search + Data API
-- **Email**: Resend, `marked` for Markdown → HTML
-- **Automation**: GitHub Actions every 5 hours for the data pipeline; Vercel Cron for the daily email digest
+- **Frontend**: Next.js 14 App Router, React, TypeScript, Tailwind CSS, SWR, Clerk auth
+- **Backend**: Next.js Route Handlers (Node runtime), Vercel serverless functions
+- **AI**: LangChain + LangGraph, Google Gemini (chat + reasoning models)
+- **Flight deals**: Seats.aero Partner API (live search + trip details)
+- **Weather**: Open-Meteo
+- **Images**: Wikipedia + Wikimedia Commons
+- **Date parsing**: chrono-node
+- **Database**: PostgreSQL + Drizzle ORM (for cached deals and conversation history)
+- **Auth**: Clerk (sign-in/sign-up, anonymous sessions)
 - **Deployment**: Vercel
+
+---
+
+## Key features
+
+### Conversational chat
+- Natural-language trip planning with follow-up questions.
+- Context-aware loading statuses (e.g. *"Checking the weather..."*, *"Looking for deals..."*).
+- Conversation history with dynamic titles and delete.
+- Persistent conversations across sessions (for signed-in users).
+
+### Live flight deals
+- Top 5 lowest-mileage award deals from Seats.aero.
+- Each deal shows: origin → destination, airline, cabin, date, points, taxes, duration, stops.
+- Clickable cards that link directly to the airline's booking page.
+- Diverse origin cities (not all from the same hub).
+
+### Daily route links
+- Each day's landmarks are extracted and turned into a Google Maps directions URL.
+- Clickable "Daily Routes" card in the chat and "Routes" tab in One Stop.
+
+### Guardrails
+- Wikipedia landmark verification.
+- Critic checks for hallucinations, fake transit, inconsistent days.
+- Route builder filters out non-place words.
+
+### One Stop panel
+- Save deals, itinerary, packing list, and routes.
+- To-do list and notes per trip.
+- Copy-to-clipboard trip summary.
+- localStorage persistence.
 
 ---
 
 ## API surface
 
-The dashboard is backed by a set of JSON API routes:
+- `POST /api/chat` — streaming chat endpoint (SSE) that runs the LangGraph conversation pipeline.
+- `GET /api/chat/conversations` — list saved conversations for the current user.
+- `DELETE /api/chat/conversations/[id]` — delete a conversation.
+- `GET /api/chat/history` — load message history for a conversation.
+- `POST /api/chat/merge-session` — merge anonymous session into user account on sign-in.
+- `GET /api/deals` — paginated cached deals (legacy dashboard support).
+- `POST /api/itinerary` — on-demand itinerary generation (legacy).
+- `POST /api/booking-strategy` — booking strategy agent (legacy).
+- `POST /api/logistics-check` — logistics check agent (legacy).
+- `POST /api/email-itinerary` — email itinerary (legacy).
+- `GET /api/cron/email-deals` — daily digest cron (legacy).
 
-- `GET /api/origins` — origin cities with total counts and category breakdowns.
-- `GET /api/deals` — paginated, filterable deals.
-- `GET /api/filter-options` — available airlines, cabins, categories, months, years, and weeks.
-- `POST /api/itinerary` — generate and return the AI itinerary for a GOOD deal.
-- `POST /api/booking-strategy` — generate transferable-points and booking plan for a deal.
-- `POST /api/logistics-check` — analyze the route, layovers, and cabin product for a deal.
-- `POST /api/email-itinerary` — email a specific deal and itinerary to a user.
-- `GET /api/cron/email-deals` — daily digest trigger for Vercel cron.
+---
+
+## Data sources
+
+- **Seats.aero Partner API** — real award availability, trip details (duration, stops, aircraft).
+- **Open-Meteo** — destination weather forecast.
+- **Wikipedia / Wikimedia Commons** — landmark verification and images.
+- **Google Maps** — daily route directions links (no API key required, uses public URL format).
+- **Google Gemini** (via LangChain) — chat, itinerary generation, critic, and reasoning.
+- **Clerk** — authentication and user management.
+
+---
+
+## Project structure
+
+```
+src/
+  agents/
+    conversation-graph.ts    # LangGraph state machine (extract → clarify → gather → guardrails → critic → respond)
+    itinerary-guardrails.ts  # Wikipedia landmark verification + Google Maps route link builder
+    destination-images.ts    # Wikimedia image hydration
+    weather.ts               # Open-Meteo forecast
+    news-search.ts           # Destination news search
+    ...
+  lib/
+    seatsaero.ts             # Seats.aero live search + trip details enrichment
+    airline-booking.ts       # Airline-specific booking URL builder
+    chat-state.ts            # Shared types (ChatPayload, SavedTrip, RouteLink, etc.)
+    chat-db.ts               # Conversation persistence
+    ai-provider.ts           # LLM model configuration (Gemini/OpenAI)
+    airports.ts              # Airport code/name mappings
+    ...
+  components/
+    chat/
+      ChatPage.tsx           # Main chat UI with sidebar, messages, input, One Stop panel
+      OneStopPanel.tsx       # Slide-out panel for saved trips, to-dos, notes
+    AuthProvider.tsx         # Clerk provider wrapper
+  app/
+    api/
+      chat/route.ts          # Streaming chat endpoint
+      chat/conversations/    # Conversation CRUD
+      chat/history/          # Message history
+      ...
+```
+
+---
+
+## Setup
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment variables** (see `.env.example`):
+   - `SEATS_AERO_API_KEY` — Seats.aero Partner API key.
+   - `GOOGLE_GENERATIVE_AI_API_KEY` or `OPENAI_API_KEY` — LLM provider key.
+   - `DATABASE_URL` — PostgreSQL connection string.
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` — Clerk auth keys.
+   - `CHAT_MODEL` — optional, defaults to `gemini-flash-lite-latest`.
+
+3. **Run the database migration:**
+   ```bash
+   npm run db:push
+   ```
+
+4. **Start the dev server:**
+   ```bash
+   npm run dev
+   ```
+
+5. **Build for production:**
+   ```bash
+   npm run build
+   ```
+
+6. **Deploy to Vercel:**
+   ```bash
+   npx vercel --prod
+   npx vercel alias <deployment-url> flight-deals-dashboard.vercel.app
+   ```
 
 ---
 
 ## Highlights
 
-- Built an **end-to-end autonomous data pipeline** that scrapes, values, categorizes, and stores **100k++ real award deals** across **12 US origin cities**, with award space searched up to **1 year** into the future.
-- Implemented a **CPP-based valuation guardrail** that automatically categorizes every deal — using the standard points-and-miles benchmark.
-- Designed a **date-specific live cash price cache** that values each redemption against the cheapest real-world one-way cash alternative for the exact route, cabin, and departure date.
-- Integrated a **LangGraph architect/critic AI loop** for on-demand, multi-source itinerary generation (weather, news, Wikipedia/Wikimedia landmark images, AI plan) only for GOOD deals, plus on-demand Booking Strategy and Logistics & Suitability agents. Added explicit critic guardrails and source filters so itineraries avoid generic skyline/flag images and each day shows a distinct landmark.
-- Built a **two-level, filterable Next.js dashboard** that serves 20 deals per page and preloads them in 200-deal batches for fast, serverless pagination.
-- Automated the data pipeline with **GitHub Actions** (running every 5 hours), the daily email digest with **Vercel Cron**, and deployed the dashboard to **Vercel** with a custom domain.
-
-
+- Built a **conversational travel planner** powered by a LangGraph multi-agent loop (extract → clarify → gather → guardrails → critic → respond) that turns natural-language requests into full itineraries.
+- Integrated **live Seats.aero award deal search** with trip-detail enrichment (duration, stops, aircraft) and direct airline booking links.
+- Added **hallucination guardrails** that verify every itinerary landmark against Wikipedia and flag unverified places for the critic to reject.
+- Implemented **daily Google Maps route links** by extracting landmarks from the itinerary and building clickable directions URLs — no API key required.
+- Built a **One Stop panel** for users to save deals, itineraries, packing lists, routes, to-dos, and notes per trip, with localStorage persistence.
+- Integrated **Clerk authentication** with anonymous session merging for seamless sign-in.
+- Used **chrono-node** for flexible natural-language date parsing (e.g. *"in two weeks"*, *"next October"*, *"2 week trip"*).
