@@ -38,7 +38,7 @@ export function getChatModel(temperature = 0.4, modelName?: string) {
 export function getReasoningModel(temperature = 0.2) {
   if (hasGemini) {
     return new ChatGoogleGenerativeAI({
-      model: 'gemini-1.5-flash-latest',
+      model: 'gemini-flash-latest',
       apiKey: geminiKey,
       temperature,
       maxRetries: 3,
