@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plane, ArrowRight } from 'lucide-react';
+import WalkersIcon from '@/components/WalkersIcon';
 
 const SPLASH_COOKIE = 'jalanai-welcomed';
 const REDIRECT_SECONDS = 5;
@@ -62,7 +63,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       <div className="text-center">
         <div className="flex items-center justify-center gap-3 mb-3">
           <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl">
-            <Plane size={32} />
+            <WalkersIcon size={32} />
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Jalan</h1>
         </div>
