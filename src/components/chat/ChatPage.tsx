@@ -51,13 +51,20 @@ function PackingCard({ packingTips }: { packingTips?: string }) {
 
 function DealsList({ deals }: { deals?: any[] }) {
   if (!deals || deals.length === 0) return null;
+
+  // Show the best deal from each origin city so the list isn't all HNL/HND/etc.
+  const uniqueOriginDeals = deals.reduce((acc: any[], deal) => {
+    if (!acc.find((d) => d.originCode === deal.originCode)) acc.push(deal);
+    return acc;
+  }, [] as any[]).slice(0, 5);
+
   return (
     <div className="my-3">
       <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
         <Plane size={18} /> Points Flight Deals
       </div>
       <div className="grid gap-2">
-        {deals.map((deal, i) => (
+        {uniqueOriginDeals.map((deal, i) => (
           <div
             key={i}
             className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm"
@@ -71,18 +78,28 @@ function DealsList({ deals }: { deals?: any[] }) {
                 {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-right flex flex-col items-end gap-1">
               <div className="text-lg font-bold text-blue-600">
                 {Number(deal.pointsRequired).toLocaleString()} pts
               </div>
               {deal.taxesAndFees ? (
-                <div className="text-xs text-gray-500">+ ${Number(deal.taxesAndFees).toLocaleString()} taxes</div>
+                <div className="text-xs text-gray-500">+ ${Number(deal.taxesAndFees).toFixed(2)} taxes</div>
+              ) : null}
+              {deal.bookingUrl ? (
+                <a
+                  href={deal.bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Book →
+                </a>
               ) : null}
             </div>
           </div>
         ))}
       </div>
-      <p className="text-xs text-gray-400 mt-2">Cash prices are hidden.</p>
     </div>
   );
 }

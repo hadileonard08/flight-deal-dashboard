@@ -553,8 +553,7 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
           (d) =>
             `- **[${d.originCode} → ${d.destinationCode}](${d.bookingUrl || '#'})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
         )
-        .join('\n') +
-      '\n(Prices shown in points only. Cash values are hidden.)';
+        .join('\n');
   } else {
     dealSection = '\n\n## Points Flight Deals\nNo matching points deals right now, but I can still help you plan the trip.';
   }
