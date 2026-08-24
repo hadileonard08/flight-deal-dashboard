@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, integer, decimal, timestamp, boolean, pgEnum, text } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, integer, decimal, timestamp, boolean, pgEnum, text, index } from 'drizzle-orm/pg-core';
 
 export const dealCategoryEnum = pgEnum('deal_category', ['GOOD_DEAL', 'MAYBE_GOOD_DEAL', 'OKAY_DEAL', 'BAD_DEAL']);
 export const fareTypeEnum = pgEnum('fare_type', ['CASH', 'POINTS']);
@@ -44,3 +44,31 @@ export const deals = pgTable('deals', {
   isNotified: boolean('is_notified').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const messageRoleEnum = pgEnum('message_role', ['user', 'assistant', 'system', 'tool']);
+
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }),
+  sessionId: uuid('session_id'),
+  title: varchar('title', { length: 255 }),
+  metadata: text('metadata'), // JSON: { destination, dates, origin, cabin, ... }
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('conversations_user_id_idx').on(table.userId),
+  sessionIdx: index('conversations_session_id_idx').on(table.sessionId),
+  updatedAtIdx: index('conversations_updated_at_idx').on(table.updatedAt),
+}));
+
+export const messages = pgTable('messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  role: messageRoleEnum('role').notNull(),
+  content: text('content').notNull(),
+  payload: text('payload'), // JSON: itinerary, weather, deals, tool calls, critic feedback
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  conversationIdx: index('messages_conversation_id_idx').on(table.conversationId),
+  createdAtIdx: index('messages_created_at_idx').on(table.createdAt),
+}));

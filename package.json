@@ -10,10 +10,12 @@
     "clear:db": "npx tsx src/scripts/clear-db.ts"
   },
   "dependencies": {
+    "@clerk/nextjs": "^5.7.6",
     "@langchain/core": "^0.2.36",
     "@langchain/google-genai": "^0.1.2",
     "@langchain/langgraph": "^0.2.74",
     "@langchain/openai": "^0.2.11",
+    "@neondatabase/serverless": "^0.10.0",
     "cheerio": "^1.0.0-rc.10",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.30.10",
@@ -27,12 +29,14 @@
     "react-markdown": "^9.1.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.20.0",
-    "swr": "^2.2.5"
+    "swr": "^2.2.5",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.10",
     "@types/node": "^20",
     "@types/react": "^18",
+    "@types/ws": "^8.18.1",
     "autoprefixer": "^10.4.19",
     "drizzle-kit": "^0.21.2",
     "postcss": "^8",
