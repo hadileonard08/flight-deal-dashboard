@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2 } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
+import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
 import type { ChatMessageUI, ChatPayload } from '@/lib/chat-state';
 
@@ -64,41 +65,42 @@ function DealsList({ deals }: { deals?: any[] }) {
         <Plane size={18} /> Points Flight Deals
       </div>
       <div className="grid gap-2">
-        {uniqueOriginDeals.map((deal, i) => (
-          <div
-            key={i}
-            className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm"
-          >
-            <div>
-              <div className="font-semibold text-gray-900">
-                {deal.originCode} → {deal.destinationCode}
+        {uniqueOriginDeals.map((deal, i) => {
+          const bookingUrl = getAirlineBookingUrl(
+            deal.airline || '',
+            deal.originCode || '',
+            deal.destinationCode || '',
+            deal.departureDate
+          );
+          return (
+            <a
+              key={i}
+              href={bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm hover:border-blue-300 hover:shadow-md transition-all no-underline"
+            >
+              <div>
+                <div className="font-semibold text-gray-900">
+                  {deal.originCode} → {deal.destinationCode}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {deal.airline} · {deal.cabin} · {formatDate(deal.departureDate)}
+                  {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
+                </div>
               </div>
-              <div className="text-sm text-gray-500">
-                {deal.airline} · {deal.cabin} · {formatDate(deal.departureDate)}
-                {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
+              <div className="text-right flex flex-col items-end gap-1">
+                <div className="text-lg font-bold text-blue-600">
+                  {Number(deal.pointsRequired).toLocaleString()} pts
+                </div>
+                {deal.taxesAndFees ? (
+                  <div className="text-xs text-gray-500">+ ${Number(deal.taxesAndFees).toFixed(2)} taxes</div>
+                ) : null}
+                <div className="text-xs text-blue-600">Book on airline site →</div>
               </div>
-            </div>
-            <div className="text-right flex flex-col items-end gap-1">
-              <div className="text-lg font-bold text-blue-600">
-                {Number(deal.pointsRequired).toLocaleString()} pts
-              </div>
-              {deal.taxesAndFees ? (
-                <div className="text-xs text-gray-500">+ ${Number(deal.taxesAndFees).toFixed(2)} taxes</div>
-              ) : null}
-              {deal.bookingUrl ? (
-                <a
-                  href={deal.bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Book →
-                </a>
-              ) : null}
-            </div>
-          </div>
-        ))}
+            </a>
+          );
+        })}
       </div>
     </div>
   );

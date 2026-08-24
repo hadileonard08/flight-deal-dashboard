@@ -8,6 +8,7 @@ import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
 import * as chrono from 'chrono-node';
 import { searchSeatsAeroLive } from '../lib/seatsaero';
+import { getAirlineBookingUrl } from '../lib/airline-booking';
 import type {
   ExtractedEntities,
   ClarifyingQuestion,
@@ -134,8 +135,13 @@ User: ${state.userMessage}
     entities.endDate = end.toISOString().split('T')[0];
   }
 
-  // If we still have no start date but destination is known, default to a flexible date soon
-  if (entities.destination && !entities.startDate) {
+  // For trip planning requests, default to a flexible date soon if the user didn't specify one.
+  // For question/deal lookups, leave the date missing so the agent asks for it.
+  if (
+    entities.destination &&
+    !entities.startDate &&
+    (entities.intent === 'plan_trip' || entities.intent === 'refine')
+  ) {
     const fallback = new Date();
     fallback.setDate(fallback.getDate() + 60);
     entities.startDate = fallback.toISOString().split('T')[0];
@@ -222,7 +228,10 @@ Respond ONLY in plain text (no JSON, no markdown headers).`;
 
 function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {
   if (state.entities.intent === 'greeting') return 'respond';
-  if (state.entities.intent === 'ask_question') return 'answer';
+  if (state.entities.intent === 'ask_question') {
+    if (state.missingFields.length > 0) return 'clarify';
+    return 'answer';
+  }
   if (state.entities.intent === 'refine' && state.entities.destination) return 'gather';
   if (state.missingFields.length > 0) return 'clarify';
   return 'gather';
@@ -441,10 +450,15 @@ async function answerNode(state: typeof ConversationStateAnnotation.State) {
 
   const dealsText = dealsResult.length
     ? dealsResult
-        .map(
-          (d) =>
-            `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · [book](${d.bookingUrl || '#'})`
-        )
+        .map((d) => {
+          const bookingUrl = getAirlineBookingUrl(
+            d.airline || '',
+            d.originCode || '',
+            d.destinationCode || '',
+            d.departureDate
+          );
+          return `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · [book on airline site](${bookingUrl})`;
+        })
         .join('\n')
     : 'No matching points deals found right now.';
 
@@ -549,10 +563,15 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
     dealSection =
       '\n\n## Points Flight Deals\n' +
       state.deals
-        .map(
-          (d) =>
-            `- **[${d.originCode} → ${d.destinationCode}](${d.bookingUrl || '#'})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
-        )
+        .map((d) => {
+          const bookingUrl = getAirlineBookingUrl(
+            d.airline || '',
+            d.originCode || '',
+            d.destinationCode || '',
+            d.departureDate
+          );
+          return `- **[${d.originCode} → ${d.destinationCode}](${bookingUrl})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`;
+        })
         .join('\n');
   } else {
     dealSection = '\n\n## Points Flight Deals\nNo matching points deals right now, but I can still help you plan the trip.';
