@@ -153,7 +153,7 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
   );
 }
 
-function MessageContent({ message, onSaveTrip }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void }) {
+function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
   }
@@ -169,23 +169,31 @@ function MessageContent({ message, onSaveTrip }: { message: ChatMessageUI; onSav
       <div className="prose prose-sm max-w-none">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
       </div>
-      {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} /> : null}
+      {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} isSignedIn={isSignedIn} /> : null}
     </div>
   );
 }
 
-function RichPayload({ payload, onSaveTrip }: { payload: ChatPayload; onSaveTrip?: (payload: ChatPayload) => void }) {
+function RichPayload({ payload, onSaveTrip, isSignedIn }: { payload: ChatPayload; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
   const hasSavableContent = payload.deals?.length || payload.itinerary || payload.packingTips;
+  const saveButton = (
+    <button
+      onClick={() => onSaveTrip?.(payload)}
+      className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+    >
+      <Bookmark size={14} /> Save to One Stop
+    </button>
+  );
+
   return (
     <div className="space-y-3">
       {hasSavableContent ? (
         <div className="flex justify-end">
-          <button
-            onClick={() => onSaveTrip?.(payload)}
-            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            <Bookmark size={14} /> Save to One Stop
-          </button>
+          {isSignedIn ? saveButton : (
+            <SignInButtonWrapper mode="modal">
+              {saveButton}
+            </SignInButtonWrapper>
+          )}
         </div>
       ) : null}
       <WeatherCard weather={payload.weather} />
@@ -480,12 +488,20 @@ export default function ChatPage() {
             <WalkersIcon className="text-blue-600" size={22} /> Jalan
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setOneStopOpen(true)}
-              className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
-            >
-              <Bookmark size={14} /> One Stop
-            </button>
+            {isSignedIn ? (
+              <button
+                onClick={() => setOneStopOpen(true)}
+                className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
+              >
+                <Bookmark size={14} /> One Stop
+              </button>
+            ) : (
+              <SignInButtonWrapper mode="modal">
+                <button className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
+                  <Bookmark size={14} /> One Stop
+                </button>
+              </SignInButtonWrapper>
+            )}
             {isLoaded && !isSignedIn ? (
               <SignInButtonWrapper mode="modal">
                 <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
@@ -502,12 +518,20 @@ export default function ChatPage() {
             <WalkersIcon className="text-blue-600" size={22} /> Jalan
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setOneStopOpen(true)}
-              className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
-            >
-              <Bookmark size={16} /> One Stop
-            </button>
+            {isSignedIn ? (
+              <button
+                onClick={() => setOneStopOpen(true)}
+                className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
+              >
+                <Bookmark size={16} /> One Stop
+              </button>
+            ) : (
+              <SignInButtonWrapper mode="modal">
+                <button className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors">
+                  <Bookmark size={16} /> One Stop
+                </button>
+              </SignInButtonWrapper>
+            )}
             {isLoaded && !isSignedIn ? (
               <SignInButtonWrapper mode="modal">
                 <button className="text-sm bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-800">Sign in</button>
@@ -554,6 +578,7 @@ export default function ChatPage() {
                   <MessageContent
                     message={m}
                     onSaveTrip={m.role === 'assistant' ? (payload) => saveTrip(payload, activeConversationId || 'new') : undefined}
+                    isSignedIn={isSignedIn}
                   />
                 </div>
               </div>

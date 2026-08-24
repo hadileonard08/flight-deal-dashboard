@@ -293,47 +293,53 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
     <>
       {isOpen ? (
         <div className="fixed inset-0 z-40" onClick={onClose}>
-          <div className="absolute inset-0 bg-black/20" />
+          <div className="absolute inset-0 bg-black/40" />
         </div>
       ) : null}
 
       <div
-        className={`fixed top-0 right-0 h-full w-full sm:w-[420px] bg-white shadow-xl z-50 transform transition-transform duration-300 flex flex-col ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
+        className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-2 font-semibold text-gray-900">
-            <Plane size={20} className="text-blue-600" /> One Stop
-          </div>
-          <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-900">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {savedTrips.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <div className="bg-blue-100 text-blue-600 p-4 rounded-full inline-flex mb-4">
-                <Clipboard size={24} />
-              </div>
-              <p className="text-sm">No saved trips yet.</p>
-              <p className="text-xs mt-1">Save a deal, itinerary, or packing list from any assistant message.</p>
+        <div
+          className={`w-[95vw] h-[90vh] max-w-[900px] max-h-[900px] bg-white shadow-2xl rounded-2xl flex flex-col transform transition-all duration-300 ${
+            isOpen ? 'scale-100' : 'scale-95'
+          }`}
+        >
+          <div className="p-5 border-b border-gray-200 flex items-center justify-between bg-gray-50 rounded-t-2xl">
+            <div className="flex items-center gap-2 font-semibold text-gray-900">
+              <Plane size={22} className="text-blue-600" /> One Stop
             </div>
-          ) : (
-            savedTrips.map((trip) => (
-              <div key={trip.id} className="relative">
-                <button
-                  onClick={() => deleteTrip(trip.id)}
-                  className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
-                  title="Delete trip"
-                >
-                  <Trash2 size={14} />
-                </button>
-                <SavedTripCard trip={trip} onUpdate={updateTrip} />
+            <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-900">
+              <X size={22} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {savedTrips.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <div className="bg-blue-100 text-blue-600 p-5 rounded-full inline-flex mb-4">
+                  <Clipboard size={28} />
+                </div>
+                <p className="text-base">No saved trips yet.</p>
+                <p className="text-sm mt-1">Save a deal, itinerary, or packing list from any assistant message.</p>
               </div>
-            ))
-          )}
+            ) : (
+              savedTrips.map((trip) => (
+                <div key={trip.id} className="relative">
+                  <button
+                    onClick={() => deleteTrip(trip.id)}
+                    className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
+                    title="Delete trip"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <SavedTripCard trip={trip} onUpdate={updateTrip} />
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </>
