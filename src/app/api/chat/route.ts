@@ -67,15 +67,33 @@ export async function POST(req: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
+      const statusMap: Record<string, string> = {
+        extract: 'Thinking...',
+        clarify: 'Asking a quick question...',
+        answer: 'Looking that up...',
+        gather: 'Planning your trip...',
+        critic: 'Double-checking...',
+        respond: 'Putting it all together...',
+      };
+
       try {
-        emit({ type: 'status', message: 'Planning your trip...' });
+        let result: any = {};
 
-        const result = await conversationGraph.invoke({
-          userMessage: message,
-          history,
-        });
+        const graphStream = await conversationGraph.stream(
+          { userMessage: message, history },
+          { streamMode: 'updates' }
+        );
 
-        emit({ type: 'status', message: 'Putting it all together...' });
+        for await (const chunk of graphStream) {
+          for (const [nodeName, update] of Object.entries(chunk)) {
+            if (nodeName in statusMap) {
+              emit({ type: 'status', message: statusMap[nodeName] });
+            }
+            if (typeof update === 'object' && update !== null) {
+              result = { ...result, ...update };
+            }
+          }
+        }
 
         const finalResponse = (result.finalResponse || result.itinerary || 'Here is what I found.') as string;
         const words = finalResponse.split(/(\s+)/);
