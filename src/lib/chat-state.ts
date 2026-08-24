@@ -51,3 +51,12 @@ export interface ConversationState {
   revisionCount: number;
   finalResponse: string;
 }
+
+export interface ChatMessageUI {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  payload?: ChatPayload;
+  status?: string;
+  isStreaming?: boolean;
+}

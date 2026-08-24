@@ -88,7 +88,7 @@ export async function POST(req: Request) {
           feedback: result.criticFeedback?.length ? result.criticFeedback : undefined,
         };
 
-        emit({ type: 'done', payload });
+        emit({ type: 'done', payload, conversationId: conversation.id });
 
         await updateConversationMetadata(conversation.id, result.entities || {});
         await saveMessage(conversation.id, {

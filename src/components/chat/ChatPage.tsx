@@ -1,0 +1,426 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase } from 'lucide-react';
+import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
+import useSWR, { mutate } from 'swr';
+import type { ChatMessageUI, ChatPayload } from '@/lib/chat-state';
+
+interface Conversation {
+  id: string;
+  title: string | null;
+  updatedAt: string;
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+function formatDate(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function WeatherCard({ weather }: { weather?: any }) {
+  if (!weather) return null;
+  const summary = typeof weather === 'string' ? weather : JSON.stringify(weather, null, 2);
+  return (
+    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3">
+      <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
+        <Sun size={18} /> Weather Outlook
+      </div>
+      <div className="text-sm text-blue-900 whitespace-pre-wrap">{summary}</div>
+    </div>
+  );
+}
+
+function PackingCard({ packingTips }: { packingTips?: string }) {
+  if (!packingTips) return null;
+  return (
+    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3">
+      <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
+        <Briefcase size={18} /> Packing Suggestions
+      </div>
+      <div className="text-sm text-amber-900">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{packingTips}</ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+function DealsList({ deals }: { deals?: any[] }) {
+  if (!deals || deals.length === 0) return null;
+  return (
+    <div className="my-3">
+      <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
+        <Plane size={18} /> Points Flight Deals
+      </div>
+      <div className="grid gap-2">
+        {deals.map((deal, i) => (
+          <div
+            key={i}
+            className="bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm"
+          >
+            <div>
+              <div className="font-semibold text-gray-900">
+                {deal.originCode} → {deal.destinationCode}
+              </div>
+              <div className="text-sm text-gray-500">
+                {deal.airline} · {deal.cabin} · {formatDate(deal.departureDate)}
+                {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-blue-600">
+                {Number(deal.pointsRequired).toLocaleString()} pts
+              </div>
+              {deal.taxesAndFees ? (
+                <div className="text-xs text-gray-500">+ ${Number(deal.taxesAndFees).toLocaleString()} taxes</div>
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-400 mt-2">Cash prices are hidden.</p>
+    </div>
+  );
+}
+
+function MessageContent({ message }: { message: ChatMessageUI }) {
+  if (message.role === 'user') {
+    return <div className="whitespace-pre-wrap">{message.content}</div>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {message.status ? (
+        <div className="flex items-center gap-2 text-sm text-blue-600 animate-pulse">
+          <Loader2 size={14} className="animate-spin" />
+          {message.status}
+        </div>
+      ) : null}
+      <div className="prose prose-sm max-w-none">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+      </div>
+      {message.payload ? <RichPayload payload={message.payload} /> : null}
+    </div>
+  );
+}
+
+function RichPayload({ payload }: { payload: ChatPayload }) {
+  return (
+    <div>
+      <WeatherCard weather={payload.weather} />
+      <PackingCard packingTips={payload.packingTips} />
+      <DealsList deals={payload.deals} />
+    </div>
+  );
+}
+
+export default function ChatPage() {
+  const { isSignedIn, isLoaded } = useUser();
+  const [messages, setMessages] = useState<ChatMessageUI[]>([]);
+  const [input, setInput] = useState('');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: conversationsData } = useSWR<{ conversations: Conversation[] }>(
+    '/api/chat/conversations',
+    fetcher
+  );
+  const conversations = conversationsData?.conversations || [];
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const loadConversation = useCallback(async (id: string) => {
+    setActiveConversationId(id);
+    setIsLoading(true);
+    const res = await fetch(`/api/chat/history?conversationId=${id}`);
+    const data = await res.json();
+    if (data.messages) {
+      setMessages(
+        data.messages.map((m: any) => ({
+          id: crypto.randomUUID(),
+          role: m.role,
+          content: m.content,
+          payload: m.payload,
+        }))
+      );
+    }
+    setIsLoading(false);
+  }, []);
+
+  const startNewChat = () => {
+    setActiveConversationId(null);
+    setMessages([]);
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || isLoading) return;
+    const userText = input.trim();
+    setInput('');
+
+    const userMessage: ChatMessageUI = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: userText,
+    };
+    const assistantMessage: ChatMessageUI = {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      content: '',
+      status: 'Planning your trip...',
+      isStreaming: true,
+    };
+
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText, conversationId: activeConversationId }),
+      });
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'status') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant' && last.isStreaming) {
+                  return [...prev.slice(0, -1), { ...last, status: data.message }];
+                }
+                return prev;
+              });
+            } else if (data.type === 'content') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant' && last.isStreaming) {
+                  return [...prev.slice(0, -1), { ...last, content: last.content + data.chunk, status: undefined }];
+                }
+                return prev;
+              });
+            } else if (data.type === 'done') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant') {
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...last, payload: data.payload, isStreaming: false, status: undefined },
+                  ];
+                }
+                return prev;
+              });
+              if (!activeConversationId && data.conversationId) {
+                setActiveConversationId(data.conversationId);
+              }
+            } else if (data.type === 'error') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant') {
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...last, content: data.message, isStreaming: false, status: undefined },
+                  ];
+                }
+                return prev;
+              });
+            }
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      }
+
+      mutate('/api/chat/conversations');
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant') {
+          return [...prev.slice(0, -1), { ...last, content: 'Sorry, something went wrong.', isStreaming: false, status: undefined }];
+        }
+        return prev;
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const mergeSession = async () => {
+    await fetch('/api/chat/merge-session', { method: 'POST' });
+    mutate('/api/chat/conversations');
+  };
+
+  useEffect(() => {
+    if (isSignedIn) {
+      mergeSession();
+    }
+  }, [isSignedIn]);
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Plane className="text-blue-600" size={24} />
+          <span className="font-bold text-lg">Trip AI</span>
+        </div>
+        <div className="p-3">
+          <button
+            onClick={startNewChat}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={18} /> New trip
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+          {conversations.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => loadConversation(c.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${
+                activeConversationId === c.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <History size={14} className="inline mr-2 opacity-50" />
+              {c.title || 'Trip'}
+            </button>
+          ))}
+        </div>
+        <div className="p-4 border-t border-gray-200">
+          {isLoaded && !isSignedIn ? (
+            <SignInButtonWrapper mode="modal">
+              <button className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors">
+                <LogIn size={18} /> Sign in
+              </button>
+            </SignInButtonWrapper>
+          ) : (
+            <div className="flex items-center justify-center">
+              <UserButtonWrapper afterSignOutUrl="/" />
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main chat */}
+      <main className="flex-1 flex flex-col min-w-0">
+        {/* Mobile header */}
+        <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold text-lg">
+            <Plane className="text-blue-600" size={22} /> Trip AI
+          </div>
+          {isLoaded && !isSignedIn ? (
+            <SignInButtonWrapper mode="modal">
+              <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
+            </SignInButtonWrapper>
+          ) : (
+            <UserButtonWrapper afterSignOutUrl="/" />
+          )}
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+          {messages.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <div className="bg-blue-100 text-blue-600 p-4 rounded-full mb-4">
+                <MapPin size={32} />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Plan your next trip</h1>
+              <p className="text-gray-500 max-w-md">
+                Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary, check the weather, find points deals, and suggest what to pack.
+              </p>
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                {['Tokyo in October', 'Honeymoon in Thailand', 'Budget trip to Seoul'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setInput(s); }}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.map((m) => (
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-3xl px-5 py-3 rounded-2xl shadow-sm ${
+                    m.role === 'user'
+                      ? 'bg-blue-600 text-white rounded-br-none'
+                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                  }`}
+                >
+                  <MessageContent message={m} />
+                </div>
+              </div>
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input area */}
+        <div className="bg-white border-t border-gray-200 p-4">
+          {!isSignedIn && messages.length > 0 ? (
+            <div className="max-w-3xl mx-auto mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between">
+              <span className="text-sm text-amber-800">Sign in to save this itinerary across devices.</span>
+              <SignInButtonWrapper mode="modal">
+                <button className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700">Sign in</button>
+              </SignInButtonWrapper>
+            </div>
+          ) : null}
+          <div className="max-w-3xl mx-auto flex items-end gap-2">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="I want to go to Tokyo in October..."
+              rows={1}
+              className="flex-1 resize-none max-h-32 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isLoading}
+            />
+            <button
+              onClick={sendMessage}
+              disabled={!input.trim() || isLoading}
+              className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
