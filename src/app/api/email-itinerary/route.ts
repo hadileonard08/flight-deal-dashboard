@@ -108,7 +108,7 @@ ITINERARY
 ${deal.itinerary || 'No detailed itinerary available for this deal.'}
 
 Happy travels,
-Jalan AI
+Jalan
 `.trim();
 
     const rawHtmlItinerary = deal.itinerary
@@ -150,7 +150,7 @@ Jalan AI
     </div>
   </div>
 
-  <p style="margin-top: 32px; color: #6b7280; font-size: 12px;">You received this because someone requested a trip itinerary from Jalan AI. If this wasn't you, you can ignore this email.</p>
+  <p style="margin-top: 32px; color: #6b7280; font-size: 12px;">You received this because someone requested a trip itinerary from Jalan. If this wasn't you, you can ignore this email.</p>
 </body>
 </html>
     `.trim();

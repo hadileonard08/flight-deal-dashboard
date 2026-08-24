@@ -64,7 +64,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
           <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl">
             <Plane size={32} />
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Jalan AI</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Jalan</h1>
         </div>
         <p className="text-blue-200 text-sm italic mb-2">
           "jalan" — to walk, to travel (Indonesian)

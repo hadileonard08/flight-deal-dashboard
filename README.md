@@ -1,4 +1,4 @@
-# Jalan AI — Conversational Travel Itinerary Planner
+# Jalan — Conversational Travel Itinerary Planner
 
 **Live app:** https://jalan-ai.vercel.app
 
@@ -12,7 +12,7 @@ Built with Next.js 14, LangChain/LangGraph, PostgreSQL, Clerk auth, and the Seat
 
 ## What it does
 
-Users chat with **Jalan AI**, a friendly travel companion that:
+Users chat with **Jalan**, a friendly travel companion that:
 
 1. **Understands natural-language trip requests** — e.g. *"Tokyo in October"*, *"honeymoon in Thailand"*, *"find any deal to Bangkok in January"*.
 2. **Asks clarifying questions** when details are missing — dates, origin, budget, cabin, trip length.

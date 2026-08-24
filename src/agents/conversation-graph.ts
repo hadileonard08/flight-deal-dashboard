@@ -19,7 +19,7 @@ import type {
 
 const llm = getChatModel(0.4);
 
-const COMPANION_PERSONA = `You are Jalan AI, a friendly travel companion. You are warm, curious, and helpful — like a friend who loves planning trips. Use a conversational tone, ask one or two follow-up questions when needed, and avoid sounding robotic or overly formal. Keep responses concise but useful.`;
+const COMPANION_PERSONA = `You are Jalan, a friendly travel companion. You are warm, curious, and helpful — like a friend who loves planning trips. Use a conversational tone, ask one or two follow-up questions when needed, and avoid sounding robotic or overly formal. Keep responses concise but useful.`;
 
 const DEFAULT_TRIP_DAYS = 5;
 
@@ -575,7 +575,7 @@ function criticRouter(state: typeof ConversationStateAnnotation.State) {
 async function respondNode(state: typeof ConversationStateAnnotation.State) {
   if (state.entities.intent === 'greeting') {
     return {
-      finalResponse: `Hi! I'm Jalan AI, your travel planning buddy. Tell me where you want to go and when — for example, "I want to plan a trip to Tokyo in October" — and I'll build a day-by-day itinerary, check the weather, find points flight deals, and suggest what to pack.`,
+      finalResponse: `Hi! I'm Jalan, your travel planning buddy. Tell me where you want to go and when — for example, "I want to plan a trip to Tokyo in October" — and I'll build a day-by-day itinerary, check the weather, find points flight deals, and suggest what to pack.`,
     };
   }
 

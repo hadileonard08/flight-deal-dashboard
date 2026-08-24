@@ -10,19 +10,19 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://jalan-ai.vercel.app'),
-  title: 'Jalan AI — Your AI Travel Companion',
-  description: 'Chat with Jalan AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
+  title: 'Jalan — Your AI Travel Companion',
+  description: 'Chat with Jalan to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
   openGraph: {
-    title: 'Jalan AI — Your AI Travel Companion',
-    description: 'Chat with Jalan AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
+    title: 'Jalan — Your AI Travel Companion',
+    description: 'Chat with Jalan to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
     type: 'website',
     url: '/',
-    siteName: 'Jalan AI',
+    siteName: 'Jalan',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Jalan AI — Your AI Travel Companion',
-    description: 'Chat with Jalan AI to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
+    title: 'Jalan — Your AI Travel Companion',
+    description: 'Chat with Jalan to plan your next trip. Get day-by-day itineraries, live flight deals, weather, packing lists, and daily route maps — all in one conversation.',
   },
 }
 
