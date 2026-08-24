@@ -3,6 +3,7 @@ import { getChatModel, getReasoningModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
+import { verifyItineraryLandmarks } from './itinerary-guardrails';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
@@ -401,6 +402,7 @@ Requirements:
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
 - Keep the tone warm, like a friend sharing recommendations.
+- CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative.
 
 Output the response as markdown.
 `;
@@ -489,9 +491,19 @@ Output the response as markdown without a heading.`;
   return { finalResponse: res.content as string, deals: dealsResult, weather: weatherResult, news: newsResult };
 }
 
+async function guardrailsNode(state: typeof ConversationStateAnnotation.State) {
+  if (!state.itinerary) return { criticFeedback: [] };
+  const unverified = await verifyItineraryLandmarks(state.itinerary, state.entities.destination);
+  if (unverified.length === 0) return { criticFeedback: [] };
+  const feedback = `The following places or landmarks could not be verified and may be hallucinated or closed: ${unverified.join(', ')}. Replace them with real, well-known attractions or transit options that are clearly documented.`;
+  return { criticFeedback: [feedback] };
+}
+
 async function criticNode(state: typeof ConversationStateAnnotation.State) {
   const reasoningModel = getReasoningModel(0.2);
   if (!reasoningModel) throw new Error('AI provider not configured');
+
+  const guardrailsFeedback = state.criticFeedback.join('\n') || 'None';
 
   const prompt = `
 You are a strict travel QA reviewer. Evaluate the assembled itinerary and data before it is shown to the user.
@@ -511,12 +523,18 @@ ${state.news || 'None'}
 
 Flight deals count: ${state.deals.length}
 
+Guardrails feedback (external verification checks, may include unverified landmarks):
+${guardrailsFeedback}
+
 Check for:
 1. Hallucinated flights, upgrades, or premium services inconsistent with the cabin.
 2. Missing or vague image placeholders (must be specific landmarks, not city/country names).
 3. Missing weather section.
 4. Unsafe or impossible logistics.
 5. False statements about visas or entry.
+6. Hallucinated or closed attractions, invented restaurants, fake transit lines, or made-up schedules.
+7. Any landmark that cannot be verified as a real place (e.g., if it has no Wikipedia presence).
+8. Inconsistent number of days with the requested trip length.
 
 Respond ONLY in JSON:
 {
@@ -635,13 +653,15 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addNode('clarify', clarifyNode)
   .addNode('answer', answerNode)
   .addNode('gather', gatherNode)
+  .addNode('guardrails', guardrailsNode)
   .addNode('critic', criticNode)
   .addNode('respond', respondNode)
   .addEdge(START, 'extract')
   .addConditionalEdges('extract', routeAfterExtract)
   .addEdge('clarify', END)
   .addEdge('answer', END)
-  .addEdge('gather', 'critic')
+  .addEdge('gather', 'guardrails')
+  .addEdge('guardrails', 'critic')
   .addConditionalEdges('critic', criticRouter)
   .addEdge('respond', END)
   .compile();
