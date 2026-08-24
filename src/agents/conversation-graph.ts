@@ -15,6 +15,10 @@ import type {
 
 const llm = getChatModel(0.4);
 
+const COMPANION_PERSONA = `You are Trip AI, a friendly travel companion. You are warm, curious, and helpful — like a friend who loves planning trips. Use a conversational tone, ask one or two follow-up questions when needed, and avoid sounding robotic or overly formal. Keep responses concise but useful.`;
+
+const DEFAULT_TRIP_DAYS = 5;
+
 const ConversationStateAnnotation = Annotation.Root({
   userMessage: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   history: Annotation<PersistedMessage[]>({ reducer: (_curr, next) => next, default: () => [] }),
@@ -56,8 +60,9 @@ async function extractNode(state: typeof ConversationStateAnnotation.State) {
     .map((m) => `${m.role}: ${m.content}`)
     .join('\n');
 
-  const prompt = `
-You are a travel assistant. Extract trip details from the user's latest message.
+  const prompt = `${COMPANION_PERSONA}
+
+You are also a detail extractor. Read the conversation and figure out the user's intent and trip details.
 
 Instructions:
 - Use the conversation history for context. If the user is answering a previous clarifying question, combine it with earlier messages.
@@ -65,6 +70,11 @@ Instructions:
 - If the user only gives a duration ("2 week trip") or a rough window without an exact date, set durationDays and datesGeneral, and leave startDate null.
 - If the user says "flexible" or similar, set datesGeneral to "flexible" and leave startDate null.
 - Do not mark startDate as missing if datesGeneral or durationDays is provided.
+- intent values:
+  - plan_trip: user wants an itinerary or help planning a trip
+  - ask_question: user is asking a specific question (e.g. about deals, weather, best time to visit)
+  - refine: user wants to change something about an earlier plan
+  - greeting: user just said hi or similar
 
 Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget.
 
@@ -197,37 +207,22 @@ async function clarifyNode(state: typeof ConversationStateAnnotation.State) {
   if (!llm) throw new Error('AI provider not configured');
 
   const missing = state.missingFields.slice(0, 3);
-  const prompt = `
+  const prompt = `${COMPANION_PERSONA}
+
 The user is planning a trip but we are missing: ${missing.join(', ')}.
-Generate up to 3 short clarifying questions. For each question, provide 2-3 short example answers.
-Respond ONLY in JSON:
-[
-  { "question": "...", "examples": ["...", "..."] }
-]
-`;
+Ask ONE short, conversational clarifying question to get the missing info. Suggest a few example answers inline. Keep it friendly and brief. Do not list numbered questions.
+
+Respond ONLY in plain text (no JSON, no markdown headers).`;
 
   const res = await llm.invoke(prompt);
-  const parsed = await parseJsonResponse(res.content as string);
-  const questions: ClarifyingQuestion[] = Array.isArray(parsed) ? parsed : [];
-  const finalResponse = formatClarification(questions);
-  return { questions, finalResponse };
-}
-
-function formatClarification(questions: ClarifyingQuestion[]) {
-  if (questions.length === 0) return 'I need a bit more info to plan your trip.';
-  return (
-    "I'd love to help plan your trip. I need a little more info:\n\n" +
-    questions
-      .map(
-        (q, i) =>
-          `${i + 1}. ${q.question}\n   Examples: ${q.examples.map((e) => `"${e}"`).join(', ')}`
-      )
-      .join('\n\n')
-  );
+  const finalResponse = (res.content as string).trim() || 'I need a bit more info to plan your trip.';
+  return { questions: [], finalResponse };
 }
 
 function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {
   if (state.entities.intent === 'greeting') return 'respond';
+  if (state.entities.intent === 'ask_question') return 'answer';
+  if (state.entities.intent === 'refine' && state.entities.destination) return 'gather';
   if (state.missingFields.length > 0) return 'clarify';
   return 'gather';
 }
@@ -238,8 +233,12 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
   const destination = state.entities.destination || '';
   const destinationCode = state.entities.destinationCode || destination;
   const originCode = state.entities.originCode || '';
-  const startDate = state.entities.startDate ? new Date(state.entities.startDate) : undefined;
-  const endDate = state.entities.endDate ? new Date(state.entities.endDate) : undefined;
+  let startDate = state.entities.startDate ? new Date(state.entities.startDate) : undefined;
+  let endDate = state.entities.endDate ? new Date(state.entities.endDate) : undefined;
+  if (startDate && !endDate) {
+    endDate = new Date(startDate.getTime() + DEFAULT_TRIP_DAYS * 24 * 60 * 60 * 1000);
+    state.entities.endDate = endDate.toISOString().split('T')[0];
+  }
   const cabin = state.entities.cabin || 'ECONOMY';
   const travelers = state.entities.travelers || 1;
 
@@ -348,12 +347,20 @@ async function generateItinerary(state: typeof ConversationStateAnnotation.State
   const news = state.news || 'No recent news found.';
   const feedback = state.criticFeedback.join('\n') || 'None';
 
+  let numDays = DEFAULT_TRIP_DAYS;
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    numDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+  }
+
   const dateContext = startDate
-    ? `Trip dates: ${startDate}${endDate ? ` to ${endDate}` : ''}`
+    ? `Trip dates: ${startDate}${endDate ? ` to ${endDate}` : ''} (${numDays} days)`
     : `Trip window: ${state.entities.datesGeneral || 'upcoming'}`;
 
-  const prompt = `
-You are a travel architect. Draft a practical, realistic ${
+  const prompt = `${COMPANION_PERSONA}
+
+You are helping plan a trip. Write an enthusiastic, practical ${
     cabin === 'BUSINESS' || cabin === 'FIRST' ? 'luxury' : 'budget-friendly'
   } itinerary for ${travelers} traveler(s) going to ${destination}.
 ${dateContext}
@@ -369,11 +376,12 @@ Critic feedback to address:
 ${feedback}
 
 Requirements:
-- Start with a Weather Outlook section.
+- Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
+- Plan EXACTLY ${numDays} days. Do not add or skip days.
 - Include a day-by-day plan. For each day, after the heading include exactly one image placeholder: ![IMAGE: specific English landmark name]. No URLs. Pick iconic, specific places (e.g. "Senso-ji Temple", not "Tokyo").
-- Include a short Packing Suggestions section.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
+- Keep the tone warm, like a friend sharing recommendations.
 
 Output the response as markdown.
 `;
@@ -387,8 +395,9 @@ async function generatePackingTips(state: typeof ConversationStateAnnotation.Sta
   const weather = state.weather;
   const startDate = state.entities.startDate;
   const endDate = state.entities.endDate;
-  const prompt = `
-Write a concise packing list for a trip to ${destination} from ${startDate || ''} to ${
+  const prompt = `${COMPANION_PERSONA}
+
+Write a concise, friendly packing list for a trip to ${destination} from ${startDate || ''} to ${
     endDate || startDate || ''
   }.
 Weather/context: ${typeof weather === 'string' ? weather : JSON.stringify(weather) || 'unknown'}.
@@ -396,6 +405,61 @@ Output only a markdown bullet list.
 `;
   const res = await llm!.invoke(prompt);
   return res.content as string;
+}
+
+async function answerNode(state: typeof ConversationStateAnnotation.State) {
+  if (!llm) throw new Error('AI provider not configured');
+
+  const destination = state.entities.destination || '';
+  const destinationCode = state.entities.destinationCode || destination;
+  if (!destination) {
+    return { finalResponse: 'I’d love to help, but where are you thinking of going? Just tell me a city or country and I’ll dig up the latest deals and tips.' };
+  }
+
+  let startDate = state.entities.startDate ? new Date(state.entities.startDate) : undefined;
+  let endDate = state.entities.endDate ? new Date(state.entities.endDate) : undefined;
+  if (!startDate) {
+    startDate = new Date();
+    endDate = new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+  }
+
+  const [dealsResult, weatherResult, newsResult] = await Promise.all([
+    getRelevantDeals({ ...state.entities, startDate: startDate.toISOString().split('T')[0], endDate: endDate?.toISOString().split('T')[0] }),
+    getWeatherData(destinationCode, startDate, endDate).catch(() => null),
+    searchDestinationNews(destinationCode, startDate, endDate || startDate).catch(() => null),
+  ]);
+
+  const dealsText = dealsResult.length
+    ? dealsResult
+        .map(
+          (d) =>
+            `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
+        )
+        .join('\n')
+    : 'No matching points deals found right now.';
+
+  const prompt = `${COMPANION_PERSONA}
+
+The user asked: "${state.userMessage}"
+
+Destination: ${destination}
+Trip window: ${startDate.toISOString().split('T')[0]} to ${endDate?.toISOString().split('T')[0]}
+
+Weather outlook:
+${typeof weatherResult === 'string' ? weatherResult : JSON.stringify(weatherResult) || 'Not available'}
+
+Recent news/happenings:
+${newsResult || 'No recent news found.'}
+
+Points flight deals in this window:
+${dealsText}
+
+Give a friendly, conversational answer to the user's question. If there are good deals, highlight the best ones. If not, suggest a better time window or next step. Keep it to 3-5 short paragraphs and invite follow-up questions.
+
+Output the response as markdown without a heading.`;
+
+  const res = await llm.invoke(prompt);
+  return { finalResponse: res.content as string, deals: dealsResult, weather: weatherResult, news: newsResult };
 }
 
 async function criticNode(state: typeof ConversationStateAnnotation.State) {
@@ -455,7 +519,7 @@ function criticRouter(state: typeof ConversationStateAnnotation.State) {
 async function respondNode(state: typeof ConversationStateAnnotation.State) {
   if (state.entities.intent === 'greeting') {
     return {
-      finalResponse: `Hi! I'm Trip AI, your travel planning assistant. Tell me where you want to go and when — for example, "I want to plan a trip to Tokyo in October" — and I'll build a day-by-day itinerary, check the weather, find points flight deals, and suggest what to pack.`,
+      finalResponse: `Hi! I'm Trip AI, your travel planning buddy. Tell me where you want to go and when — for example, "I want to plan a trip to Tokyo in October" — and I'll build a day-by-day itinerary, check the weather, find points flight deals, and suggest what to pack.`,
     };
   }
 
@@ -485,24 +549,46 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
 
 ${state.itinerary}
 
-## Packing Tips
 ${state.packingTips}${dealSection}
 
 ${state.criticFeedback.length > 0 && !state.isApproved ? '\n_Note: Some details were adjusted after review._' : ''}
+
+---
+
+Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it. 🎒✈️
 `;
 
   return { finalResponse };
 }
 
+export async function generateTitle(message: string) {
+  if (!llm) return message.slice(0, 40);
+  const prompt = `${COMPANION_PERSONA}
+
+Create a short, friendly title (2-5 words) for a trip planning conversation that starts with this message. Output only the title, no quotes, no extra punctuation.
+
+Message: ${message}`;
+  try {
+    const res = await llm.invoke(prompt);
+    let title = (res.content as string).trim().replace(/^["']|["']$/g, '').replace(/\n/g, ' ');
+    if (!title) return message.slice(0, 40);
+    return title.length > 60 ? title.slice(0, 57) + '...' : title;
+  } catch {
+    return message.slice(0, 40);
+  }
+}
+
 export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addNode('extract', extractNode)
   .addNode('clarify', clarifyNode)
+  .addNode('answer', answerNode)
   .addNode('gather', gatherNode)
   .addNode('critic', criticNode)
   .addNode('respond', respondNode)
   .addEdge(START, 'extract')
   .addConditionalEdges('extract', routeAfterExtract)
   .addEdge('clarify', END)
+  .addEdge('answer', END)
   .addEdge('gather', 'critic')
   .addConditionalEdges('critic', criticRouter)
   .addEdge('respond', END)

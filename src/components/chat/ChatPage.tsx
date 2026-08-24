@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2 } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import useSWR, { mutate } from 'swr';
 import type { ChatMessageUI, ChatPayload } from '@/lib/chat-state';
@@ -308,16 +308,30 @@ export default function ChatPage() {
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {conversations.map((c) => (
-            <button
+            <div
               key={c.id}
               onClick={() => loadConversation(c.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm truncate transition-colors ${
+              className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
                 activeConversationId === c.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
               }`}
             >
-              <History size={14} className="inline mr-2 opacity-50" />
-              {c.title || 'Trip'}
-            </button>
+              <span className="truncate flex items-center">
+                <History size={14} className="inline mr-2 opacity-50 flex-shrink-0" />
+                {c.title || 'Trip'}
+              </span>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
+                  mutate('/api/chat/conversations');
+                  if (activeConversationId === c.id) startNewChat();
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-opacity"
+                title="Delete conversation"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           ))}
         </div>
         <div className="p-4 border-t border-gray-200">

@@ -75,6 +75,18 @@ export async function updateConversationMetadata(
     .where(eq(conversations.id, conversationId));
 }
 
+export async function updateConversationTitle(conversationId: string, title: string) {
+  await db
+    .update(conversations)
+    .set({ title })
+    .where(eq(conversations.id, conversationId));
+}
+
+export async function deleteConversation(conversationId: string) {
+  await db.delete(messages).where(eq(messages.conversationId, conversationId));
+  await db.delete(conversations).where(eq(conversations.id, conversationId));
+}
+
 export async function mergeAnonymousSession(userId: string, sessionId: string) {
   await db
     .update(conversations)

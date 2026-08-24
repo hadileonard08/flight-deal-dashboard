@@ -1,12 +1,13 @@
 import { randomUUID } from 'crypto';
 import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
-import { conversationGraph } from '@/agents/conversation-graph';
+import { conversationGraph, generateTitle } from '@/agents/conversation-graph';
 import {
   getOrCreateConversation,
   loadMessages,
   saveMessage,
   updateConversationMetadata,
+  updateConversationTitle,
 } from '@/lib/chat-db';
 import type { PersistedMessage, ChatPayload } from '@/lib/chat-state';
 
@@ -46,6 +47,11 @@ export async function POST(req: Request) {
     userId: userId || null,
     sessionId: sessionId || null,
   });
+
+  if (!conversationId || conversation.title === 'New trip' || !conversation.title) {
+    const title = await generateTitle(message);
+    await updateConversationTitle(conversation.id, title);
+  }
 
   const history = await loadMessages(conversation.id);
 
