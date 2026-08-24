@@ -1,6 +1,6 @@
 /**
- * Custom "Walkers" icon — stick people walking and holding a map.
- * Designed to match lucide-react's stroke style (24x24 viewBox, currentColor).
+ * Custom "Walkers" icon — a stick figure walking while holding a small map
+ * with both hands. Matches lucide-react's stroke style (24x24, currentColor).
  */
 type Props = {
   size?: number | string;
@@ -11,7 +11,7 @@ type Props = {
 export default function WalkersIcon({
   size = 24,
   className,
-  strokeWidth = 2,
+  strokeWidth = 1.75,
 }: Props) {
   return (
     <svg
@@ -27,27 +27,27 @@ export default function WalkersIcon({
       className={className}
       aria-hidden="true"
     >
-      {/* Map held by the walkers */}
-      <path d="M8 7 L12 8 L16 7 L16 12 L12 13 L8 12 Z" />
-      <path d="M12 8 L12 13" />
-      {/* Fold lines on the map */}
-      <path d="M8 9.5 L16 10.5" opacity="0.5" />
+      {/* Head */}
+      <circle cx="12" cy="4.5" r="1.8" />
 
-      {/* Person 1 (left, walking, holding map) */}
-      <circle cx="6" cy="15" r="1.4" />
-      <path d="M6 16.4 L7 19" />
-      <path d="M6 16.4 L4.5 18" />
-      <path d="M6 16.4 L8 17 L8 7" />
-      <path d="M7 19 L5.5 22" />
-      <path d="M7 19 L9 21.5" />
+      {/* Torso */}
+      <path d="M12 6.3 L12 12" />
 
-      {/* Person 2 (right, walking) */}
-      <circle cx="18" cy="15" r="1.4" />
-      <path d="M18 16.4 L19 19" />
-      <path d="M18 16.4 L16.5 18" />
-      <path d="M18 16.4 L20 17" />
-      <path d="M19 19 L17.5 22" />
-      <path d="M19 19 L21 21.5" />
+      {/* Both arms reaching forward to hold the map */}
+      <path d="M12 8 L9.8 11" />
+      <path d="M12 8 L14.2 11" />
+
+      {/* Small map held with both hands */}
+      <path d="M9.4 11 L14.6 11 L14.6 13.5 L9.4 13.5 Z" />
+      <path d="M12 11 L12 13.5" />
+
+      {/* Legs (walking stride) */}
+      <path d="M12 12 L9 17" />
+      <path d="M12 12 L15 17" />
+
+      {/* Feet */}
+      <path d="M9 17 L7.5 19.5" />
+      <path d="M15 17 L16.5 19.5" />
     </svg>
   );
 }
