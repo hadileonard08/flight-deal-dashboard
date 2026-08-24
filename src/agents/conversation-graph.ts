@@ -2,11 +2,12 @@ import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
 import { getChatModel, getReasoningModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
-import { getDestinationImageUrl } from './destination-images';
+import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
 import * as chrono from 'chrono-node';
+import { searchSeatsAeroLive } from '../lib/seatsaero';
 import type {
   ExtractedEntities,
   ClarifyingQuestion,
@@ -71,8 +72,8 @@ Instructions:
 - If the user says "flexible" or similar, set datesGeneral to "flexible" and leave startDate null.
 - Do not mark startDate as missing if datesGeneral or durationDays is provided.
 - intent values:
-  - plan_trip: user wants an itinerary or help planning a trip
-  - ask_question: user is asking a specific question (e.g. about deals, weather, best time to visit)
+  - plan_trip: user wants an itinerary or help planning a trip (e.g. "Plan a trip to Tokyo", "I want to go to Seoul for 2 weeks")
+  - ask_question: user is asking a specific question OR looking for deals without a full itinerary (e.g. "When is the best time to visit Japan?", "find any deal to Tokyo in December", "show me cheap flights to Bangkok", "what's the weather like?")
   - refine: user wants to change something about an earlier plan
   - greeting: user just said hi or similar
 
@@ -334,7 +335,16 @@ async function getRelevantDeals(entities: ExtractedEntities) {
     .orderBy(deals.category)
     .limit(5);
 
-  return rows;
+  if (rows.length > 0) return rows;
+
+  // Fallback to live Seats.aero search if no cached deals match.
+  return searchSeatsAeroLive({
+    originCode,
+    destinationCode,
+    startDate,
+    endDate,
+    cabin,
+  });
 }
 
 async function generateItinerary(state: typeof ConversationStateAnnotation.State) {
@@ -433,7 +443,7 @@ async function answerNode(state: typeof ConversationStateAnnotation.State) {
     ? dealsResult
         .map(
           (d) =>
-            `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
+            `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · [book](${d.bookingUrl || '#'})`
         )
         .join('\n')
     : 'No matching points deals found right now.';
@@ -530,6 +540,10 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
     ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
     : state.entities.datesGeneral || 'upcoming dates';
 
+  const itineraryWithImages = state.itinerary
+    ? await hydrateItineraryImages(state.itinerary, destination)
+    : state.itinerary;
+
   let dealSection = '';
   if (state.deals.length > 0) {
     dealSection =
@@ -537,7 +551,7 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
       state.deals
         .map(
           (d) =>
-            `- **${d.originCode} → ${d.destinationCode}** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
+            `- **[${d.originCode} → ${d.destinationCode}](${d.bookingUrl || '#'})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`
         )
         .join('\n') +
       '\n(Prices shown in points only. Cash values are hidden.)';
@@ -547,7 +561,7 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
 
   const finalResponse = `# ${destination} Itinerary — ${dateStr}
 
-${state.itinerary}
+${itineraryWithImages}
 
 ${state.packingTips}${dealSection}
 

@@ -2,6 +2,42 @@ import { resolveAirlineName, getAirlineCode } from './airlines';
 
 const SEATS_AERO_API_BASE = 'https://seats.aero/partnerapi';
 
+const DEFAULT_US_GATEWAYS = ['JFK', 'LAX', 'SFO', 'ORD', 'SEA', 'IAD', 'BOS', 'MIA', 'DFW', 'DEN', 'ATL', 'SJC', 'HNL', 'PDX', 'PHX'];
+
+const CITY_AIRPORTS: Record<string, string[]> = {
+  TYO: ['HND', 'NRT'],
+  HKG: ['HKG'],
+  ICN: ['ICN'],
+  SIN: ['SIN'],
+  BKK: ['BKK'],
+  TPE: ['TPE'],
+  KUL: ['KUL'],
+  MNL: ['MNL'],
+  SGN: ['SGN'],
+  HAN: ['HAN'],
+  DPS: ['DPS'],
+  CGK: ['CGK'],
+};
+
+const CABIN_MAP_REVERSE: Record<string, string> = {
+  Y: 'ECONOMY',
+  W: 'PREMIUM_ECONOMY',
+  J: 'BUSINESS',
+  F: 'FIRST',
+};
+
+function resolveDestinationAirports(code: string): string[] {
+  return CITY_AIRPORTS[code] || [code];
+}
+
+function roughCategory(cabin: string, points: number): string {
+  if (cabin === 'ECONOMY') return points <= 30000 ? 'GOOD_DEAL' : points <= 45000 ? 'MAYBE_GOOD_DEAL' : points <= 60000 ? 'OKAY_DEAL' : 'BAD_DEAL';
+  if (cabin === 'PREMIUM_ECONOMY') return points <= 50000 ? 'GOOD_DEAL' : points <= 70000 ? 'MAYBE_GOOD_DEAL' : points <= 90000 ? 'OKAY_DEAL' : 'BAD_DEAL';
+  if (cabin === 'BUSINESS') return points <= 70000 ? 'GOOD_DEAL' : points <= 100000 ? 'MAYBE_GOOD_DEAL' : points <= 130000 ? 'OKAY_DEAL' : 'BAD_DEAL';
+  if (cabin === 'FIRST') return points <= 100000 ? 'GOOD_DEAL' : points <= 140000 ? 'MAYBE_GOOD_DEAL' : points <= 180000 ? 'OKAY_DEAL' : 'BAD_DEAL';
+  return 'LIVE';
+}
+
 export interface SeatsAeroSegment {
   origin: string;
   destination: string;
@@ -156,5 +192,106 @@ export async function getSeatsAeroTripDetails(
   } catch (err) {
     if ((err as Error).name !== 'AbortError') console.error('Seats.aero trip lookup failed:', (err as Error).message);
     return null;
+  }
+}
+
+export interface LiveSearchParams {
+  originCode?: string;
+  destinationCode?: string;
+  startDate?: string;
+  endDate?: string;
+  cabin?: string;
+}
+
+export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any[]> {
+  const apiKey = getApiKey();
+  if (!apiKey || !params.destinationCode) return [];
+
+  const origins = params.originCode ? [params.originCode] : DEFAULT_US_GATEWAYS;
+  const destinations = resolveDestinationAirports(params.destinationCode);
+
+  const startDate = params.startDate || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  let endDate = params.endDate;
+  if (!endDate) {
+    const end = new Date(startDate);
+    end.setDate(end.getDate() + 30);
+    endDate = end.toISOString().split('T')[0];
+  }
+
+  const searchParams = new URLSearchParams({
+    origin_airport: origins.join(','),
+    destination_airport: destinations.join(','),
+    start_date: startDate,
+    end_date: endDate,
+    order_by: 'lowest_mileage',
+    take: '50',
+  });
+
+  if (params.cabin && CABIN_API[params.cabin.toUpperCase()]) {
+    searchParams.set('cabins', CABIN_API[params.cabin.toUpperCase()]);
+  }
+
+  const headers = {
+    'Partner-Authorization': apiKey,
+    'Accept': 'application/json',
+  };
+
+  try {
+    const res = await fetchWithTimeout(`${SEATS_AERO_API_BASE}/search?${searchParams.toString()}`, { headers });
+    if (!res.ok) {
+      console.error('Seats.aero live search failed:', res.status, await res.text());
+      return [];
+    }
+    const data = await res.json();
+    const results = data?.data || [];
+
+    const deals: any[] = [];
+    for (const result of results) {
+      const originCode = result.Route?.OriginAirport;
+      const destinationCode = result.Route?.DestinationAirport;
+      const departureDate = result.Date;
+      if (!originCode || !destinationCode || !departureDate) continue;
+
+      for (const [letter, cabinName] of Object.entries(CABIN_MAP_REVERSE)) {
+        const available = result[`${letter}Available`];
+        const mileageCost = parseInt(result[`${letter}MileageCost`], 10);
+        const airlines = result[`${letter}Airlines`];
+        const taxes = (parseFloat(result[`${letter}TotalTaxes`]) || 0) / 100;
+
+        if (!available || !mileageCost || mileageCost <= 0) continue;
+
+        const airlineList = airlines
+          ? airlines.split(',').map((c: string) => c.trim()).filter(Boolean)
+          : [result.Source || 'Multiple Airlines'];
+
+        for (const airlineCode of airlineList) {
+          deals.push({
+            id: `live-${result.ID}-${letter}-${airlineCode}`,
+            originCode,
+            destinationCode,
+            departureDate: new Date(departureDate),
+            returnDate: null,
+            cabin: cabinName,
+            tripType: 'ONE_WAY',
+            pointsRequired: mileageCost,
+            taxesAndFees: taxes,
+            bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
+            airline: resolveAirlineName(airlineCode) || airlineCode,
+            duration: null,
+            stops: null,
+            layoverAirport: null,
+            layoverDuration: null,
+            aircraftType: null,
+            category: roughCategory(cabinName, mileageCost),
+            reasoning: 'Live search from seats.aero',
+          });
+        }
+      }
+    }
+
+    return deals.sort((a, b) => a.pointsRequired - b.pointsRequired).slice(0, 5);
+  } catch (err) {
+    console.error('Seats.aero live search error:', err);
+    return [];
   }
 }
