@@ -457,7 +457,10 @@ async function answerNode(state: typeof ConversationStateAnnotation.State) {
             d.destinationCode || '',
             d.departureDate
           );
-          return `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · [book on airline site](${bookingUrl})`;
+          const durationText = d.duration ? `${Math.floor(d.duration / 60)}h ${d.duration % 60}m` : '';
+          const stopsText = d.stops === 0 ? 'Nonstop' : d.stops === 1 ? '1 stop' : d.stops ? `${d.stops} stops` : '';
+          const meta = [durationText, stopsText].filter(Boolean).join(' · ');
+          return `- ${d.originCode || 'Any'} → ${d.destinationCode} · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes${meta ? ` · ${meta}` : ''} · [book on airline site](${bookingUrl})`;
         })
         .join('\n')
     : 'No matching points deals found right now.';
@@ -570,7 +573,10 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
             d.destinationCode || '',
             d.departureDate
           );
-          return `- **[${d.originCode} → ${d.destinationCode}](${bookingUrl})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes · ${d.category}`;
+          const durationText = d.duration ? `${Math.floor(d.duration / 60)}h ${d.duration % 60}m` : '';
+          const stopsText = d.stops === 0 ? 'Nonstop' : d.stops === 1 ? '1 stop' : d.stops ? `${d.stops} stops` : '';
+          const meta = [durationText, stopsText].filter(Boolean).join(' · ');
+          return `- **[${d.originCode} → ${d.destinationCode}](${bookingUrl})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes${meta ? ` · ${meta}` : ''} · ${d.category}`;
         })
         .join('\n');
   } else {

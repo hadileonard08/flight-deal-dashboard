@@ -203,6 +203,63 @@ export interface LiveSearchParams {
   cabin?: string;
 }
 
+async function getTripDetailsById(tripId: string, cabinSlug: string): Promise<Partial<SeatsAeroTripDetails> | null> {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  try {
+    const headers = {
+      'Partner-Authorization': apiKey,
+      'Accept': 'application/json',
+    };
+    const tripRes = await fetchWithTimeout(`${SEATS_AERO_API_BASE}/trips/${tripId}`, { headers }, 6000);
+    if (!tripRes.ok) return null;
+
+    const tripData = await tripRes.json();
+    const trips = tripData?.data || [];
+    if (!trips.length) return null;
+
+    const trip = trips.find((t: any) => t.Cabin === cabinSlug) || trips[0];
+    const segmentsRaw = trip.AvailabilitySegments || [];
+
+    const segments: SeatsAeroSegment[] = segmentsRaw.map((s: any) => ({
+      origin: s.OriginAirport,
+      destination: s.DestinationAirport,
+      departureAt: s.DepartsAt,
+      arrivalAt: s.ArrivesAt,
+      airline: resolveAirlineName(s.FlightNumber?.match(/^[A-Z]+/)?.[0] || trip.Carriers) || 'Unknown',
+      flightNumber: s.FlightNumber || null,
+      aircraft: s.AircraftName || s.AircraftCode || null,
+      durationMinutes: typeof s.Duration === 'number' ? s.Duration : null,
+    }));
+
+    let layoverDuration: number | null = null;
+    if (segments.length > 1) {
+      const firstArrival = new Date(segments[0].arrivalAt).getTime();
+      const secondDeparture = new Date(segments[1].departureAt).getTime();
+      if (!isNaN(firstArrival) && !isNaN(secondDeparture) && secondDeparture > firstArrival) {
+        layoverDuration = Math.round((secondDeparture - firstArrival) / 60000);
+      }
+    }
+
+    const carriers: string[] = trip.Carriers
+      ? [...new Set(trip.Carriers.split(',').map((c: string) => c.trim()).filter(Boolean))] as string[]
+      : [];
+
+    return {
+      duration: typeof trip.TotalDuration === 'number' ? trip.TotalDuration : null,
+      stops: typeof trip.Stops === 'number' ? trip.Stops : null,
+      layoverAirport: trip.Connections?.[0] || null,
+      layoverDuration,
+      airlines: carriers.map(resolveAirlineName).filter(Boolean),
+      aircraftType: trip.Aircraft?.[0] || null,
+      segments,
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any[]> {
   const apiKey = getApiKey();
   if (!apiKey || !params.destinationCode) return [];
@@ -224,7 +281,7 @@ export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any
     start_date: startDate,
     end_date: endDate,
     order_by: 'lowest_mileage',
-    take: '50',
+    take: '100',
   });
 
   if (params.cabin && CABIN_API[params.cabin.toUpperCase()]) {
@@ -237,7 +294,7 @@ export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any
   };
 
   try {
-    const res = await fetchWithTimeout(`${SEATS_AERO_API_BASE}/search?${searchParams.toString()}`, { headers });
+    const res = await fetchWithTimeout(`${SEATS_AERO_API_BASE}/search?${searchParams.toString()}`, { headers }, 15000);
     if (!res.ok) {
       console.error('Seats.aero live search failed:', res.status, await res.text());
       return [];
@@ -260,36 +317,52 @@ export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any
 
         if (!available || !mileageCost || mileageCost <= 0) continue;
 
-        const airlineList = airlines
-          ? airlines.split(',').map((c: string) => c.trim()).filter(Boolean)
-          : [result.Source || 'Multiple Airlines'];
+        // Use the first airline for this result/cabin to avoid duplicate rows.
+        const airlineCode = airlines
+          ? airlines.split(',').map((c: string) => c.trim()).filter(Boolean)[0]
+          : result.Source || 'Multiple Airlines';
 
-        for (const airlineCode of airlineList) {
-          deals.push({
-            id: `live-${result.ID}-${letter}-${airlineCode}`,
-            originCode,
-            destinationCode,
-            departureDate: new Date(departureDate),
-            returnDate: null,
-            cabin: cabinName,
-            tripType: 'ONE_WAY',
-            pointsRequired: mileageCost,
-            taxesAndFees: taxes,
-            bookingUrl: `https://seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
-            airline: resolveAirlineName(airlineCode) || airlineCode,
-            duration: null,
-            stops: null,
-            layoverAirport: null,
-            layoverDuration: null,
-            aircraftType: null,
-            category: roughCategory(cabinName, mileageCost),
-            reasoning: 'Live search from seats.aero',
-          });
-        }
+        deals.push({
+          id: `live-${result.ID}-${letter}-${airlineCode}`,
+          resultId: result.ID,
+          originCode,
+          destinationCode,
+          departureDate: new Date(departureDate),
+          returnDate: null,
+          cabin: cabinName,
+          tripType: 'ONE_WAY',
+          pointsRequired: mileageCost,
+          taxesAndFees: taxes,
+          bookingUrl: `https://www.seats.aero/search?origin=${originCode}&destination=${destinationCode}&date=${departureDate}`,
+          airline: resolveAirlineName(airlineCode) || airlineCode,
+          duration: null,
+          stops: null,
+          layoverAirport: null,
+          layoverDuration: null,
+          aircraftType: null,
+          category: roughCategory(cabinName, mileageCost),
+          reasoning: 'Live search from seats.aero',
+        });
       }
     }
 
-    return deals.sort((a, b) => a.pointsRequired - b.pointsRequired).slice(0, 5);
+    const topDeals = deals.sort((a, b) => a.pointsRequired - b.pointsRequired).slice(0, 5);
+
+    await Promise.all(
+      topDeals.map(async (deal) => {
+        const cabinSlug = CABIN_API[deal.cabin] || 'economy';
+        const trip = await getTripDetailsById(deal.resultId, cabinSlug);
+        if (trip) {
+          deal.duration = trip.duration ?? deal.duration;
+          deal.stops = trip.stops ?? deal.stops;
+          deal.layoverAirport = trip.layoverAirport ?? deal.layoverAirport;
+          deal.layoverDuration = trip.layoverDuration ?? deal.layoverDuration;
+          deal.aircraftType = trip.aircraftType ?? deal.aircraftType;
+        }
+      })
+    );
+
+    return topDeals;
   } catch (err) {
     console.error('Seats.aero live search error:', err);
     return [];

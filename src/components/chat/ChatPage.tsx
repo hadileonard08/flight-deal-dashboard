@@ -50,14 +50,27 @@ function PackingCard({ packingTips }: { packingTips?: string }) {
   );
 }
 
+function formatDuration(minutes?: number | null): string {
+  if (!minutes || minutes <= 0) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatStops(stops?: number | null): string {
+  if (stops === null || stops === undefined) return '';
+  if (stops === 0) return 'Nonstop';
+  if (stops === 1) return '1 stop';
+  return `${stops} stops`;
+}
+
 function DealsList({ deals }: { deals?: any[] }) {
   if (!deals || deals.length === 0) return null;
 
-  // Show the best deal from each origin city so the list isn't all HNL/HND/etc.
-  const uniqueOriginDeals = deals.reduce((acc: any[], deal) => {
-    if (!acc.find((d) => d.originCode === deal.originCode)) acc.push(deal);
-    return acc;
-  }, [] as any[]).slice(0, 5);
+  // Show the top 5 lowest-mileage deals, including duration and stops.
+  const topDeals = [...deals]
+    .sort((a, b) => (a.pointsRequired || Infinity) - (b.pointsRequired || Infinity))
+    .slice(0, 5);
 
   return (
     <div className="my-3">
@@ -65,7 +78,7 @@ function DealsList({ deals }: { deals?: any[] }) {
         <Plane size={18} /> Points Flight Deals
       </div>
       <div className="grid gap-2">
-        {uniqueOriginDeals.map((deal, i) => {
+        {topDeals.map((deal, i) => {
           const bookingUrl = getAirlineBookingUrl(
             deal.airline || '',
             deal.originCode || '',
@@ -87,6 +100,11 @@ function DealsList({ deals }: { deals?: any[] }) {
                 <div className="text-sm text-gray-500">
                   {deal.airline} · {deal.cabin} · {formatDate(deal.departureDate)}
                   {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {formatDuration(deal.duration)}
+                  {deal.duration && deal.stops !== null && deal.stops !== undefined ? ' · ' : ''}
+                  {formatStops(deal.stops)}
                 </div>
               </div>
               <div className="text-right flex flex-col items-end gap-1">
