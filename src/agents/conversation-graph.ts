@@ -135,7 +135,21 @@ Respond ONLY in JSON:
   const res = await llm.invoke(prompt);
   const parsed = await parseJsonResponse(res.content as string);
   const questions: ClarifyingQuestion[] = Array.isArray(parsed) ? parsed : [];
-  return { questions };
+  const finalResponse = formatClarification(questions);
+  return { questions, finalResponse };
+}
+
+function formatClarification(questions: ClarifyingQuestion[]) {
+  if (questions.length === 0) return 'I need a bit more info to plan your trip.';
+  return (
+    "I'd love to help plan your trip. I need a little more info:\n\n" +
+    questions
+      .map(
+        (q, i) =>
+          `${i + 1}. ${q.question}\n   Examples: ${q.examples.map((e) => `"${e}"`).join(', ')}`
+      )
+      .join('\n\n')
+  );
 }
 
 function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {

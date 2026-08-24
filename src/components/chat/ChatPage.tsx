@@ -163,10 +163,11 @@ export default function ChatPage() {
     setMessages([]);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
-    const userText = input.trim();
-    setInput('');
+  const sendMessage = async (textOverride?: string) => {
+    const raw = textOverride ?? input;
+    if (!raw.trim() || isLoading) return;
+    const userText = raw.trim();
+    if (!textOverride) setInput('');
 
     const userMessage: ChatMessageUI = {
       id: crypto.randomUUID(),
@@ -365,7 +366,7 @@ export default function ChatPage() {
                 {['Tokyo in October', 'Honeymoon in Thailand', 'Budget trip to Seoul'].map((s) => (
                   <button
                     key={s}
-                    onClick={() => { setInput(s); }}
+                    onClick={() => { sendMessage(s); }}
                     className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
                   >
                     {s}
@@ -412,7 +413,7 @@ export default function ChatPage() {
               disabled={isLoading}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={!input.trim() || isLoading}
               className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
