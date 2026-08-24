@@ -17,6 +17,7 @@
     "@langchain/openai": "^0.2.11",
     "@neondatabase/serverless": "^0.10.0",
     "cheerio": "^1.0.0-rc.10",
+    "chrono-node": "^2.10.1",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.30.10",
     "lucide-react": "^0.378.0",

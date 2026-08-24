@@ -6,6 +6,7 @@ import { getDestinationImageUrl } from './destination-images';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
+import * as chrono from 'chrono-node';
 import type {
   ExtractedEntities,
   ClarifyingQuestion,
@@ -58,8 +59,8 @@ async function extractNode(state: typeof ConversationStateAnnotation.State) {
   const prompt = `
 You are a travel assistant. Extract trip details from the user's latest message.
 
-Required fields: destination, startDate (or a general date like "November").
-Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget.
+Required fields: destination, and either startDate or a general/relative date expression (e.g. "October", "in two weeks", "flexible").
+Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget, trip duration in days.
 
 Respond ONLY in JSON:
 {
@@ -70,7 +71,8 @@ Respond ONLY in JSON:
     "originCode": "IATA city code if known",
     "startDate": "YYYY-MM-DD or null",
     "endDate": "YYYY-MM-DD or null",
-    "datesGeneral": "e.g. November 2025 or null",
+    "datesGeneral": "e.g. November 2025, in two weeks, flexible, or null",
+    "durationDays": 14,
     "cabin": "ECONOMY or null",
     "travelers": 2,
     "budget": "string or null",
@@ -92,9 +94,19 @@ User: ${state.userMessage}
     REQUIRED_FIELDS.includes(f)
   );
 
-  // If only a general date was provided, treat startDate as satisfied
+  // If only a general/relative date was provided, try to resolve it
   if (entities.datesGeneral && !entities.startDate) {
-    entities.startDate = generalDateToDate(entities.datesGeneral);
+    const parsed = parseGeneralDate(entities.datesGeneral, entities.durationDays);
+    if (parsed.startDate) entities.startDate = parsed.startDate;
+    if (parsed.endDate) entities.endDate = parsed.endDate;
+    if (parsed.durationDays) entities.durationDays = parsed.durationDays;
+  }
+
+  // Also parse duration if user said e.g. "2 week trip" without explicit endDate
+  if (entities.durationDays && entities.startDate && !entities.endDate) {
+    const start = new Date(entities.startDate);
+    const end = new Date(start.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
+    entities.endDate = end.toISOString().split('T')[0];
   }
 
   const stillMissing = REQUIRED_FIELDS.filter(
@@ -104,19 +116,55 @@ User: ${state.userMessage}
   return { entities, missingFields: stillMissing.length ? stillMissing : missingFields };
 }
 
-function generalDateToDate(general: string): string | undefined {
+function parseGeneralDate(general: string, durationDays?: number): { startDate?: string; endDate?: string; durationDays?: number } {
+  const results = chrono.parse(general, new Date(), { forwardDate: true });
+  if (results && results.length > 0) {
+    const start = results[0].start.date();
+    const duration = durationDays || inferDurationDays(general);
+    const end = duration
+      ? new Date(start.getTime() + duration * 24 * 60 * 60 * 1000)
+      : undefined;
+    return {
+      startDate: start.toISOString().split('T')[0],
+      endDate: end ? end.toISOString().split('T')[0] : undefined,
+      durationDays: duration,
+    };
+  }
+
+  // Fallback for month/year like "October 2026"
   const now = new Date();
   const match = general.match(/(\w+)\s*(\d{4})?/i);
+  if (match) {
+    const monthNames = [
+      'january','february','march','april','may','june',
+      'july','august','september','october','november','december'
+    ];
+    const month = monthNames.findIndex((m) => m === match[1].toLowerCase());
+    if (month !== -1) {
+      const year = parseInt(match[2] || String(now.getFullYear()), 10);
+      const start = new Date(year, month, 15);
+      const duration = durationDays || inferDurationDays(general) || 7;
+      const end = new Date(start.getTime() + duration * 24 * 60 * 60 * 1000);
+      return {
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
+        durationDays: duration,
+      };
+    }
+  }
+
+  return {};
+}
+
+function inferDurationDays(text: string): number | undefined {
+  const match = text.match(/(\d+)\s*(week|day|month)s?\s*(trip|long|duration)?/i);
   if (!match) return undefined;
-  const monthNames = [
-    'january','february','march','april','may','june',
-    'july','august','september','october','november','december'
-  ];
-  const month = monthNames.findIndex((m) => m === match[1].toLowerCase());
-  if (month === -1) return undefined;
-  const year = parseInt(match[2] || String(now.getFullYear()), 10);
-  const d = new Date(year, month, 15);
-  return d.toISOString().split('T')[0];
+  const amount = parseInt(match[1], 10);
+  const unit = match[2].toLowerCase();
+  if (unit === 'week') return amount * 7;
+  if (unit === 'day') return amount;
+  if (unit === 'month') return amount * 30;
+  return undefined;
 }
 
 async function clarifyNode(state: typeof ConversationStateAnnotation.State) {

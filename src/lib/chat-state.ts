@@ -6,6 +6,7 @@ export interface ExtractedEntities {
   startDate?: string;
   endDate?: string;
   datesGeneral?: string;
+  durationDays?: number;
   cabin?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
   travelers?: number;
   budget?: string;
