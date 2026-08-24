@@ -1,4 +1,4 @@
-import { AIRPORT_NAMES } from '../lib/config';
+import { AIRPORT_NAMES } from '../lib/airports';
 
 const WEATHER_CITIES: Record<string, string> = {
   HND: 'Tokyo',

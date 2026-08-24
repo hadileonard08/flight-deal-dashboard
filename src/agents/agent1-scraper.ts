@@ -1,4 +1,4 @@
-import { REGIONS } from '../lib/config';
+import { REGIONS } from '../lib/airports';
 import { resolveAirlineName } from '../lib/airlines';
 
 // Seats.aero Partner API integration for real award availability data

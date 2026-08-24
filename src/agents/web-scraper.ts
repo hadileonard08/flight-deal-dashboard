@@ -1,4 +1,4 @@
-import { REGIONS } from '../lib/config';
+import { REGIONS } from '../lib/airports';
 import * as cheerio from 'cheerio';
 
 interface FlightDeal {

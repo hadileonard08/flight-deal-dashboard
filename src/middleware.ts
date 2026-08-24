@@ -1,18 +1,14 @@
+import { clerkMiddleware } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+
+const clerkConfigured =
+  !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
+  !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes('pk_test_...');
+
+export default clerkConfigured
+  ? clerkMiddleware(async () => NextResponse.next())
+  : async () => NextResponse.next();
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|maintenance|api/.*).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 };
-
-export function middleware(request: NextRequest) {
-  const maintenance = process.env.MAINTENANCE_MODE === 'true' || process.env.MAINTENANCE_MODE === '1';
-
-  if (maintenance && request.nextUrl.pathname !== '/maintenance') {
-    return NextResponse.redirect(new URL('/maintenance', request.url));
-  }
-
-  return NextResponse.next();
-}

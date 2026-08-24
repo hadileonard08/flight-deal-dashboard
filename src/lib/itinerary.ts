@@ -3,7 +3,7 @@ import { searchDestinationNews } from '@/agents/news-search';
 import { getWeatherForecast } from '@/agents/weather';
 import { getDestinationImageUrl, hydrateItineraryImages } from '@/agents/destination-images';
 import { hasAIProvider } from '@/lib/ai-provider';
-import { AIRPORT_NAMES } from '@/lib/config';
+import { AIRPORT_NAMES } from '@/lib/airports';
 
 export async function generateFullItinerary(flight: any): Promise<{ itinerary: string; occasion: string }> {
   if (!hasAIProvider) {

@@ -5,8 +5,8 @@ const nextConfig = {
       bodySizeLimit: '2mb',
     },
   },
-  webpack: (config, { isServer }) => {
-    if (isServer) {
+  webpack: (config, { isServer, nextRuntime }) => {
+    if (isServer && nextRuntime === 'nodejs') {
       config.externals.push(
         'node-libcurl',
         'fast-flights-ts',
