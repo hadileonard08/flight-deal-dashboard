@@ -59,8 +59,14 @@ async function extractNode(state: typeof ConversationStateAnnotation.State) {
   const prompt = `
 You are a travel assistant. Extract trip details from the user's latest message.
 
-Required fields: destination, and either startDate or a general/relative date expression (e.g. "October", "in two weeks", "flexible").
-Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget, trip duration in days.
+Instructions:
+- Use the conversation history for context. If the user is answering a previous clarifying question, combine it with earlier messages.
+- Required: destination, and either a specific startDate OR a general/relative date expression (e.g. "October", "in two weeks", "flexible", "2 week trip").
+- If the user only gives a duration ("2 week trip") or a rough window without an exact date, set durationDays and datesGeneral, and leave startDate null.
+- If the user says "flexible" or similar, set datesGeneral to "flexible" and leave startDate null.
+- Do not mark startDate as missing if datesGeneral or durationDays is provided.
+
+Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget.
 
 Respond ONLY in JSON:
 {
@@ -102,11 +108,31 @@ User: ${state.userMessage}
     if (parsed.durationDays) entities.durationDays = parsed.durationDays;
   }
 
-  // Also parse duration if user said e.g. "2 week trip" without explicit endDate
+  // Try parsing the raw user message for dates/duration as a fallback
+  if (!entities.startDate) {
+    const parsed = parseGeneralDate(state.userMessage, entities.durationDays);
+    if (parsed.startDate) entities.startDate = parsed.startDate;
+    if (parsed.endDate) entities.endDate = parsed.endDate;
+    if (parsed.durationDays && !entities.durationDays) entities.durationDays = parsed.durationDays;
+  }
+
+  // If user mentioned duration (e.g. "2 week trip") but no endDate, compute it
   if (entities.durationDays && entities.startDate && !entities.endDate) {
     const start = new Date(entities.startDate);
     const end = new Date(start.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
     entities.endDate = end.toISOString().split('T')[0];
+  }
+
+  // If we still have no start date but destination is known, default to a flexible date soon
+  if (entities.destination && !entities.startDate) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + 60);
+    entities.startDate = fallback.toISOString().split('T')[0];
+    entities.datesGeneral = entities.datesGeneral || 'flexible';
+    if (entities.durationDays) {
+      const end = new Date(fallback.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
+      entities.endDate = end.toISOString().split('T')[0];
+    }
   }
 
   const stillMissing = REQUIRED_FIELDS.filter(
