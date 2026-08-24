@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     sessionId: sessionId || null,
   });
 
-  if (!conversationId || conversation.title === 'New trip' || !conversation.title) {
+  if (conversation.title === 'New trip' || !conversation.title) {
     const title = await generateTitle(message);
     await updateConversationTitle(conversation.id, title);
   }

@@ -322,11 +322,12 @@ export default function ChatPage() {
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  if (!confirm('Delete this conversation?')) return;
                   await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
                   mutate('/api/chat/conversations');
                   if (activeConversationId === c.id) startNewChat();
                 }}
-                className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-600 transition-opacity"
+                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                 title="Delete conversation"
               >
                 <Trash2 size={14} />

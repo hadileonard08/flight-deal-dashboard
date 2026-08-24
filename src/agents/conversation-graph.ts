@@ -561,20 +561,34 @@ Want to tweak anything? Just say the word — shorter trip, different budget, bu
   return { finalResponse };
 }
 
+export function heuristicTitle(message: string): string {
+  const clean = message.trim().replace(/\s+/g, ' ');
+  if (clean.length <= 40) return clean;
+  return clean.slice(0, 37) + '...';
+}
+
 export async function generateTitle(message: string) {
-  if (!llm) return message.slice(0, 40);
+  if (!llm) return heuristicTitle(message);
   const prompt = `${COMPANION_PERSONA}
 
-Create a short, friendly title (2-5 words) for a trip planning conversation that starts with this message. Output only the title, no quotes, no extra punctuation.
+Create a short, specific title (2-5 words) for a trip planning conversation that starts with this message. Use the destination and date if mentioned. Do NOT use generic titles like "New trip" or "Trip planning". Output only the title, no quotes, no extra punctuation.
 
-Message: ${message}`;
+Examples:
+- Message: "I want to go to Tokyo in October" -> Title: Tokyo in October
+- Message: "honeymoon in Thailand for 2 weeks" -> Title: Thailand Honeymoon
+- Message: "budget trip to Seoul next month" -> Title: Budget Seoul Trip
+
+Message: ${message}
+Title:`;
   try {
     const res = await llm.invoke(prompt);
-    let title = (res.content as string).trim().replace(/^["']|["']$/g, '').replace(/\n/g, ' ');
-    if (!title) return message.slice(0, 40);
+    let title = (res.content as string).trim().replace(/^["']|["']$/g, '').replace(/\n/g, ' ').replace(/\s+/g, ' ');
+    if (!title || title.toLowerCase().includes('new trip') || title.toLowerCase().includes('trip planning')) {
+      return heuristicTitle(message);
+    }
     return title.length > 60 ? title.slice(0, 57) + '...' : title;
   } catch {
-    return message.slice(0, 40);
+    return heuristicTitle(message);
   }
 }
 
