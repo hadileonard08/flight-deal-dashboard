@@ -61,3 +61,14 @@ export interface ChatMessageUI {
   status?: string;
   isStreaming?: boolean;
 }
+
+export interface SavedTrip {
+  id: string;
+  conversationId: string;
+  destination: string;
+  dates: string;
+  payload: ChatPayload;
+  todos: { id: string; text: string; done: boolean }[];
+  notes: string;
+  savedAt: string;
+}

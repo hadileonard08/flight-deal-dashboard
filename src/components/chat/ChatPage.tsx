@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2 } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
-import type { ChatMessageUI, ChatPayload } from '@/lib/chat-state';
+import type { ChatMessageUI, ChatPayload, SavedTrip } from '@/lib/chat-state';
+import OneStopPanel from './OneStopPanel';
 
 interface Conversation {
   id: string;
@@ -124,7 +125,7 @@ function DealsList({ deals }: { deals?: any[] }) {
   );
 }
 
-function MessageContent({ message }: { message: ChatMessageUI }) {
+function MessageContent({ message, onSaveTrip }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
   }
@@ -140,14 +141,25 @@ function MessageContent({ message }: { message: ChatMessageUI }) {
       <div className="prose prose-sm max-w-none">
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
       </div>
-      {message.payload ? <RichPayload payload={message.payload} /> : null}
+      {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} /> : null}
     </div>
   );
 }
 
-function RichPayload({ payload }: { payload: ChatPayload }) {
+function RichPayload({ payload, onSaveTrip }: { payload: ChatPayload; onSaveTrip?: (payload: ChatPayload) => void }) {
+  const hasSavableContent = payload.deals?.length || payload.itinerary || payload.packingTips;
   return (
-    <div>
+    <div className="space-y-3">
+      {hasSavableContent ? (
+        <div className="flex justify-end">
+          <button
+            onClick={() => onSaveTrip?.(payload)}
+            className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            <Bookmark size={14} /> Save to One Stop
+          </button>
+        </div>
+      ) : null}
       <WeatherCard weather={payload.weather} />
       <PackingCard packingTips={payload.packingTips} />
       <DealsList deals={payload.deals} />
@@ -161,7 +173,51 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [oneStopOpen, setOneStopOpen] = useState(false);
+  const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Load saved trips from localStorage on mount.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('trip-ai-onestop');
+      if (raw) setSavedTrips(JSON.parse(raw));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Persist saved trips to localStorage.
+  useEffect(() => {
+    try {
+      localStorage.setItem('trip-ai-onestop', JSON.stringify(savedTrips));
+    } catch {
+      // ignore
+    }
+  }, [savedTrips]);
+
+  const saveTrip = (payload: ChatPayload, conversationId: string) => {
+    const destination = payload.entities?.destination || 'Trip';
+    const startDate = payload.entities?.startDate;
+    const endDate = payload.entities?.endDate;
+    const dates = startDate
+      ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
+      : payload.entities?.datesGeneral || 'Dates TBD';
+
+    const newTrip: SavedTrip = {
+      id: crypto.randomUUID(),
+      conversationId,
+      destination,
+      dates,
+      payload,
+      todos: [],
+      notes: '',
+      savedAt: new Date().toISOString(),
+    };
+
+    setSavedTrips((prev) => [newTrip, ...prev]);
+    setOneStopOpen(true);
+  };
 
   const { data: conversationsData } = useSWR<{ conversations: Conversation[] }>(
     '/api/chat/conversations',
@@ -394,13 +450,43 @@ export default function ChatPage() {
           <div className="flex items-center gap-2 font-bold text-lg">
             <Plane className="text-blue-600" size={22} /> Trip AI
           </div>
-          {isLoaded && !isSignedIn ? (
-            <SignInButtonWrapper mode="modal">
-              <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
-            </SignInButtonWrapper>
-          ) : (
-            <UserButtonWrapper afterSignOutUrl="/" />
-          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setOneStopOpen(true)}
+              className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
+            >
+              <Bookmark size={14} /> One Stop
+            </button>
+            {isLoaded && !isSignedIn ? (
+              <SignInButtonWrapper mode="modal">
+                <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
+              </SignInButtonWrapper>
+            ) : (
+              <UserButtonWrapper afterSignOutUrl="/" />
+            )}
+          </div>
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden md:flex items-center justify-between bg-white border-b border-gray-200 px-6 py-3">
+          <div className="flex items-center gap-2 font-bold text-lg text-gray-900">
+            <Plane className="text-blue-600" size={22} /> Trip AI
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setOneStopOpen(true)}
+              className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
+            >
+              <Bookmark size={16} /> One Stop
+            </button>
+            {isLoaded && !isSignedIn ? (
+              <SignInButtonWrapper mode="modal">
+                <button className="text-sm bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-800">Sign in</button>
+              </SignInButtonWrapper>
+            ) : (
+              <UserButtonWrapper afterSignOutUrl="/" />
+            )}
+          </div>
         </div>
 
         {/* Messages */}
@@ -436,13 +522,23 @@ export default function ChatPage() {
                       : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
                   }`}
                 >
-                  <MessageContent message={m} />
+                  <MessageContent
+                    message={m}
+                    onSaveTrip={m.role === 'assistant' ? (payload) => saveTrip(payload, activeConversationId || 'new') : undefined}
+                  />
                 </div>
               </div>
             ))
           )}
           <div ref={bottomRef} />
         </div>
+
+        <OneStopPanel
+          isOpen={oneStopOpen}
+          onClose={() => setOneStopOpen(false)}
+          savedTrips={savedTrips}
+          setSavedTrips={setSavedTrips}
+        />
 
         {/* Input area */}
         <div className="bg-white border-t border-gray-200 p-4">
