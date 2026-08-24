@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Plane, ArrowRight } from 'lucide-react';
 
-const SPLASH_COOKIE = 'roam-ai-welcomed';
+const SPLASH_COOKIE = 'jalanai-welcomed';
 const REDIRECT_SECONDS = 5;
 
 export default function SplashRedirect({ children }: { children: React.ReactNode }) {
@@ -64,8 +64,11 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
           <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl">
             <Plane size={32} />
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Roam AI</h1>
+          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">Jalan AI</h1>
         </div>
+        <p className="text-blue-200 text-sm italic mb-2">
+          "jalan" — to walk, to travel (Indonesian)
+        </p>
         <p className="text-blue-100 text-lg max-w-md mx-auto">
           Your AI travel companion. Chat naturally, get full itineraries, live flight deals, and daily route maps — all in one place.
         </p>

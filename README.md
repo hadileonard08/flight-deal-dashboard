@@ -1,8 +1,10 @@
-# Trip AI — Conversational Travel Itinerary Planner
+# Jalan AI — Conversational Travel Itinerary Planner
 
-**Live app:** https://flight-deals-dashboard.vercel.app
+**Live app:** https://jalan-ai.vercel.app
 
 A conversational travel planning assistant that turns natural-language requests into full day-by-day itineraries with live weather, real points flight deals, packing lists, daily Google Maps route links, and hallucination guardrails — all powered by a LangGraph multi-agent loop.
+
+_"jalan" means "to walk" or "to travel" in Indonesian._
 
 Built with Next.js 14, LangChain/LangGraph, PostgreSQL, Clerk auth, and the Seats.aero Partner API.
 
@@ -10,7 +12,7 @@ Built with Next.js 14, LangChain/LangGraph, PostgreSQL, Clerk auth, and the Seat
 
 ## What it does
 
-Users chat with **Trip AI**, a friendly travel companion that:
+Users chat with **Jalan AI**, a friendly travel companion that:
 
 1. **Understands natural-language trip requests** — e.g. *"Tokyo in October"*, *"honeymoon in Thailand"*, *"find any deal to Bangkok in January"*.
 2. **Asks clarifying questions** when details are missing — dates, origin, budget, cabin, trip length.

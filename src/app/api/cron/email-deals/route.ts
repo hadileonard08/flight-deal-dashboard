@@ -156,7 +156,7 @@ async function handleDigest(req: NextRequest) {
     ${moreCards}
   ` : ''}
 
-  <p style="margin-top: 32px; color: #6b7280; font-size: 12px;">You're receiving this because NOTIFICATION_EMAIL is set on Roam AI. <a href="${DASHBOARD_URL}" style="color: #2563eb;">View the dashboard</a></p>
+  <p style="margin-top: 32px; color: #6b7280; font-size: 12px;">You're receiving this because NOTIFICATION_EMAIL is set on Jalan AI. <a href="${DASHBOARD_URL}" style="color: #2563eb;">View the dashboard</a></p>
 </body>
 </html>
     `.trim();
@@ -178,7 +178,7 @@ ${i + 1}. ${deal.originCode} → ${deal.destinationCode} on ${deal.airline}
 View the dashboard: ${DASHBOARD_URL}
 
 Happy travels,
-Roam AI
+Jalan AI
     `.trim();
 
     const send = await resend!.emails.send({
