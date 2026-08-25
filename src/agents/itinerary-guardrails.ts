@@ -3,6 +3,7 @@ const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 export interface RouteLink {
   day: string;
   title: string;
+  highlights: string;
   url: string;
 }
 
@@ -105,9 +106,12 @@ export function buildRouteLinks(itinerary: string, destination: string): RouteLi
     if (stops.length < 2) continue;
 
     const segments = stops.map((place) => encodeURIComponent(`${place}, ${destination}`)).join('/');
+    // Build a highlight summary from the key stops (first 3).
+    const highlights = stops.slice(0, 3).join(' → ');
     links.push({
       day,
       title,
+      highlights,
       url: `https://www.google.com/maps/dir/${segments}`,
     });
   }

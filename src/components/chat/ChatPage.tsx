@@ -160,10 +160,15 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
             rel="noopener noreferrer"
             className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 hover:border-blue-300 hover:shadow-sm transition-all no-underline"
           >
-            <div className="font-medium text-gray-900">
-              Day {link.day}: {link.title || 'Route'}
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-gray-900">
+                Day {link.day}{link.title ? `: ${link.title}` : ''}
+              </div>
+              {link.highlights && (
+                <div className="text-xs text-gray-500 mt-0.5 truncate">{link.highlights}</div>
+              )}
             </div>
-            <div className="text-xs text-blue-600 font-medium">Open in Google Maps →</div>
+            <div className="text-xs text-blue-600 font-medium flex-shrink-0 ml-2">Open in Google Maps →</div>
           </a>
         ))}
       </div>

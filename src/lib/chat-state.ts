@@ -21,6 +21,7 @@ export interface ClarifyingQuestion {
 export interface RouteLink {
   day: string;
   title: string;
+  highlights: string;
   url: string;
 }
 
