@@ -606,7 +606,7 @@ ${guardrailsFeedback}
 
 Check for:
 1. Hallucinated flights, upgrades, or premium services inconsistent with the cabin.
-2. Missing or vague image placeholders (must be specific landmarks, not city/country names).
+2. Missing or vague image placeholders (must be specific landmarks, not city/country names). CRITICAL: if the guardrails feedback says there are missing image placeholders, you MUST reject and ask for revision.
 3. Missing weather section.
 4. Unsafe or impossible logistics.
 5. False statements about visas or entry.
@@ -624,8 +624,16 @@ Respond ONLY in JSON:
 
   const res = await reasoningModel.invoke(prompt);
   const parsed = await parseJsonResponse(res.content as string);
-  const isApproved = !!parsed?.isApproved;
-  const feedback: string = parsed?.feedback || '';
+  let isApproved = !!parsed?.isApproved;
+  let feedback: string = parsed?.feedback || '';
+
+  // Hard auto-reject if guardrails found missing image placeholders.
+  // Don't rely on the LLM to catch this — force a revision.
+  const placeholderFeedback = state.criticFeedback.find(f => f.includes('image placeholder'));
+  if (placeholderFeedback) {
+    isApproved = false;
+    feedback = feedback || placeholderFeedback;
+  }
 
   return {
     isApproved,
