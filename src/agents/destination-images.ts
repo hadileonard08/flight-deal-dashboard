@@ -205,27 +205,44 @@ export async function hydrateItineraryImages(
 
   if (matches.length === 0) return itinerary;
 
-  // Cache a generic destination image as a fallback for any day without a match.
-  const defaultImage = destinationName ? await getImageForTerm(destinationName) : null;
+  // Track used URLs to prevent duplicate images across days.
+  const usedUrls = new Set<string>();
 
-  const imageUrls = await Promise.all(
+  const imageResults = await Promise.all(
     matches.map(async (match) => {
       const term = match[1].trim();
       const fallbackTerms = destinationName && destinationName.toLowerCase() !== cleanTerm(term).toLowerCase()
         ? [`${destinationName} ${term}`, `${term} ${destinationName}`]
         : [];
       let url = await getImageForTerm(term, fallbackTerms);
-      if (!url && defaultImage) {
-        url = defaultImage;
+
+      // If this URL was already used for another landmark, try to find an alternative.
+      if (url && usedUrls.has(url)) {
+        const altTerms = [
+          `${term} ${destinationName || ''}`.trim(),
+          `${destinationName} ${term} landmark`,
+          `${term} building`,
+          `${term} photo`,
+        ].filter(t => t && !fallbackTerms.includes(t));
+        const altUrl = await getImageForTerm(term, [...fallbackTerms, ...altTerms]);
+        if (altUrl && !usedUrls.has(altUrl)) {
+          url = altUrl;
+        } else {
+          // No unique alternative found — skip this image rather than duplicate.
+          url = null;
+        }
       }
+
+      if (url) usedUrls.add(url);
       return { match: match[0], term, url };
     })
   );
 
-  return imageUrls.reduce((acc, { match, term, url }) => {
+  return imageResults.reduce((acc, { match, term, url }) => {
     if (url) {
       return acc.replace(match, `![${term}](${url})`);
     }
+    // Remove the placeholder entirely if no unique image was found.
     return acc.replace(match, '');
   }, itinerary);
 }

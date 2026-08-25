@@ -675,6 +675,12 @@ export default function ChatPage() {
                 </div>
               ))
             )}
+            {/* Tweak prompt — at the bottom of the chat, after all messages */}
+            {messages.length > 0 && !isLoading && messages[messages.length - 1]?.role === 'assistant' && (
+              <div className="max-w-3xl mx-auto text-center text-sm text-gray-400 italic py-4 border-t border-gray-100 mt-2">
+                Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it.
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -764,12 +770,6 @@ export default function ChatPage() {
 
         {/* Input area */}
         <div className="bg-white border-t border-gray-200 p-4">
-          {/* Tweak prompt — shown after assistant responds */}
-          {messages.length > 0 && !isLoading && messages[messages.length - 1]?.role === 'assistant' && (
-            <div className="max-w-3xl mx-auto mb-3 text-center text-sm text-gray-400 italic">
-              Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it.
-            </div>
-          )}
           {!isSignedIn && messages.length > 0 ? (
             <div className="max-w-3xl mx-auto mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between">
               <span className="text-sm text-amber-800">Sign in to save this itinerary across devices.</span>
