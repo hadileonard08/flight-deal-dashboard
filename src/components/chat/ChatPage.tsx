@@ -19,6 +19,24 @@ interface Conversation {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+function slug(children: any): string {
+  const text = typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : String(children || '');
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function extractHeadings(markdown: string): { id: string; label: string; level: number }[] {
+  const lines = markdown.split('\n');
+  const headings: { id: string; label: string; level: number }[] = [];
+  for (const line of lines) {
+    const m = line.match(/^(#{1,3})\s+(.+)/);
+    if (m) {
+      const label = m[2].trim();
+      headings.push({ id: slug(label), label, level: m[1].length });
+    }
+  }
+  return headings;
+}
+
 function formatDate(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -167,7 +185,14 @@ function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMess
         </div>
       ) : null}
       <div className="prose prose-sm max-w-none">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            h1: ({ children }) => <h1 id={slug(children)}>{children}</h1>,
+            h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
+            h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
+          }}
+        >{message.content}</ReactMarkdown>
       </div>
       {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} isSignedIn={isSignedIn} /> : null}
     </div>
@@ -282,6 +307,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   // Load saved trips from localStorage on mount.
   useEffect(() => {
@@ -331,12 +357,22 @@ export default function ChatPage() {
   );
   const conversations = conversationsData?.conversations || [];
 
+  const scrollToTop = () => {
+    if (messagesRef.current) messagesRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // When loading a new response, scroll to top so the user reads from the start.
   useEffect(() => {
-    scrollToBottom();
+    if (isLoading) scrollToTop();
+  }, [isLoading]);
+
+  // While streaming content updates, follow along.
+  useEffect(() => {
+    if (!isLoading) scrollToBottom();
   }, [messages]);
 
   const loadConversation = useCallback(async (id: string) => {
@@ -590,49 +626,79 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4">
-              <div className="bg-blue-100 text-blue-600 p-4 rounded-full mb-4">
-                <MapPin size={32} />
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Plan your next trip</h1>
-              <p className="text-gray-500 max-w-md">
-                Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary, check the weather, find points deals, and suggest what to pack.
-              </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {['Tokyo in October', 'Honeymoon in Thailand', 'Budget trip to Seoul'].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => { sendMessage(s); }}
-                    className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-3xl px-5 py-3 rounded-2xl shadow-sm ${
-                    m.role === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-none'
-                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
-                  }`}
-                >
-                  <MessageContent
-                    message={m}
-                    onSaveTrip={m.role === 'assistant' ? (payload) => saveTrip(payload, activeConversationId || 'new') : undefined}
-                    isSignedIn={isSignedIn}
-                  />
+        {/* Messages + section navigator */}
+        <div className="flex-1 flex overflow-hidden">
+          <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+                <div className="bg-blue-100 text-blue-600 p-4 rounded-full mb-4">
+                  <MapPin size={32} />
+                </div>
+                <h1 className="text-2xl font-bold text-gray-900 mb-2">Plan your next trip</h1>
+                <p className="text-gray-500 max-w-md">
+                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary, check the weather, find points deals, and suggest what to pack.
+                </p>
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
+                  {['Tokyo in October', 'Honeymoon in Thailand', 'Budget trip to Seoul'].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => { sendMessage(s); }}
+                      className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))
-          )}
-          <div ref={bottomRef} />
+            ) : (
+              messages.map((m) => (
+                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`max-w-3xl px-5 py-3 rounded-2xl shadow-sm ${
+                      m.role === 'user'
+                        ? 'bg-blue-600 text-white rounded-br-none'
+                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                    }`}
+                  >
+                    <MessageContent
+                      message={m}
+                      onSaveTrip={m.role === 'assistant' ? (payload) => saveTrip(payload, activeConversationId || 'new') : undefined}
+                      isSignedIn={isSignedIn}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Section navigator — right side mini tab */}
+          {(() => {
+            const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
+            if (!lastAssistant || !lastAssistant.content) return null;
+            const headings = extractHeadings(lastAssistant.content);
+            if (headings.length < 2) return null;
+            return (
+              <nav className="hidden lg:flex flex-col w-44 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Sections</div>
+                {headings.map((h) => (
+                  <button
+                    key={h.id}
+                    onClick={() => {
+                      const el = document.getElementById(h.id);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
+                    className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors truncate ${
+                      h.level === 1 ? 'font-semibold text-gray-700' : h.level === 2 ? 'text-gray-600' : 'text-gray-400 pl-4'
+                    }`}
+                    title={h.label}
+                  >
+                    {h.label}
+                  </button>
+                ))}
+              </nav>
+            );
+          })()}
         </div>
 
         <OneStopPanel
