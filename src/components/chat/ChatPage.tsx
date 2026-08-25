@@ -339,6 +339,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
 
@@ -436,6 +437,9 @@ export default function ChatPage() {
     if (!raw.trim() || isLoading) return;
     const userText = raw.trim();
     if (!textOverride) setInput('');
+
+    // Show the sign-in prompt when a guest sends their first message.
+    if (!isSignedIn) setShowSignInPrompt(true);
 
     const userMessage: ChatMessageUI = {
       id: crypto.randomUUID(),
@@ -555,6 +559,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (isSignedIn) {
       mergeSession();
+      setShowSignInPrompt(false);
     }
   }, [isSignedIn]);
 
@@ -662,6 +667,29 @@ export default function ChatPage() {
         {/* Messages + section navigator */}
         <div className="flex-1 flex overflow-hidden">
           <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+            {/* Closable sign-in prompt — appears when a guest sends a message */}
+            {showSignInPrompt && !isSignedIn && (
+              <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-blue-600 text-white flex items-center justify-between gap-3 shadow-md">
+                <div className="flex items-center gap-2 min-w-0">
+                  <LogIn size={18} className="flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">Sign in to save your trip and access it across devices.</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <SignInButtonWrapper mode="modal">
+                    <button className="text-sm bg-white text-blue-600 font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
+                      Sign in
+                    </button>
+                  </SignInButtonWrapper>
+                  <button
+                    onClick={() => setShowSignInPrompt(false)}
+                    className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
                 <div className="bg-blue-100 text-blue-600 p-4 rounded-full mb-4">
@@ -800,14 +828,6 @@ export default function ChatPage() {
 
         {/* Input area */}
         <div className="bg-white border-t border-gray-200 p-4">
-          {!isSignedIn && messages.length > 0 ? (
-            <div className="max-w-3xl mx-auto mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between">
-              <span className="text-sm text-amber-800">Sign in to save this itinerary across devices.</span>
-              <SignInButtonWrapper mode="modal">
-                <button className="text-sm bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700">Sign in</button>
-              </SignInButtonWrapper>
-            </div>
-          ) : null}
           <div className="max-w-3xl mx-auto flex items-end gap-2">
             <textarea
               value={input}
