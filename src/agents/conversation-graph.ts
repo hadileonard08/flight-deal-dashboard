@@ -456,6 +456,8 @@ ${news}
 Critic feedback to address:
 ${feedback}
 
+${feedback.includes('image placeholder') ? '⚠️ CRITICAL: The previous version was missing image placeholders. You MUST include ![IMAGE: landmark name] after EVERY day heading. This is non-negotiable.' : ''}
+
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.
@@ -644,7 +646,11 @@ Respond ONLY in JSON:
 
 function criticRouter(state: typeof ConversationStateAnnotation.State) {
   if (state.isApproved) return 'respond';
-  if (state.revisionCount >= 2) return 'respond';
+  // Allow up to 3 revisions for missing image placeholders (LLM compliance issue),
+  // 2 for everything else.
+  const hasPlaceholderIssue = state.criticFeedback.some(f => f.includes('image placeholder'));
+  const maxRevisions = hasPlaceholderIssue ? 3 : 2;
+  if (state.revisionCount >= maxRevisions) return 'respond';
   return 'gather';
 }
 
