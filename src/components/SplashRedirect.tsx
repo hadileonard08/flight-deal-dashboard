@@ -4,43 +4,29 @@ import { useEffect, useState } from 'react';
 import { Plane, ArrowRight } from 'lucide-react';
 import WalkersIcon from '@/components/WalkersIcon';
 
-const SPLASH_COOKIE = 'jalan-welcomed';
 const REDIRECT_SECONDS = 5;
 const NEW_URL = 'https://jalan-ai.vercel.app';
 
 export default function SplashRedirect({ children }: { children: React.ReactNode }) {
-  const [showSplash, setShowSplash] = useState(false);
+  const [isOldDomain, setIsOldDomain] = useState(false);
   const [countdown, setCountdown] = useState(REDIRECT_SECONDS);
 
   useEffect(() => {
-    // Redirect old domains to the new canonical URL at the edge.
+    // Only show the redirect splash on old domains.
+    // On the new Jalan domain, go straight to the app — no splash, no redirect.
     if (typeof window !== 'undefined' && window.location.origin !== NEW_URL) {
-      window.location.replace(`${NEW_URL}${window.location.pathname}${window.location.search}`);
-      return;
-    }
-
-    // Check if the user has already seen the splash.
-    const seen = document.cookie
-      .split('; ')
-      .some((c) => c.startsWith(`${SPLASH_COOKIE}=true`));
-
-    if (!seen) {
-      setShowSplash(true);
-      // Set cookie so it doesn't show again (1 year).
-      document.cookie = `${SPLASH_COOKIE}=true; max-age=${60 * 60 * 24 * 365}; path=/; SameSite=Lax`;
+      setIsOldDomain(true);
     }
   }, []);
 
   const finish = () => {
-    if (typeof window !== 'undefined' && window.location.origin !== NEW_URL) {
+    if (typeof window !== 'undefined') {
       window.location.replace(`${NEW_URL}${window.location.pathname}${window.location.search}`);
-    } else {
-      setShowSplash(false);
     }
   };
 
   useEffect(() => {
-    if (!showSplash) return;
+    if (!isOldDomain) return;
 
     const interval = setInterval(() => {
       setCountdown((prev) => {
@@ -54,9 +40,9 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [showSplash]);
+  }, [isOldDomain]);
 
-  if (!showSplash) return <>{children}</>;
+  if (!isOldDomain) return <>{children}</>;
 
   return (
     <div className="fixed inset-0 z-[100] bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 flex flex-col items-center justify-center text-white px-6">
@@ -64,7 +50,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       <div className="mb-8 text-center opacity-60">
         <div className="flex items-center justify-center gap-2 text-lg font-medium">
           <Plane size={20} />
-          Jalan AI
+          Flight Deal Dashboard
         </div>
         <div className="text-sm mt-1 text-blue-200">has evolved</div>
       </div>
@@ -93,7 +79,7 @@ export default function SplashRedirect({ children }: { children: React.ReactNode
       {/* Countdown */}
       <div className="mt-12 text-center">
         <div className="text-blue-200 text-sm mb-2">
-          Taking you to the new Jalan experience in {countdown}...
+          Taking you to Jalan in {countdown}...
         </div>
         <button
           onClick={finish}

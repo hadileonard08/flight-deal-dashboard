@@ -466,7 +466,7 @@ export default function ChatPage() {
           ))}
         </div>
         <div className="p-4 border-t border-gray-200">
-          {isLoaded && !isSignedIn ? (
+          {!isSignedIn ? (
             <SignInButtonWrapper mode="modal">
               <button className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors">
                 <LogIn size={18} /> Sign in
@@ -499,7 +499,7 @@ export default function ChatPage() {
                 </button>
               </SignInButtonWrapper>
             )}
-            {isLoaded && !isSignedIn ? (
+            {!isSignedIn ? (
               <SignInButtonWrapper mode="modal">
                 <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
               </SignInButtonWrapper>
@@ -526,7 +526,7 @@ export default function ChatPage() {
                 </button>
               </SignInButtonWrapper>
             )}
-            {isLoaded && !isSignedIn ? (
+            {!isSignedIn ? (
               <SignInButtonWrapper mode="modal">
                 <button className="text-sm bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-800">Sign in</button>
               </SignInButtonWrapper>
