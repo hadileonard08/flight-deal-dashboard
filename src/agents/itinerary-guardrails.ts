@@ -53,7 +53,7 @@ const GENERIC_ROUTE_WORDS = new Set([
   'free', 'budget', 'affordable', 'cheap', 'quick', 'easy', 'short', 'long', 'tour', 'guide',
 ]);
 
-const TRANSIT_ROUTE_WORDS = /\b(line|subway|metro|train|railway|station|airport|bus|taxi|walk|transfer|suica|pasmo|ic card|fare|ticket|pass|express|shinkansen|bullet train|jr |yamanote|toei|tokyo metro|toei subway|ginza|hibiya|marunouchi|chiyoda|namboku|fukutoshin|yurakucho|honancho|hazo|ozaki|miyanosaka|shinjuku line|saitama|keihin|keikyu|keisei|monorail|tram|ferry)\b/i;
+const TRANSIT_ROUTE_WORDS = /\b(line|subway|metro|train|railway|station|airport|bus|taxi|walk|transfer|ic card|fare|ticket|pass|express|monorail|tram|ferry|metro line|subway line|bus route|train line)\b/i;
 
 function isRouteCandidate(text: string): boolean {
   const cleaned = text.trim().replace(/\s+/g, ' ');

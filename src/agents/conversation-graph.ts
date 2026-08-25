@@ -271,11 +271,11 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
   const travelers = state.entities.travelers || 1;
 
   const [weatherResult, newsResult, imageResult, dealsResult] = await Promise.all([
-    getWeatherData(destinationCode, startDate, endDate),
+    getWeatherData(destinationCode, startDate, endDate, destination),
     startDate
-      ? searchDestinationNews(destinationCode, startDate, endDate || startDate).catch(() => null)
+      ? searchDestinationNews(destinationCode, startDate, endDate || startDate, destination).catch(() => null)
       : Promise.resolve(null),
-    getDestinationImageUrl(destinationCode).catch(() => null),
+    getDestinationImageUrl(destinationCode, destination).catch(() => null),
     getRelevantDeals(state.entities),
   ]);
 
@@ -308,12 +308,13 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
 async function getWeatherData(
   destinationCode: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  destinationName?: string
 ): Promise<any> {
   if (!startDate) return null;
   const end = endDate || new Date(startDate.getTime() + 4 * 24 * 60 * 60 * 1000);
   try {
-    return await getWeatherForecast(destinationCode, startDate, end);
+    return await getWeatherForecast(destinationCode, startDate, end, destinationName);
   } catch {
     return null;
   }
@@ -439,16 +440,16 @@ ${feedback}
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.
-- Include a day-by-day plan. For each day, after the heading include exactly one image placeholder: ![IMAGE: specific English landmark name]. No URLs. Pick iconic, specific places (e.g. "Senso-ji Temple", not "Tokyo").
-- Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Shinjuku Gyoen**, **Omoide Yokocho**, **Senso-ji Temple**). This is used to generate walking/transit maps.
+- Include a day-by-day plan. For each day, after the heading include exactly one image placeholder: ![IMAGE: specific English landmark name]. No URLs. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names.
+- Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Louvre Museum**, **Montmartre**, **Eiffel Tower**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
 - Keep the tone warm, like a friend sharing recommendations.
 - CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative.
 
 Getting around / transport:
-- Include a short "Getting Around" section near the top with general city transit tips (e.g. IC card, metro pass, walking, local trains).
-- For each day, include a brief transport note (1-2 sentences) summarizing how to move between the main stops. You may mention approximate time and common transit modes, but do NOT invent exact train names, line colors, departure times, or station names you are unsure about. Use general, clearly real options (e.g., "Tokyo Metro/Toei subway", "BTS Skytrain", "a short walk").
+- Include a short "Getting Around" section near the top with general city transit tips (e.g. local metro, day pass, walking, local trains, ride-share).
+- For each day, include a brief transport note (1-2 sentences) summarizing how to move between the main stops. You may mention approximate time and common transit modes, but do NOT invent exact train names, line colors, departure times, or station names you are unsure about. Use general, clearly real options (e.g., "local metro", "city bus", "a short walk", "taxi/ride-share").
 
 Output the response as markdown.
 `;
@@ -492,8 +493,8 @@ async function answerNode(state: typeof ConversationStateAnnotation.State) {
 
   const [dealsResult, weatherResult, newsResult] = await Promise.all([
     getRelevantDeals({ ...state.entities, startDate: startDate.toISOString().split('T')[0], endDate: endDate?.toISOString().split('T')[0] }),
-    getWeatherData(destinationCode, startDate, endDate).catch(() => null),
-    searchDestinationNews(destinationCode, startDate, endDate || startDate).catch(() => null),
+    getWeatherData(destinationCode, startDate, endDate, destination).catch(() => null),
+    searchDestinationNews(destinationCode, startDate, endDate || startDate, destination).catch(() => null),
   ]);
 
   const dealsText = dealsResult.length

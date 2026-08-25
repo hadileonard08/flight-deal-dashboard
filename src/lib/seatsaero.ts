@@ -5,7 +5,11 @@ const SEATS_AERO_API_BASE = 'https://seats.aero/partnerapi';
 const DEFAULT_US_GATEWAYS = ['JFK', 'LAX', 'SFO', 'ORD', 'SEA', 'IAD', 'BOS', 'MIA', 'DFW', 'DEN', 'ATL', 'SJC', 'HNL', 'PDX', 'PHX'];
 
 const CITY_AIRPORTS: Record<string, string[]> = {
+  // Asia — multi-airport cities
   TYO: ['HND', 'NRT'],
+  SEL: ['ICN', 'GMP'],
+  OSA: ['KIX', 'ITM'],
+  // Asia — single airport cities (explicit mapping for clarity)
   HKG: ['HKG'],
   ICN: ['ICN'],
   SIN: ['SIN'],
@@ -17,6 +21,64 @@ const CITY_AIRPORTS: Record<string, string[]> = {
   HAN: ['HAN'],
   DPS: ['DPS'],
   CGK: ['CGK'],
+  BOM: ['BOM'],
+  DEL: ['DEL'],
+  CNX: ['CNX'],
+  PUS: ['PUS'],
+  // Europe — multi-airport cities
+  LON: ['LHR', 'LGW', 'STN'],
+  PAR: ['CDG', 'ORY'],
+  MIL: ['MXP', 'LIN', 'BGY'],
+  // Europe — single airport cities
+  LHR: ['LHR'],
+  LGW: ['LGW'],
+  CDG: ['CDG'],
+  ORY: ['ORY'],
+  FRA: ['FRA'],
+  AMS: ['AMS'],
+  MAD: ['MAD'],
+  BCN: ['BCN'],
+  FCO: ['FCO'],
+  MXP: ['MXP'],
+  MUC: ['MUC'],
+  ZRH: ['ZRH'],
+  GVA: ['GVA'],
+  VIE: ['VIE'],
+  DUB: ['DUB'],
+  LIS: ['LIS'],
+  ATH: ['ATH'],
+  PRG: ['PRG'],
+  WAW: ['WAW'],
+  CPH: ['CPH'],
+  ARN: ['ARN'],
+  OSL: ['OSL'],
+  HEL: ['HEL'],
+  IST: ['IST'],
+  // Middle East
+  DXB: ['DXB'],
+  AUH: ['AUH'],
+  DOH: ['DOH'],
+  TLV: ['TLV'],
+  // Latin America
+  MEX: ['MEX'],
+  CUN: ['CUN'],
+  BOG: ['BOG'],
+  LIM: ['LIM'],
+  SCL: ['SCL'],
+  EZE: ['EZE'],
+  GRU: ['GRU'],
+  GIG: ['GIG'],
+  // Oceania
+  SYD: ['SYD'],
+  MEL: ['MEL'],
+  BNE: ['BNE'],
+  AKL: ['AKL'],
+  NAN: ['NAN'],
+  // Africa
+  JNB: ['JNB'],
+  CPT: ['CPT'],
+  NBO: ['NBO'],
+  CMN: ['CMN'],
 };
 
 const CABIN_MAP_REVERSE: Record<string, string> = {

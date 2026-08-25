@@ -1,19 +1,75 @@
 import { AIRPORT_NAMES } from '../lib/airports';
 
 const WIKIPEDIA_CITIES: Record<string, string> = {
+  // Asia
   HND: 'Tokyo',
   NRT: 'Tokyo',
+  KIX: 'Osaka',
   HKG: 'Hong Kong',
   ICN: 'Seoul',
   SIN: 'Singapore',
   BKK: 'Bangkok',
+  CNX: 'Chiang Mai',
   TPE: 'Taipei',
   KUL: 'Kuala Lumpur',
   MNL: 'Manila',
   SGN: 'Ho Chi Minh City',
   HAN: 'Hanoi',
   DPS: 'Bali',
-  CGK: 'Jakarta'
+  CGK: 'Jakarta',
+  BOM: 'Mumbai',
+  DEL: 'New Delhi',
+  PUS: 'Busan',
+  // Europe
+  LHR: 'London',
+  LGW: 'London',
+  CDG: 'Paris',
+  ORY: 'Paris',
+  FRA: 'Frankfurt',
+  AMS: 'Amsterdam',
+  MAD: 'Madrid',
+  BCN: 'Barcelona',
+  FCO: 'Rome',
+  MXP: 'Milan',
+  MUC: 'Munich',
+  ZRH: 'Zurich',
+  GVA: 'Geneva',
+  VIE: 'Vienna',
+  DUB: 'Dublin',
+  LIS: 'Lisbon',
+  ATH: 'Athens',
+  PRG: 'Prague',
+  WAW: 'Warsaw',
+  CPH: 'Copenhagen',
+  ARN: 'Stockholm',
+  OSL: 'Oslo',
+  HEL: 'Helsinki',
+  IST: 'Istanbul',
+  // Middle East
+  DXB: 'Dubai',
+  AUH: 'Abu Dhabi',
+  DOH: 'Doha',
+  TLV: 'Tel Aviv',
+  // Latin America
+  MEX: 'Mexico City',
+  CUN: 'Cancun',
+  BOG: 'Bogota',
+  LIM: 'Lima',
+  SCL: 'Santiago',
+  EZE: 'Buenos Aires',
+  GRU: 'Sao Paulo',
+  GIG: 'Rio de Janeiro',
+  // Oceania
+  SYD: 'Sydney',
+  MEL: 'Melbourne',
+  BNE: 'Brisbane',
+  AKL: 'Auckland',
+  NAN: 'Nadi',
+  // Africa
+  JNB: 'Johannesburg',
+  CPT: 'Cape Town',
+  NBO: 'Nairobi',
+  CMN: 'Casablanca',
 };
 
 const FLAG_PATTERNS = [
@@ -30,8 +86,8 @@ function isFlagUrl(url: string | null | undefined): boolean {
   return FLAG_PATTERNS.some(pattern => pattern.test(url));
 }
 
-export async function getDestinationImageUrl(destinationCode: string): Promise<string | null> {
-  const city = WIKIPEDIA_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationCode;
+export async function getDestinationImageUrl(destinationCode: string, destinationName?: string): Promise<string | null> {
+  const city = WIKIPEDIA_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationName || destinationCode;
   if (!city) return null;
 
   // Prefer a cityscape / skyline image over a flag or coat of arms.

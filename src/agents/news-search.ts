@@ -12,7 +12,8 @@ function formatDateForPrompt(date: Date): string {
 export async function searchDestinationNews(
   destinationCode: string,
   tripStart: Date,
-  tripEnd: Date
+  tripEnd: Date,
+  destinationName?: string
 ): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -22,7 +23,9 @@ export async function searchDestinationNews(
   }
 
   const location = CITY_MAP[destinationCode];
-  if (!location) {
+  // Fall back to the destination name if no IATA mapping exists
+  const cityName = location?.city || destinationName;
+  if (!cityName) {
     console.log(`⚠️ No city mapping for destination ${destinationCode}, skipping news search`);
     return null;
   }
@@ -31,12 +34,12 @@ export async function searchDestinationNews(
     return null;
   }
 
-  const prompt = `Search the web for real, current news relevant to a traveler visiting ${location.city} between ${formatDateForPrompt(tripStart)} and ${formatDateForPrompt(tripEnd)}.
+  const prompt = `Search the web for real, current news relevant to a traveler visiting ${cityName} between ${formatDateForPrompt(tripStart)} and ${formatDateForPrompt(tripEnd)}.
 Look specifically for: notable festivals or seasonal happenings, major public holidays or closures, weather advisories, safety/travel advisories, transit disruptions, and any newsworthy events during that window.
 Respond with a concise markdown bullet list (max 6 bullets) of only what you actually find via search, each with a one-line summary. If you find nothing relevant, respond with exactly: NO_RELEVANT_NEWS`;
 
   try {
-    console.log(`📰 Searching the web for current news/happenings in ${location.city}...`);
+    console.log(`📰 Searching the web for current news/happenings in ${cityName}...`);
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key=${apiKey}`,
@@ -51,7 +54,7 @@ Respond with a concise markdown bullet list (max 6 bullets) of only what you act
     );
 
     if (!response.ok) {
-      console.log(`⚠️ Gemini search grounding returned ${response.status} for ${location.city}`);
+      console.log(`⚠️ Gemini search grounding returned ${response.status} for ${cityName}`);
       return null;
     }
 
@@ -60,15 +63,15 @@ Respond with a concise markdown bullet list (max 6 bullets) of only what you act
     const trimmed = text.trim();
 
     if (!trimmed || trimmed.includes('NO_RELEVANT_NEWS')) {
-      console.log(`✅ No notable current news found for ${location.city} during the trip window`);
+      console.log(`✅ No notable current news found for ${cityName} during the trip window`);
       return null;
     }
 
-    console.log(`✅ Found current news/happenings for ${location.city}`);
+    console.log(`✅ Found current news/happenings for ${cityName}`);
     return trimmed;
 
   } catch (error) {
-    console.log(`Gemini search grounding failed for ${location.city}:`, error);
+    console.log(`Gemini search grounding failed for ${cityName}:`, error);
     return null;
   }
 }

@@ -5,6 +5,7 @@ export const REGIONS = {
 };
 
 export const AIRPORT_NAMES: Record<string, string> = {
+  // US origins
   LAX: 'Los Angeles',
   SFO: 'San Francisco',
   SEA: 'Seattle',
@@ -19,10 +20,86 @@ export const AIRPORT_NAMES: Record<string, string> = {
   IAD: 'Washington, D.C. (Dulles)',
   ATL: 'Atlanta',
   MIA: 'Miami',
+  BOS: 'Boston',
+  PHX: 'Phoenix',
+  PDX: 'Portland',
+  HNL: 'Honolulu',
+  SJC: 'San Jose',
+  AUS: 'Austin',
+  LAS: 'Las Vegas',
+
+  // Asia
   HND: 'Tokyo Haneda',
   NRT: 'Tokyo Narita',
   HKG: 'Hong Kong',
   ICN: 'Seoul Incheon',
   SIN: 'Singapore',
   BKK: 'Bangkok',
+  TPE: 'Taipei',
+  KUL: 'Kuala Lumpur',
+  MNL: 'Manila',
+  SGN: 'Ho Chi Minh City',
+  HAN: 'Hanoi',
+  DPS: 'Bali (Denpasar)',
+  CGK: 'Jakarta',
+  BOM: 'Mumbai',
+  DEL: 'New Delhi',
+  CNX: 'Chiang Mai',
+  KIX: 'Osaka',
+  PUS: 'Busan',
+
+  // Europe
+  LHR: 'London (Heathrow)',
+  LGW: 'London (Gatwick)',
+  CDG: 'Paris (Charles de Gaulle)',
+  ORY: 'Paris (Orly)',
+  FRA: 'Frankfurt',
+  AMS: 'Amsterdam',
+  MAD: 'Madrid',
+  BCN: 'Barcelona',
+  FCO: 'Rome (Fiumicino)',
+  MXP: 'Milan',
+  MUC: 'Munich',
+  ZRH: 'Zurich',
+  GVA: 'Geneva',
+  VIE: 'Vienna',
+  DUB: 'Dublin',
+  LIS: 'Lisbon',
+  ATH: 'Athens',
+  PRG: 'Prague',
+  WAW: 'Warsaw',
+  CPH: 'Copenhagen',
+  ARN: 'Stockholm',
+  OSL: 'Oslo',
+  HEL: 'Helsinki',
+  IST: 'Istanbul',
+
+  // Middle East
+  DXB: 'Dubai',
+  AUH: 'Abu Dhabi',
+  DOH: 'Doha',
+  TLV: 'Tel Aviv',
+
+  // Latin America
+  MEX: 'Mexico City',
+  CUN: 'Cancun',
+  BOG: 'Bogota',
+  LIM: 'Lima',
+  SCL: 'Santiago',
+  EZE: 'Buenos Aires',
+  GRU: 'Sao Paulo',
+  GIG: 'Rio de Janeiro',
+
+  // Oceania
+  SYD: 'Sydney',
+  MEL: 'Melbourne',
+  BNE: 'Brisbane',
+  AKL: 'Auckland',
+  NAN: 'Nadi',
+
+  // Africa
+  JNB: 'Johannesburg',
+  CPT: 'Cape Town',
+  NBO: 'Nairobi',
+  CMN: 'Casablanca',
 };
