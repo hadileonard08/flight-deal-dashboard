@@ -97,19 +97,47 @@ async function runSmokeTests(): Promise<Assertion[]> {
     }
 
     // 4. /api/chat should return route links and diverse deals for a plan_trip request.
+    // The chat endpoint is SSE-streamed, so we read the full stream and parse the final "done" event.
     try {
-      const chatRes = await fetchJson('/api/chat', {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 180000);
+      const res = await fetch(`${BASE_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'Plan a trip to Tokyo in October' })
-      }, 120000);
+        body: JSON.stringify({ message: 'Plan a trip to Tokyo in October' }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let payload: any = null;
+      let responseText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        // Parse SSE lines
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === 'content' && evt.chunk) responseText += evt.chunk;
+            if (evt.type === 'done') payload = evt.payload;
+          } catch {}
+        }
+      }
 
       // Route links should be present and non-empty
-      const routeLinks = chatRes?.payload?.routeLinks || [];
+      const routeLinks = payload?.routeLinks || [];
       results.push(assert('chat route links present', routeLinks.length > 0, `expected route links, got ${routeLinks.length}`));
 
       // Deals should be diversified by origin (not all same origin)
-      const chatDeals = chatRes?.payload?.deals || [];
+      const chatDeals = payload?.deals || [];
       if (chatDeals.length > 0) {
         const origins = new Set(chatDeals.map((d: any) => d.originCode));
         results.push(assert('chat deals diversified by origin', origins.size > 1, `expected deals from multiple origins, got ${origins.size} unique origin(s): ${Array.from(origins).join(', ')}`));
@@ -118,7 +146,6 @@ async function runSmokeTests(): Promise<Assertion[]> {
       }
 
       // Response markdown should NOT contain "Points Flight Deals" heading
-      const responseText = chatRes?.response || '';
       const mdDealHeadings = (responseText.match(/#{1,3}\s+Points\s+Flight\s+Deals/gi) || []).length;
       results.push(assert('chat no deals in markdown', mdDealHeadings === 0, `chat response markdown contains ${mdDealHeadings} "Points Flight Deals" heading(s) (should be 0)`));
     } catch (e) {
