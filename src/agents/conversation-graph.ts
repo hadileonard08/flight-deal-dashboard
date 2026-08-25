@@ -626,39 +626,14 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
     ? await hydrateItineraryImages(state.itinerary, destination)
     : state.itinerary;
 
-  let dealSection = '';
-  if (state.deals.length > 0) {
-    dealSection =
-      '\n\n## Points Flight Deals\n' +
-      state.deals
-        .map((d) => {
-          const bookingUrl = getAirlineBookingUrl(
-            d.airline || '',
-            d.originCode || '',
-            d.destinationCode || '',
-            d.departureDate
-          );
-          const durationText = d.duration ? `${Math.floor(d.duration / 60)}h ${d.duration % 60}m` : '';
-          const stopsText = d.stops === 0 ? 'Nonstop' : d.stops === 1 ? '1 stop' : d.stops ? `${d.stops} stops` : '';
-          const meta = [durationText, stopsText].filter(Boolean).join(' · ');
-          return `- **[${d.originCode} → ${d.destinationCode}](${bookingUrl})** · ${d.airline} · ${d.cabin} · ${d.pointsRequired?.toLocaleString() || '?'} pts + $${d.taxesAndFees || '0'} taxes${meta ? ` · ${meta}` : ''} · ${d.category}`;
-        })
-        .join('\n');
-  } else {
-    dealSection = '\n\n## Points Flight Deals\nNo matching points deals right now, but I can still help you plan the trip.';
-  }
-
+  // Deals are rendered as rich cards in the payload, not in the markdown.
   const finalResponse = `# ${destination} Itinerary — ${dateStr}
 
 ${itineraryWithImages}
 
-${state.packingTips}${dealSection}
+${state.packingTips}
 
 ${state.criticFeedback.length > 0 && !state.isApproved ? '\n_Note: Some details were adjusted after review._' : ''}
-
----
-
-Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it. 🎒✈️
 `;
 
   return { finalResponse };

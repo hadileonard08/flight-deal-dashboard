@@ -70,12 +70,12 @@ function isRouteCandidate(text: string): boolean {
 export function buildRouteLinks(itinerary: string, destination: string): RouteLink[] {
   if (!itinerary || !destination) return [];
 
-  // Split by day headings. Keep the delimiter with lookahead.
-  const dayBlocks = itinerary.split(/(?=###\s+Day\s+\d+)/i).filter(Boolean);
+  // Split by day headings at any level (##, ###, ####). Keep the delimiter with lookahead.
+  const dayBlocks = itinerary.split(/(?=#+\s+Day\s+\d+)/i).filter(Boolean);
   const links: RouteLink[] = [];
 
   for (const block of dayBlocks) {
-    const headingMatch = block.match(/###\s+Day\s+(\d+)(?:\s*:\s*(.*))?/i);
+    const headingMatch = block.match(/#+\s+Day\s+(\d+)(?:\s*[:\-]\s*(.*))?/i);
     if (!headingMatch) continue;
 
     const day = headingMatch[1];

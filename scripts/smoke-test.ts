@@ -81,8 +81,48 @@ async function runSmokeTests(): Promise<Assertion[]> {
       const text = itin?.itinerary || '';
       results.push(assert('itinerary length', text.length > 500, `itinerary is too short: ${text.length}`));
       results.push(assert('itinerary has image', /!\[[^\]]*\]\([^)]+\)/.test(text), 'itinerary contains no markdown images'));
+
+      // 3a. Itinerary should have day headings at any level (## Day 1, ### Day 1, etc.)
+      results.push(assert('itinerary has day headings', /#{1,4}\s+Day\s+\d+/i.test(text), 'itinerary has no Day headings'));
+
+      // 3b. Itinerary should NOT contain duplicate "Points Flight Deals" markdown section
+      // (deals are now rendered as rich cards in the payload, not in the markdown)
+      const dealSectionCount = (text.match(/#{1,3}\s+Points\s+Flight\s+Deals/gi) || []).length;
+      results.push(assert('no duplicate deals section in markdown', dealSectionCount === 0, `found ${dealSectionCount} "Points Flight Deals" headings in itinerary markdown (should be 0 — deals are in payload cards)`));
+
+      // 3c. Itinerary should NOT contain "Want to tweak anything" (moved to UI element)
+      results.push(assert('no tweak prompt in markdown', !/want to tweak anything/i.test(text), 'itinerary markdown still contains "Want to tweak anything" (should be UI-only)'));
     } else {
       results.push(assert('good deal found', false, 'No GOOD_DEAL in first 50 to test itinerary'));
+    }
+
+    // 4. /api/chat should return route links and diverse deals for a plan_trip request.
+    try {
+      const chatRes = await fetchJson('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Plan a trip to Tokyo in October' })
+      }, 120000);
+
+      // Route links should be present and non-empty
+      const routeLinks = chatRes?.payload?.routeLinks || [];
+      results.push(assert('chat route links present', routeLinks.length > 0, `expected route links, got ${routeLinks.length}`));
+
+      // Deals should be diversified by origin (not all same origin)
+      const chatDeals = chatRes?.payload?.deals || [];
+      if (chatDeals.length > 0) {
+        const origins = new Set(chatDeals.map((d: any) => d.originCode));
+        results.push(assert('chat deals diversified by origin', origins.size > 1, `expected deals from multiple origins, got ${origins.size} unique origin(s): ${Array.from(origins).join(', ')}`));
+      } else {
+        results.push(assert('chat deals present', false, 'no deals returned in chat payload'));
+      }
+
+      // Response markdown should NOT contain "Points Flight Deals" heading
+      const responseText = chatRes?.response || '';
+      const mdDealHeadings = (responseText.match(/#{1,3}\s+Points\s+Flight\s+Deals/gi) || []).length;
+      results.push(assert('chat no deals in markdown', mdDealHeadings === 0, `chat response markdown contains ${mdDealHeadings} "Points Flight Deals" heading(s) (should be 0)`));
+    } catch (e) {
+      results.push(assert('chat endpoint test', false, `Failed to test /api/chat: ${(e as Error).message}`));
     }
   } catch (err) {
     results.push(assert('smoke test setup', false, `Failed to run smoke tests: ${(err as Error).message}`));

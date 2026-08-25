@@ -19,4 +19,9 @@ After every code update and deploy, run the flight-deal dashboard smoke test rou
    - `/api/deals` returns deals with real airline info (duration, stops, cashAirline, aircraftType, segments) from Seats.aero.
    - `/api/logistics-check` for a multi-stop deal mentions the real layover airport and stop count.
    - `/api/itinerary` for a GOOD_DEAL returns an itinerary containing at least one image.
+   - Itinerary has day headings at any markdown level (## Day 1, ### Day 1, etc.).
+   - Itinerary markdown does NOT contain a duplicate "Points Flight Deals" section (deals are in payload cards).
+   - Itinerary markdown does NOT contain "Want to tweak anything" (moved to a UI element).
+   - `/api/chat` for a plan_trip request returns route links and diversified deals (multiple origin cities).
+   - Chat response markdown does NOT contain a "Points Flight Deals" heading.
 6. If any assertions fail, report the failures, inspect the relevant code, and fix the issue before declaring the update complete.

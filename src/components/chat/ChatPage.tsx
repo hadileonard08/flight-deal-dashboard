@@ -47,7 +47,7 @@ function WeatherCard({ weather }: { weather?: any }) {
   if (!weather) return null;
   const summary = typeof weather === 'string' ? weather : JSON.stringify(weather, null, 2);
   return (
-    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3">
+    <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3 scroll-mt-20">
       <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
         <Sun size={18} /> Weather Outlook
       </div>
@@ -59,7 +59,7 @@ function WeatherCard({ weather }: { weather?: any }) {
 function PackingCard({ packingTips }: { packingTips?: string }) {
   if (!packingTips) return null;
   return (
-    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3">
+    <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3 scroll-mt-20">
       <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
         <Briefcase size={18} /> Packing Suggestions
       </div>
@@ -93,7 +93,7 @@ function DealsList({ deals }: { deals?: any[] }) {
     .slice(0, 5);
 
   return (
-    <div className="my-3">
+    <div id="section-deals" className="my-3 scroll-mt-20">
       <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
         <Plane size={18} /> Points Flight Deals
       </div>
@@ -147,7 +147,7 @@ function DealsList({ deals }: { deals?: any[] }) {
 function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
   if (!routeLinks || routeLinks.length === 0) return null;
   return (
-    <div className="my-3">
+    <div id="section-routes" className="my-3 scroll-mt-20">
       <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
         <Map size={18} /> Daily Routes
       </div>
@@ -677,7 +677,19 @@ export default function ChatPage() {
           {(() => {
             const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
             if (!lastAssistant || !lastAssistant.content) return null;
-            const headings = extractHeadings(lastAssistant.content);
+
+            // Markdown headings from the itinerary text
+            const mdHeadings = extractHeadings(lastAssistant.content);
+
+            // Payload sections (weather, packing, deals, routes) rendered as UI cards
+            const payload = lastAssistant.payload;
+            const payloadHeadings: { id: string; label: string; level: number }[] = [];
+            if (payload?.weather) payloadHeadings.push({ id: 'section-weather', label: 'Weather Outlook', level: 2 });
+            if (payload?.packingTips) payloadHeadings.push({ id: 'section-packing', label: 'Packing Suggestions', level: 2 });
+            if (payload?.deals?.length) payloadHeadings.push({ id: 'section-deals', label: 'Points Flight Deals', level: 2 });
+            if (payload?.routeLinks?.length) payloadHeadings.push({ id: 'section-routes', label: 'Daily Routes', level: 2 });
+
+            const headings = [...mdHeadings, ...payloadHeadings];
             if (headings.length < 2) return null;
 
             const jumpTo = (id: string) => {
@@ -747,6 +759,12 @@ export default function ChatPage() {
 
         {/* Input area */}
         <div className="bg-white border-t border-gray-200 p-4">
+          {/* Tweak prompt — shown after assistant responds */}
+          {messages.length > 0 && !isLoading && messages[messages.length - 1]?.role === 'assistant' && (
+            <div className="max-w-3xl mx-auto mb-3 text-center text-sm text-gray-400 italic">
+              Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it.
+            </div>
+          )}
           {!isSignedIn && messages.length > 0 ? (
             <div className="max-w-3xl mx-auto mb-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center justify-between">
               <span className="text-sm text-amber-800">Sign in to save this itinerary across devices.</span>
