@@ -1,5 +1,5 @@
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
-import { getChatModel, getReasoningModel } from '../lib/ai-provider';
+import { getChatModel, getQualityModel, getReasoningModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
@@ -19,6 +19,7 @@ import type {
 } from '../lib/chat-state';
 
 const llm = getChatModel(0.4);
+const qualityLlm = getQualityModel(0.4);
 
 const COMPANION_PERSONA = `You are Jalan, a friendly travel companion. You are warm, curious, and helpful — like a friend who loves planning trips. Use a conversational tone, ask one or two follow-up questions when needed, and avoid sounding robotic or overly formal. Keep responses concise but useful.`;
 
@@ -475,7 +476,7 @@ Getting around / transport:
 Output the response as markdown.
 `;
 
-  const res = await llm!.invoke(prompt);
+  const res = await qualityLlm!.invoke(prompt);
   return res.content as string;
 }
 
