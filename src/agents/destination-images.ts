@@ -226,16 +226,79 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
     const cleanedT = cleanTerm(t);
     if (!cleanedT) continue;
 
-    // Try Wikimedia Commons first.
+    // Source 1: Wikimedia Commons (public domain, high quality).
     const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
     if (commonsUrl && !isFlagUrl(commonsUrl)) return commonsUrl;
 
-    // Fallback: Wikipedia article lead image (better for non-English landmark names).
+    // Source 2: Wikipedia article lead image (better for non-English landmark names).
     const wikiUrl = await fetchWikipediaArticleImage(cleanedT);
     if (wikiUrl && !isFlagUrl(wikiUrl)) return wikiUrl;
+
+    // Source 3: Openverse (Creative Commons images from Flickr, Wikimedia, etc.).
+    const openverseUrl = await fetchOpenverseImage(cleanedT);
+    if (openverseUrl && !isFlagUrl(openverseUrl)) return openverseUrl;
+
+    // Source 4: Pexels (free stock photos, requires PEXELS_API_KEY).
+    const pexelsUrl = await fetchPexelsImage(cleanedT);
+    if (pexelsUrl && !isFlagUrl(pexelsUrl)) return pexelsUrl;
   }
 
   return null;
+}
+
+// Source 3: Openverse — free Creative Commons image search (no API key required).
+// Searches millions of CC-licensed images from Flickr, Wikimedia, etc.
+async function fetchOpenverseImage(term: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://api.openverse.engineering/v1/images/?q=${encodeURIComponent(term)}&page_size=5`,
+      {
+        headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' },
+      }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    if (!data?.results || data.results.length === 0) return null;
+
+    for (const result of data.results) {
+      const url = result.url || result.thumbnail;
+      if (url && !isFlagUrl(url)) {
+        // Prefer the higher-res url, but thumbnail is OK too.
+        return result.url && !isFlagUrl(result.url) ? result.url : result.thumbnail;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.log('Openverse image lookup failed for', term, ':', (error as Error).message);
+    return null;
+  }
+}
+
+// Source 4: Pexels — free stock photos (requires PEXELS_API_KEY).
+async function fetchPexelsImage(term: string): Promise<string | null> {
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey || apiKey.includes('your_pexels_api_key')) return null;
+
+  try {
+    const res = await fetch(
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&per_page=5`,
+      {
+        headers: { Authorization: apiKey },
+      }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as any;
+    if (!data?.photos || data.photos.length === 0) return null;
+
+    for (const photo of data.photos) {
+      const url = photo.src?.medium || photo.src?.small || photo.src?.original;
+      if (url && !isFlagUrl(url)) return url;
+    }
+    return null;
+  } catch (error) {
+    console.log('Pexels image lookup failed for', term, ':', (error as Error).message);
+    return null;
+  }
 }
 
 /**
