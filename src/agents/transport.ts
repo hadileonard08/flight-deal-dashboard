@@ -102,7 +102,7 @@ async function getOSRMRoute(
   profile: 'walking' | 'driving'
 ): Promise<{ durationMin: number; distanceKm: number } | null> {
   try {
-    const url = `https://router.project-osrm.org/route/v1/${profile}/${from.lon},${from.lat};${to.lon},${from.lat}?overview=false`;
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
     const res = await fetch(url, { headers: { 'User-Agent': 'flight-deal-dashboard/1.0' } });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
