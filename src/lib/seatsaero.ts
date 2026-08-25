@@ -346,7 +346,33 @@ export async function searchSeatsAeroLive(params: LiveSearchParams): Promise<any
       }
     }
 
-    const topDeals = deals.sort((a, b) => a.pointsRequired - b.pointsRequired).slice(0, 5);
+    const sorted = deals.sort((a, b) => a.pointsRequired - b.pointsRequired);
+
+    // When the user didn't specify an origin, diversify by origin city:
+    // pick the cheapest deal from each unique origin, then fill remaining slots
+    // with the next cheapest across all origins.
+    const hasUserOrigin = params.originCode && params.originCode.length > 0;
+    let topDeals: any[];
+
+    if (hasUserOrigin) {
+      topDeals = sorted.slice(0, 5);
+    } else {
+      const byOrigin = new Map<string, any[]>();
+      for (const d of sorted) {
+        const arr = byOrigin.get(d.originCode) || [];
+        arr.push(d);
+        byOrigin.set(d.originCode, arr);
+      }
+      topDeals = [];
+      // Round-robin: take cheapest from each origin in turn
+      const pools = Array.from(byOrigin.values());
+      let idx = 0;
+      while (topDeals.length < 5 && pools.some((p) => p.length > 0)) {
+        const pool = pools[idx % pools.length];
+        if (pool.length > 0) topDeals.push(pool.shift()!);
+        idx++;
+      }
+    }
 
     await Promise.all(
       topDeals.map(async (deal) => {

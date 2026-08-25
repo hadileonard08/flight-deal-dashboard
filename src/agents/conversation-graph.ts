@@ -362,10 +362,31 @@ async function getRelevantDeals(entities: ExtractedEntities) {
     .from(flights)
     .innerJoin(deals, eq(deals.flightId, flights.id))
     .where(and(...conditions))
-    .orderBy(deals.category)
-    .limit(5);
+    .orderBy(deals.category, flights.pointsRequired)
+    .limit(50);
 
-  if (rows.length > 0) return rows;
+  if (rows.length > 0) {
+    if (originCode) {
+      // User specified origin — just return top 5 cheapest
+      return rows.slice(0, 5);
+    }
+    // No origin specified — diversify by origin city: pick cheapest from each
+    const byOrigin = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const arr = byOrigin.get(r.originCode) || [];
+      arr.push(r);
+      byOrigin.set(r.originCode, arr);
+    }
+    const diversified: typeof rows = [];
+    const pools = Array.from(byOrigin.values());
+    let idx = 0;
+    while (diversified.length < 5 && pools.some((p) => p.length > 0)) {
+      const pool = pools[idx % pools.length];
+      if (pool.length > 0) diversified.push(pool.shift()!);
+      idx++;
+    }
+    return diversified;
+  }
 
   // Fallback to live Seats.aero search if no cached deals match.
   return searchSeatsAeroLive({
