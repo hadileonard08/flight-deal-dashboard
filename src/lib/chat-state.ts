@@ -33,6 +33,7 @@ export interface ChatPayload {
   images?: Record<string, string>;
   itinerary?: string;
   routeLinks?: RouteLink[];
+  transportPlan?: any;
   packingTips?: string;
   feedback?: string[];
 }

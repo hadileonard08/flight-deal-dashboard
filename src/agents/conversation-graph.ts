@@ -4,6 +4,7 @@ import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
 import { verifyItineraryLandmarks, buildRouteLinks } from './itinerary-guardrails';
+import { buildTransportPlan } from './transport';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
@@ -35,6 +36,7 @@ const ConversationStateAnnotation = Annotation.Root({
   images: Annotation<Record<string, string>>({ reducer: (_curr, next) => next, default: () => ({}) }),
   itinerary: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   routeLinks: Annotation<RouteLink[]>({ reducer: (_curr, next) => next, default: () => [] }),
+  transportPlan: Annotation<any | null>({ reducer: (_curr, next) => next, default: () => null }),
   packingTips: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   criticFeedback: Annotation<string[]>({ reducer: (_curr, next) => next, default: () => [] }),
   isApproved: Annotation<boolean>({ reducer: (_curr, next) => next, default: () => false }),
@@ -294,6 +296,11 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
 
   const routeLinks = destination ? buildRouteLinks(itinerary, destination) : [];
 
+  // Build the transport plan from the extracted route links.
+  const transportPlan = routeLinks.length > 0
+    ? await buildTransportPlan(routeLinks, destination).catch(() => null)
+    : null;
+
   return {
     weather: weatherResult,
     news: newsResult,
@@ -301,6 +308,7 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     images: { destination: imageResult || '' },
     itinerary,
     routeLinks,
+    transportPlan,
     packingTips,
   };
 }

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X, List } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X, List, Navigation } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
@@ -176,6 +176,57 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
   );
 }
 
+function TransportCard({ transportPlan }: { transportPlan?: any }) {
+  if (!transportPlan) return null;
+  const { cityTransitTips, estimatedCosts, days } = transportPlan;
+  if (!cityTransitTips && !estimatedCosts && (!days || days.length === 0)) return null;
+
+  return (
+    <div id="section-transport" className="my-3 bg-green-50 border border-green-100 rounded-xl p-4 scroll-mt-20">
+      <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+        <Navigation size={18} /> Transport & Getting Around
+      </div>
+
+      {cityTransitTips && (
+        <div className="text-sm text-green-900 mb-3">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{cityTransitTips}</ReactMarkdown>
+        </div>
+      )}
+
+      {days && days.length > 0 && (
+        <div className="space-y-2 mb-3">
+          <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Daily Route Times</div>
+          {days.map((d: any, i: number) => (
+            <div key={i} className="bg-white/60 rounded-lg p-2">
+              <div className="text-xs font-medium text-gray-700 mb-1">
+                Day {d.day}{d.title ? `: ${d.title}` : ''} <span className="text-gray-400 font-normal">— {d.summary}</span>
+              </div>
+              <div className="space-y-1">
+                {d.legs.map((leg: any, j: number) => (
+                  <div key={j} className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="font-medium text-gray-700">{leg.recommendedMode}</span>
+                    <span className="text-gray-400">|</span>
+                    <span className="truncate">{leg.from} → {leg.to}</span>
+                    {leg.walkMinutes && (
+                      <span className="text-gray-400 flex-shrink-0">({leg.walkMinutes}min walk{leg.distanceKm ? `, ${leg.distanceKm}km` : ''})</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {estimatedCosts && (
+        <div className="text-sm text-green-900">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{estimatedCosts}</ReactMarkdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
@@ -227,6 +278,7 @@ function RichPayload({ payload, onSaveTrip, isSignedIn }: { payload: ChatPayload
         </div>
       ) : null}
       <WeatherCard weather={payload.weather} />
+      <TransportCard transportPlan={payload.transportPlan} />
       <PackingCard packingTips={payload.packingTips} />
       <DealsList deals={payload.deals} />
       <RouteLinks routeLinks={payload.routeLinks} />
@@ -692,10 +744,11 @@ export default function ChatPage() {
             // Markdown headings from the itinerary text
             const mdHeadings = extractHeadings(lastAssistant.content);
 
-            // Payload sections (weather, packing, deals, routes) rendered as UI cards
+            // Payload sections (weather, transport, packing, deals, routes) rendered as UI cards
             const payload = lastAssistant.payload;
             const payloadHeadings: { id: string; label: string; level: number }[] = [];
             if (payload?.weather) payloadHeadings.push({ id: 'section-weather', label: 'Weather Outlook', level: 2 });
+            if (payload?.transportPlan) payloadHeadings.push({ id: 'section-transport', label: 'Transport & Getting Around', level: 2 });
             if (payload?.packingTips) payloadHeadings.push({ id: 'section-packing', label: 'Packing Suggestions', level: 2 });
             if (payload?.deals?.length) payloadHeadings.push({ id: 'section-deals', label: 'Points Flight Deals', level: 2 });
             if (payload?.routeLinks?.length) payloadHeadings.push({ id: 'section-routes', label: 'Daily Routes', level: 2 });

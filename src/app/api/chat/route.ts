@@ -109,6 +109,7 @@ export async function POST(req: Request) {
           images: result.images,
           itinerary: result.itinerary,
           routeLinks: result.routeLinks,
+          transportPlan: result.transportPlan || undefined,
           packingTips: result.packingTips,
           feedback: result.criticFeedback?.length ? result.criticFeedback : undefined,
         };
