@@ -72,24 +72,48 @@ async function getOSRMRoute(
 }
 
 function recommendMode(walkMin: number | null, driveMin: number | null, distanceKm: number | null): { mode: string; note: string } {
+  // No routing data — suggest general options
   if (!walkMin && !driveMin) {
-    return { mode: 'Transit/Taxi', note: 'Check local transit or ride-share options.' };
+    return { mode: 'Transit/Taxi', note: 'Check local transit or ride-share.' };
   }
+
+  // Short distance — walk
   if (walkMin !== null && walkMin <= 15) {
-    return { mode: 'Walk', note: `Short ${walkMin}-min walk (${distanceKm}km).` };
+    return { mode: '🚶 Walk', note: `~${walkMin} min walk` };
   }
+
+  // Medium distance — walk if driving isn't much faster
   if (walkMin !== null && walkMin <= 25 && (!driveMin || driveMin >= 8)) {
-    return { mode: 'Walk', note: `${walkMin}-min walk (${distanceKm}km) — pleasant and faster than traffic.` };
+    return { mode: '🚶 Walk', note: `~${walkMin} min walk (${distanceKm}km)` };
   }
+
+  // Short drive but long walk — subway/metro for intra-city
   if (driveMin !== null && driveMin <= 10 && walkMin && walkMin > 25) {
-    return { mode: 'Transit/Ride-share', note: `${driveMin}-min drive (${distanceKm}km). Use local transit or ride-share.` };
+    if (distanceKm !== null && distanceKm <= 3) {
+      return { mode: '🚇 Subway/Metro', note: `~${driveMin} min by transit (${distanceKm}km)` };
+    }
+    return { mode: '🚇 Subway/🚕 Taxi', note: `~${driveMin} min by transit or taxi (${distanceKm}km)` };
   }
-  if (distanceKm !== null && distanceKm > 5) {
-    return { mode: 'Transit/Ride-share', note: `${distanceKm}km — recommend local transit or ride-share.` };
+
+  // Medium drive distance — train or subway
+  if (distanceKm !== null && distanceKm > 3 && distanceKm <= 5) {
+    return { mode: '🚇 Subway/🚕 Taxi', note: `~${driveMin || 15} min by transit or taxi (${distanceKm}km)` };
   }
+
+  // Long distance — train or ride-share
+  if (distanceKm !== null && distanceKm > 5 && distanceKm <= 15) {
+    return { mode: '🚆 Train/🚕 Taxi', note: `~${driveMin || 20} min by train or taxi (${distanceKm}km)` };
+  }
+
+  // Very long distance — train or bus
+  if (distanceKm !== null && distanceKm > 15) {
+    return { mode: '🚆 Train/🚌 Bus', note: `~${driveMin || 30} min by train or bus (${distanceKm}km)` };
+  }
+
+  // Fallback
   return {
-    mode: 'Transit',
-    note: `${walkMin ? `${walkMin}-min walk` : 'Unknown walk'} or ${driveMin ? `${driveMin}-min drive` : 'unknown drive'} — choose based on weather and luggage.`,
+    mode: '🚇 Transit',
+    note: `${walkMin ? `~${walkMin} min walk` : 'unknown walk'} or ${driveMin ? `~${driveMin} min transit` : 'unknown transit'}`,
   };
 }
 
@@ -247,18 +271,15 @@ export async function buildTransportPlan(
 }
 
 function formatLegNote(leg: LegInfo): string {
-  const parts: string[] = [];
-  if (leg.walkMinutes) parts.push(`${leg.walkMinutes}min walk`);
-  if (leg.driveMinutes && leg.walkMinutes && leg.walkMinutes > 25) parts.push(`${leg.driveMinutes}min drive`);
-  if (leg.distanceKm) parts.push(`${leg.distanceKm}km`);
-  const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
-  return `- **${leg.recommendedMode}**: ${leg.from} → ${leg.to}${detail}`;
+  // The note already contains the duration and distance.
+  // Format: **🚶 Walk** · ~12 min walk — Senso-ji → Tokyo Skytree
+  return `- **${leg.recommendedMode}** · ${leg.note} — ${leg.from} → ${leg.to}`;
 }
 
 function formatDayNote(day: DayTransport): string {
   if (!day.legs || day.legs.length === 0) return '';
   const lines = day.legs.map(formatLegNote);
-  return `\n\n**🚶 Transport (real times via routing):**\n${lines.join('\n')}`;
+  return `\n\n**🚶 Getting around (real times via routing):**\n${lines.join('\n')}`;
 }
 
 /**

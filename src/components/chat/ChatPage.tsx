@@ -753,9 +753,11 @@ export default function ChatPage() {
             return (
               <>
                 {/* Desktop sidebar */}
-                <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Sections</div>
-                  {sectionButtons}
+                <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 sticky top-0 self-start max-h-screen overflow-hidden">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2 flex-shrink-0">Sections</div>
+                  <div className="overflow-y-auto flex-1">
+                    {sectionButtons}
+                  </div>
                 </nav>
 
                 {/* Mobile floating button */}
