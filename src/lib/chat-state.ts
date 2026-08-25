@@ -10,7 +10,7 @@ export interface ExtractedEntities {
   cabin?: 'ECONOMY' | 'PREMIUM_ECONOMY' | 'BUSINESS' | 'FIRST';
   travelers?: number;
   budget?: string;
-  intent?: 'plan_trip' | 'ask_question' | 'refine' | 'greeting';
+  intent?: 'plan_trip' | 'ask_question' | 'refine' | 'greeting' | 'vague';
 }
 
 export interface ClarifyingQuestion {

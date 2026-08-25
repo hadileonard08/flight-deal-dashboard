@@ -80,6 +80,7 @@ Instructions:
   - ask_question: user is asking a specific question OR looking for deals without a full itinerary (e.g. "When is the best time to visit Japan?", "find any deal to Tokyo in December", "show me cheap flights to Bangkok", "what's the weather like?")
   - refine: user wants to change something about an earlier plan
   - greeting: user just said hi or similar
+  - vague: user's message is too vague to act on — no destination, no dates, no clear question (e.g. "I want to travel", "help me", "trips", "something fun")
 
 Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget.
 
@@ -216,13 +217,26 @@ function inferDurationDays(text: string): number | undefined {
 async function clarifyNode(state: typeof ConversationStateAnnotation.State) {
   if (!llm) throw new Error('AI provider not configured');
 
+  const isVague = state.entities.intent === 'vague';
   const missing = state.missingFields.slice(0, 3);
-  const prompt = `${COMPANION_PERSONA}
+
+  let prompt: string;
+  if (isVague) {
+    prompt = `${COMPANION_PERSONA}
+
+The user said something vague — no clear destination, dates, or question. Be warm and curious. Ask a friendly follow-up to learn what kind of trip they're dreaming about. Give a few concrete examples to spark ideas (e.g. a beach weekend, a foodie city break, an adventure trip). Keep it short, conversational, and enthusiastic — like a friend who loves planning trips.
+
+User's message: "${state.userMessage}"
+
+Respond ONLY in plain text (no JSON, no markdown headers).`;
+  } else {
+    prompt = `${COMPANION_PERSONA}
 
 The user is planning a trip but we are missing: ${missing.join(', ')}.
 Ask ONE short, conversational clarifying question to get the missing info. Suggest a few example answers inline. Keep it friendly and brief. Do not list numbered questions.
 
 Respond ONLY in plain text (no JSON, no markdown headers).`;
+  }
 
   const res = await llm.invoke(prompt);
   const finalResponse = (res.content as string).trim() || 'I need a bit more info to plan your trip.';
@@ -231,6 +245,7 @@ Respond ONLY in plain text (no JSON, no markdown headers).`;
 
 function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {
   if (state.entities.intent === 'greeting') return 'respond';
+  if (state.entities.intent === 'vague') return 'clarify';
   if (state.entities.intent === 'ask_question') {
     if (state.missingFields.length > 0) return 'clarify';
     return 'answer';

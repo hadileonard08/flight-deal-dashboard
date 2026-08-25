@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
@@ -204,6 +204,74 @@ function RichPayload({ payload, onSaveTrip, isSignedIn }: { payload: ChatPayload
   );
 }
 
+function SidebarContent({
+  conversations,
+  activeConversationId,
+  onLoadConversation,
+  onNewChat,
+  isSignedIn,
+}: {
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  onLoadConversation: (id: string) => void;
+  onNewChat: () => void;
+  isSignedIn: boolean;
+}) {
+  return (
+    <>
+      <div className="p-3">
+        <button
+          onClick={onNewChat}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={18} /> New trip
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+        {conversations.map((c) => (
+          <div
+            key={c.id}
+            onClick={() => onLoadConversation(c.id)}
+            className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+              activeConversationId === c.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            <span className="truncate flex items-center">
+              <History size={14} className="inline mr-2 opacity-50 flex-shrink-0" />
+              {c.title || 'Trip'}
+            </span>
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!confirm('Delete this conversation?')) return;
+                await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
+                mutate('/api/chat/conversations');
+              }}
+              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              title="Delete conversation"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="p-4 border-t border-gray-200">
+        {!isSignedIn ? (
+          <SignInButtonWrapper mode="modal">
+            <button className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors">
+              <LogIn size={18} /> Sign in
+            </button>
+          </SignInButtonWrapper>
+        ) : (
+          <div className="flex items-center justify-center">
+            <UserButtonWrapper afterSignOutUrl="/" />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function ChatPage() {
   const { isSignedIn, isLoaded } = useUser();
   const [messages, setMessages] = useState<ChatMessageUI[]>([]);
@@ -211,6 +279,7 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [oneStopOpen, setOneStopOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -422,68 +491,53 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col hidden md:flex">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-          <WalkersIcon className="text-blue-600" size={24} />
-          <span className="font-bold text-lg">Jalan</span>
-        </div>
-        <div className="p-3">
-          <button
-            onClick={startNewChat}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={18} /> New trip
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {conversations.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => loadConversation(c.id)}
-              className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                activeConversationId === c.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
-              }`}
-            >
-              <span className="truncate flex items-center">
-                <History size={14} className="inline mr-2 opacity-50 flex-shrink-0" />
-                {c.title || 'Trip'}
-              </span>
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (!confirm('Delete this conversation?')) return;
-                  await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
-                  mutate('/api/chat/conversations');
-                  if (activeConversationId === c.id) startNewChat();
-                }}
-                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                title="Delete conversation"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="p-4 border-t border-gray-200">
-          {!isSignedIn ? (
-            <SignInButtonWrapper mode="modal">
-              <button className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors">
-                <LogIn size={18} /> Sign in
-              </button>
-            </SignInButtonWrapper>
-          ) : (
-            <div className="flex items-center justify-center">
-              <UserButtonWrapper afterSignOutUrl="/" />
-            </div>
-          )}
-        </div>
+      {/* Desktop Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex-col hidden md:flex">
+        <SidebarContent
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onLoadConversation={loadConversation}
+          onNewChat={startNewChat}
+          isSignedIn={isSignedIn}
+        />
       </aside>
+
+      {/* Mobile sidebar drawer */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+          <aside className="relative w-64 bg-white border-r border-gray-200 flex-col flex h-full shadow-xl">
+            <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <WalkersIcon className="text-blue-600" size={22} />
+                <span className="font-bold text-lg">Jalan</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-gray-900">
+                <X size={20} />
+              </button>
+            </div>
+            <SidebarContent
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              onLoadConversation={(id) => { loadConversation(id); setSidebarOpen(false); }}
+              onNewChat={() => { startNewChat(); setSidebarOpen(false); }}
+              isSignedIn={isSignedIn}
+            />
+          </aside>
+        </div>
+      )}
 
       {/* Main chat */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Mobile header */}
-        <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-end">
+        <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 text-gray-700 hover:text-blue-600 transition-colors"
+            title="Trips"
+          >
+            <Menu size={22} />
+          </button>
           <div className="flex items-center gap-2">
             {isSignedIn ? (
               <button
