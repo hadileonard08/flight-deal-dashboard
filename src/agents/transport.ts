@@ -1,6 +1,52 @@
 import { getChatModel } from '../lib/ai-provider';
 import type { RouteLink } from './itinerary-guardrails';
 
+// Generic transit terms that the LLM might use as stop names.
+// These don't geocode well and should be treated as "take transit" legs
+// rather than walkable destinations.
+const GENERIC_TRANSIT_TERMS = [
+  'mtr', 'subway', 'metro', 'underground', 'tube', 'u-bahn', 's-bahn',
+  'train', 'rail', 'railway', 'jr', 'jr line', 'shinkansen',
+  'bus', 'bus stop', 'tram', 'streetcar', 'trolley',
+  'ferry', 'boat', 'water taxi',
+  'taxi', 'uber', 'ride', 'ride-share', 'rideshare',
+  'transit', 'public transport', 'station', 'stop',
+];
+
+function isGenericTransitTerm(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  // Check if the name IS just a generic term (e.g. "MTR", "Subway")
+  if (GENERIC_TRANSIT_TERMS.includes(lower)) return true;
+  // Check if the name is a generic term + "station" (e.g. "MTR Station", "Train Station")
+  if (GENERIC_TRANSIT_TERMS.some(term => lower === `${term} station` || lower === `${term} stop`)) return true;
+  return false;
+}
+
+// Map generic transit terms to a friendly mode label.
+function transitTermToMode(name: string): { mode: string; note: string } | null {
+  const lower = name.toLowerCase().trim();
+  if (lower.includes('mtr') || lower.includes('subway') || lower.includes('metro') || lower.includes('underground') || lower.includes('tube') || lower.includes('u-bahn')) {
+    return { mode: '🚇 Subway/Metro', note: 'Take the metro to the next stop' };
+  }
+  if (lower.includes('train') || lower.includes('rail') || lower.includes('jr') || lower.includes('s-bahn') || lower.includes('shinkansen')) {
+    return { mode: '🚆 Train', note: 'Take the train to the next stop' };
+  }
+  if (lower.includes('bus')) {
+    return { mode: '🚌 Bus', note: 'Take the bus to the next stop' };
+  }
+  if (lower.includes('tram') || lower.includes('streetcar') || lower.includes('trolley')) {
+    return { mode: '🚊 Tram', note: 'Take the tram to the next stop' };
+  }
+  if (lower.includes('ferry') || lower.includes('boat') || lower.includes('water taxi')) {
+    return { mode: '⛴️ Ferry', note: 'Take the ferry to the next stop' };
+  }
+  if (lower.includes('taxi') || lower.includes('uber') || lower.includes('ride')) {
+    return { mode: '🚕 Taxi/Ride-share', note: 'Take a taxi or ride-share' };
+  }
+  // Generic transit
+  return { mode: '🚇 Transit', note: 'Take local transit to the next stop' };
+}
+
 export interface LegInfo {
   from: string;
   to: string;
@@ -141,6 +187,25 @@ async function buildDayTransport(
     const to = geocoded[i + 1];
     const fromName = segments[i];
     const toName = segments[i + 1];
+
+    // If either stop is a generic transit term (e.g. "MTR", "Subway", "Train"),
+    // don't try to route it — just label it as a transit leg.
+    const fromIsGeneric = isGenericTransitTerm(fromName);
+    const toIsGeneric = isGenericTransitTerm(toName);
+    if (fromIsGeneric || toIsGeneric) {
+      const genericName = fromIsGeneric ? fromName : toName;
+      const transitInfo = transitTermToMode(genericName);
+      legs.push({
+        from: fromName,
+        to: toName,
+        walkMinutes: null,
+        driveMinutes: null,
+        distanceKm: null,
+        recommendedMode: transitInfo?.mode || '🚇 Transit',
+        note: transitInfo?.note || 'Take local transit to the next stop',
+      });
+      continue;
+    }
 
     if (!from || !to) {
       legs.push({
