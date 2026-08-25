@@ -4,7 +4,7 @@ import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
 import { verifyItineraryLandmarks, buildRouteLinks } from './itinerary-guardrails';
-import { buildTransportPlan } from './transport';
+import { buildTransportPlan, injectTransportNotes } from './transport';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
 import { eq, gte, lte, inArray, and } from 'drizzle-orm';
@@ -301,12 +301,17 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     ? await buildTransportPlan(routeLinks, destination).catch(() => null)
     : null;
 
+  // Inject real transport times into each day's itinerary section.
+  const itineraryWithTransport = transportPlan
+    ? injectTransportNotes(itinerary, transportPlan)
+    : itinerary;
+
   return {
     weather: weatherResult,
     news: newsResult,
     deals: dealsResult,
     images: { destination: imageResult || '' },
-    itinerary,
+    itinerary: itineraryWithTransport,
     routeLinks,
     transportPlan,
     packingTips,
@@ -457,7 +462,7 @@ Requirements:
 
 Getting around / transport:
 - Include a short "Getting Around" section near the top with general city transit tips (e.g. local metro, day pass, walking, local trains, ride-share).
-- For each day, include a brief transport note (1-2 sentences) summarizing how to move between the main stops. You may mention approximate time and common transit modes, but do NOT invent exact train names, line colors, departure times, or station names you are unsure about. Use general, clearly real options (e.g., "local metro", "city bus", "a short walk", "taxi/ride-share").
+- Do NOT write per-day transport notes — a dedicated transport agent will inject real walking/driving times and mode recommendations after the itinerary is generated.
 
 Output the response as markdown.
 `;

@@ -238,3 +238,52 @@ export async function buildTransportPlan(
     days: dayTransports,
   };
 }
+
+function formatLegNote(leg: LegInfo): string {
+  const parts: string[] = [];
+  if (leg.walkMinutes) parts.push(`${leg.walkMinutes}min walk`);
+  if (leg.driveMinutes && leg.walkMinutes && leg.walkMinutes > 25) parts.push(`${leg.driveMinutes}min drive`);
+  if (leg.distanceKm) parts.push(`${leg.distanceKm}km`);
+  const detail = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+  return `- **${leg.recommendedMode}**: ${leg.from} → ${leg.to}${detail}`;
+}
+
+function formatDayNote(day: DayTransport): string {
+  if (!day.legs || day.legs.length === 0) return '';
+  const lines = day.legs.map(formatLegNote);
+  return `\n\n**🚶 Transport (real times via routing):**\n${lines.join('\n')}`;
+}
+
+/**
+ * Injects real transport notes from the transport agent into each day's
+ * section of the itinerary markdown. Finds day headings at any level
+ * (## Day 1, ### Day 1, etc.) and appends the transport note at the end
+ * of that day's block (before the next day heading).
+ */
+export function injectTransportNotes(itinerary: string, plan: TransportPlan | null): string {
+  if (!plan || !plan.days || plan.days.length === 0) return itinerary;
+
+  // Build a map of day number → formatted note
+  const notesByDay = new Map<string, string>();
+  for (const day of plan.days) {
+    const note = formatDayNote(day);
+    if (note) notesByDay.set(day.day, note);
+  }
+
+  if (notesByDay.size === 0) return itinerary;
+
+  // Split by day headings at any level, keeping delimiters
+  const blocks = itinerary.split(/(?=#+\s+Day\s+\d+)/i);
+
+  const result = blocks.map((block) => {
+    const match = block.match(/#+\s+Day\s+(\d+)/i);
+    if (!match) return block;
+    const dayNum = match[1];
+    const note = notesByDay.get(dayNum);
+    if (!note) return block;
+    // Append the transport note at the end of this day's block
+    return block.trimEnd() + note + '\n';
+  });
+
+  return result.join('');
+}
