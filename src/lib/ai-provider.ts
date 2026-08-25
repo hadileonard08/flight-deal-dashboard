@@ -10,7 +10,7 @@ export const hasOpenAI = !!openaiKey && !openaiKey.includes('your_openai_api_key
 export const hasAIProvider = hasGemini || hasOpenAI;
 export const activeProvider: 'gemini' | 'openai' | 'none' = hasGemini ? 'gemini' : hasOpenAI ? 'openai' : 'none';
 
-const DEFAULT_GEMINI_MODEL = process.env.CHAT_MODEL || 'gemini-flash-lite-latest';
+const DEFAULT_GEMINI_MODEL = process.env.CHAT_MODEL || 'gemini-2.0-flash';
 const DEFAULT_OPENAI_MODEL = process.env.CHAT_MODEL || 'gpt-4o-mini';
 
 export function getChatModel(temperature = 0.4, modelName?: string) {
@@ -38,7 +38,7 @@ export function getChatModel(temperature = 0.4, modelName?: string) {
 export function getReasoningModel(temperature = 0.2) {
   if (hasGemini) {
     return new ChatGoogleGenerativeAI({
-      model: 'gemini-flash-latest',
+      model: 'gemini-2.0-flash',
       apiKey: geminiKey,
       temperature,
       maxRetries: 3,
