@@ -129,11 +129,23 @@ function expandImageTerm(term: string): string[] {
   if (!base.toLowerCase().includes('landmark')) variants.push(`${base} landmark`);
   if (!base.toLowerCase().includes('city')) variants.push(`${base} city`);
 
+  // Add variations for places that may be called different things
+  if (!base.toLowerCase().endsWith('station')) variants.push(`${base} station`);
+  if (!base.toLowerCase().endsWith('street')) variants.push(`${base} street`);
+  if (!base.toLowerCase().endsWith('district')) variants.push(`${base} district`);
+  if (!base.toLowerCase().endsWith('market')) variants.push(`${base} market`);
+  if (!base.toLowerCase().endsWith('park')) variants.push(`${base} park`);
+  if (!base.toLowerCase().endsWith('temple')) variants.push(`${base} temple`);
+
   // Strip generic suffixes and try the shorter name (e.g. "Senso-ji Temple" -> "Senso-ji").
-  const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine)$/i, '').trim();
+  const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine|Station|Street|Market|District|Building)$/i, '').trim();
   if (stripped && stripped !== base) {
     variants.push(stripped);
   }
+
+  // Also add photo/building variants
+  variants.push(`${base} photo`);
+  variants.push(`${base} building`);
 
   return [...new Set(variants)];
 }
@@ -274,29 +286,64 @@ export async function hydrateItineraryImages(
   // Track used URLs to prevent duplicate images across days.
   const usedUrls = new Set<string>();
 
+  // Pre-fetch a destination image as final fallback for any day whose
+  // landmark image can't be found. Every day must have an image.
+  let destinationImageUrl: string | null = null;
+  if (destinationName) {
+    destinationImageUrl = await getDestinationImageUrl(destinationName);
+  }
+
   const imageResults = await Promise.all(
     matches.map(async (match) => {
       const term = match[1].trim();
-      const fallbackTerms = destinationName && destinationName.toLowerCase() !== cleanTerm(term).toLowerCase()
-        ? [`${destinationName} ${term}`, `${term} ${destinationName}`]
-        : [];
+      const cleanedTerm = cleanTerm(term);
+      const fallbackTerms: string[] = [];
+
+      if (destinationName) {
+        const dest = destinationName;
+        const destLower = dest.toLowerCase();
+        const termLower = cleanedTerm.toLowerCase();
+
+        // Don't add destination as fallback if the term IS the destination.
+        if (destLower !== termLower) {
+          fallbackTerms.push(
+            `${dest} ${term}`,
+            `${term} ${dest}`,
+            `${dest} ${term} landmark`,
+            `${dest} ${term} photo`,
+            `${term} building ${dest}`,
+            `${term} ${dest} night`,
+            `${term} ${dest} skyline`,
+            `${dest} ${term} street`,
+          );
+        }
+      }
+
       let url = await getImageForTerm(term, fallbackTerms);
 
       // If this URL was already used for another landmark, try to find an alternative.
       if (url && usedUrls.has(url)) {
         const altTerms = [
-          `${term} ${destinationName || ''}`.trim(),
-          `${destinationName} ${term} landmark`,
+          destinationName ? `${destinationName} ${term} photo` : '',
+          destinationName ? `${destinationName} ${term} night` : '',
           `${term} building`,
           `${term} photo`,
-        ].filter(t => t && !fallbackTerms.includes(t));
-        const altUrl = await getImageForTerm(term, [...fallbackTerms, ...altTerms]);
+          `${term} landmark`,
+          destinationName ? `${destinationName} ${term} street` : '',
+          destinationName ? `${destinationName} ${term} district` : '',
+        ].filter((t): t is string => Boolean(t));
+        const uniqueAltTerms = altTerms.filter(t => !fallbackTerms.includes(t));
+        const altUrl = await getImageForTerm(term, [...fallbackTerms, ...uniqueAltTerms]);
         if (altUrl && !usedUrls.has(altUrl)) {
           url = altUrl;
-        } else {
-          // No unique alternative found — skip this image rather than duplicate.
-          url = null;
         }
+      }
+
+      // Last resort: use the destination image if we couldn't find a landmark image,
+      // but only if it hasn't been used yet. Better to show the destination image
+      // than no image at all.
+      if (!url && destinationImageUrl && !usedUrls.has(destinationImageUrl)) {
+        url = destinationImageUrl;
       }
 
       if (url) usedUrls.add(url);
@@ -308,7 +355,8 @@ export async function hydrateItineraryImages(
     if (url) {
       return acc.replace(match, `![${term}](${url})`);
     }
-    // Remove the placeholder entirely if no unique image was found.
-    return acc.replace(match, '');
+    // Keep a visible placeholder text if absolutely no image can be found.
+    // Better than a blank gap.
+    return acc.replace(match, `*${term}*`);
   }, itinerary);
 }
