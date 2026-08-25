@@ -226,13 +226,48 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
   return null;
 }
 
+/**
+ * Ensures every day heading in the itinerary has an image placeholder.
+ * If the LLM forgot to include ![IMAGE: ...] for some days, this function
+ * inserts one using the first bold landmark name found in that day's block.
+ * If no bold landmark is found, uses the destination name as a fallback.
+ */
+function ensureImagePlaceholders(itinerary: string, destinationName: string | null): string {
+  // Split by day headings at any level, keeping delimiters.
+  const blocks = itinerary.split(/(?=#+\s+Day\s+\d+)/i);
+
+  const result = blocks.map((block) => {
+    // Check if this block is a day section
+    const headingMatch = block.match(/(#+\s+Day\s+\d+[^\n]*)/i);
+    if (!headingMatch) return block;
+
+    // Check if there's already an image placeholder in this block
+    if (/!\[IMAGE:/i.test(block)) return block;
+
+    // Find the first bold landmark in this block (excluding the heading itself)
+    const linesAfterHeading = block.slice(headingMatch[0].length);
+    const boldMatch = linesAfterHeading.match(/\*\*([^*]+)\*\*/);
+    const landmark = boldMatch ? boldMatch[1].trim() : (destinationName || 'Landmark');
+
+    // Insert the placeholder right after the heading line
+    const headingEnd = block.indexOf(headingMatch[0]) + headingMatch[0].length;
+    return block.slice(0, headingEnd) + `\n\n![IMAGE: ${landmark}]` + block.slice(headingEnd);
+  });
+
+  return result.join('');
+}
+
 export async function hydrateItineraryImages(
   itinerary: string,
   destinationName: string | null = null
 ): Promise<string> {
+  // First, ensure every day has an image placeholder. If the LLM forgot to
+  // include one for some days, insert one using the first bold landmark.
+  const itineraryWithPlaceholders = ensureImagePlaceholders(itinerary, destinationName);
+
   // Match placeholders the model may emit, optionally with a fabricated URL.
   const placeholderRegex = /!\[IMAGE:\s*([^\]]+)\](?:\([^)]*\))?/g;
-  const matches = Array.from(itinerary.matchAll(placeholderRegex));
+  const matches = Array.from(itineraryWithPlaceholders.matchAll(placeholderRegex));
 
   if (matches.length === 0) return itinerary;
 
