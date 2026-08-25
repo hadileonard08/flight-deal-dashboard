@@ -679,7 +679,7 @@ export default function ChatPage() {
             const headings = extractHeadings(lastAssistant.content);
             if (headings.length < 2) return null;
             return (
-              <nav className="hidden lg:flex flex-col w-44 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
+              <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
                 <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Sections</div>
                 {headings.map((h) => (
                   <button
@@ -688,7 +688,7 @@ export default function ChatPage() {
                       const el = document.getElementById(h.id);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }}
-                    className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors truncate ${
+                    className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors break-words leading-snug ${
                       h.level === 1 ? 'font-semibold text-gray-700' : h.level === 2 ? 'text-gray-600' : 'text-gray-400 pl-4'
                     }`}
                     title={h.label}
