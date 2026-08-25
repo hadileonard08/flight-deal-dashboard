@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X, List } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
@@ -305,6 +305,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [oneStopOpen, setOneStopOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
@@ -672,31 +673,67 @@ export default function ChatPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Section navigator — right side mini tab */}
+          {/* Section navigator — right side mini tab (desktop) + floating button (mobile) */}
           {(() => {
             const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && m.content);
             if (!lastAssistant || !lastAssistant.content) return null;
             const headings = extractHeadings(lastAssistant.content);
             if (headings.length < 2) return null;
+
+            const jumpTo = (id: string) => {
+              const el = document.getElementById(id);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              setSectionsOpen(false);
+            };
+
+            const sectionButtons = headings.map((h) => (
+              <button
+                key={h.id}
+                onClick={() => jumpTo(h.id)}
+                className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors break-words leading-snug ${
+                  h.level === 1 ? 'font-semibold text-gray-700' : h.level === 2 ? 'text-gray-600' : 'text-gray-400 pl-4'
+                }`}
+                title={h.label}
+              >
+                {h.label}
+              </button>
+            ));
+
             return (
-              <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
-                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Sections</div>
-                {headings.map((h) => (
-                  <button
-                    key={h.id}
-                    onClick={() => {
-                      const el = document.getElementById(h.id);
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors break-words leading-snug ${
-                      h.level === 1 ? 'font-semibold text-gray-700' : h.level === 2 ? 'text-gray-600' : 'text-gray-400 pl-4'
-                    }`}
-                    title={h.label}
-                  >
-                    {h.label}
-                  </button>
-                ))}
-              </nav>
+              <>
+                {/* Desktop sidebar */}
+                <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 overflow-y-auto sticky top-0 self-start">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2">Sections</div>
+                  {sectionButtons}
+                </nav>
+
+                {/* Mobile floating button */}
+                <button
+                  onClick={() => setSectionsOpen(true)}
+                  className="lg:hidden fixed right-3 bottom-20 z-30 bg-blue-600 text-white rounded-full shadow-lg p-3 hover:bg-blue-700 transition-colors"
+                  title="Jump to section"
+                >
+                  <List size={20} />
+                </button>
+
+                {/* Mobile drawer */}
+                {sectionsOpen && (
+                  <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
+                    <div className="absolute inset-0 bg-black/30" onClick={() => setSectionsOpen(false)} />
+                    <nav className="relative w-60 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
+                      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-700">Sections</span>
+                        <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 hover:text-gray-900">
+                          <X size={18} />
+                        </button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                        {sectionButtons}
+                      </div>
+                    </nav>
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
