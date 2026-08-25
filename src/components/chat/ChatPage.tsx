@@ -266,35 +266,43 @@ function SidebarContent({
   activeConversationId,
   onLoadConversation,
   onNewChat,
+  onOpenOneStop,
   isSignedIn,
 }: {
   conversations: Conversation[];
   activeConversationId: string | null;
   onLoadConversation: (id: string) => void;
   onNewChat: () => void;
+  onOpenOneStop: () => void;
   isSignedIn: boolean;
 }) {
   return (
     <>
-      <div className="p-3">
+      <div className="p-3 space-y-1">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+          className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors"
         >
-          <Plus size={18} /> New trip
+          <Plus size={18} className="text-gray-500" /> New trip
+        </button>
+        <button
+          onClick={onOpenOneStop}
+          className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors"
+        >
+          <Bookmark size={18} className="text-gray-500" /> One Stop
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
+        <div className="text-xs font-medium text-gray-400 px-3 pb-1">Recent</div>
         {conversations.map((c) => (
           <div
             key={c.id}
             onClick={() => onLoadConversation(c.id)}
             className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-              activeConversationId === c.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+              activeConversationId === c.id ? 'bg-gray-100 text-gray-900' : 'hover:bg-gray-50 text-gray-600'
             }`}
           >
-            <span className="truncate flex items-center">
-              <History size={14} className="inline mr-2 opacity-50 flex-shrink-0" />
+            <span className="truncate flex items-center min-w-0">
               {c.title || 'Trip'}
             </span>
             <button
@@ -304,7 +312,7 @@ function SidebarContent({
                 await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
                 mutate('/api/chat/conversations');
               }}
-              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+              className="p-1 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
               title="Delete conversation"
             >
               <Trash2 size={14} />
@@ -312,16 +320,17 @@ function SidebarContent({
           </div>
         ))}
       </div>
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-3 border-t border-gray-100">
         {!isSignedIn ? (
           <SignInButtonWrapper mode="modal">
-            <button className="w-full flex items-center justify-center gap-2 bg-gray-900 text-white py-2 px-4 rounded-lg hover:bg-gray-800 transition-colors">
-              <LogIn size={18} /> Sign in
+            <button className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors">
+              <LogIn size={18} className="text-gray-500" /> Sign in
             </button>
           </SignInButtonWrapper>
         ) : (
-          <div className="flex items-center justify-center">
+          <div className="flex items-center gap-2 px-3 py-1">
             <UserButtonWrapper afterSignOutUrl="/" />
+            <span className="text-sm text-gray-500">Account</span>
           </div>
         )}
       </div>
@@ -566,12 +575,13 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Desktop Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex-col hidden md:flex">
+      <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
         <SidebarContent
           conversations={conversations}
           activeConversationId={activeConversationId}
           onLoadConversation={loadConversation}
           onNewChat={startNewChat}
+          onOpenOneStop={() => setOneStopOpen(true)}
           isSignedIn={isSignedIn}
         />
       </aside>
@@ -595,6 +605,7 @@ export default function ChatPage() {
               activeConversationId={activeConversationId}
               onLoadConversation={(id) => { loadConversation(id); setSidebarOpen(false); }}
               onNewChat={() => { startNewChat(); setSidebarOpen(false); }}
+              onOpenOneStop={() => { setOneStopOpen(true); setSidebarOpen(false); }}
               isSignedIn={isSignedIn}
             />
           </aside>
@@ -604,64 +615,38 @@ export default function ChatPage() {
       {/* Main chat */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Mobile header */}
-        <div className="md:hidden bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+        <div className="md:hidden bg-white border-b border-gray-100 p-3 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 text-gray-700 hover:text-blue-600 transition-colors"
-            title="Trips"
+            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+            title="Menu"
           >
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            {isSignedIn ? (
-              <button
-                onClick={() => setOneStopOpen(true)}
-                className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
-              >
-                <Bookmark size={14} /> One Stop
-              </button>
-            ) : (
-              <SignInButtonWrapper mode="modal">
-                <button className="flex items-center gap-1 text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
-                  <Bookmark size={14} /> One Stop
-                </button>
-              </SignInButtonWrapper>
-            )}
-            {!isSignedIn ? (
-              <SignInButtonWrapper mode="modal">
-                <button className="text-sm bg-gray-900 text-white px-3 py-1.5 rounded-lg">Sign in</button>
-              </SignInButtonWrapper>
-            ) : (
-              <UserButtonWrapper afterSignOutUrl="/" />
-            )}
+            <div className="flex items-center gap-1.5 text-gray-700 font-semibold">
+              <WalkersIcon className="text-blue-600" size={18} />
+              <span>Jalan</span>
+            </div>
           </div>
+          {!isSignedIn ? (
+            <SignInButtonWrapper mode="modal">
+              <button className="text-sm text-blue-600 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">Sign in</button>
+            </SignInButtonWrapper>
+          ) : (
+            <UserButtonWrapper afterSignOutUrl="/" />
+          )}
         </div>
 
-        {/* Desktop header */}
-        <div className="hidden md:flex items-center justify-end bg-white border-b border-gray-200 px-6 py-3">
-          <div className="flex items-center gap-3">
-            {isSignedIn ? (
-              <button
-                onClick={() => setOneStopOpen(true)}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
-              >
-                <Bookmark size={16} /> One Stop
-              </button>
-            ) : (
-              <SignInButtonWrapper mode="modal">
-                <button className="flex items-center gap-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors">
-                  <Bookmark size={16} /> One Stop
-                </button>
-              </SignInButtonWrapper>
-            )}
-            {!isSignedIn ? (
-              <SignInButtonWrapper mode="modal">
-                <button className="text-sm bg-gray-900 text-white px-3 py-2 rounded-lg hover:bg-gray-800">Sign in</button>
-              </SignInButtonWrapper>
-            ) : (
-              <UserButtonWrapper afterSignOutUrl="/" />
-            )}
-          </div>
+        {/* Desktop header — minimal, just account on the right */}
+        <div className="hidden md:flex items-center justify-end bg-white border-b border-gray-100 px-6 py-2.5">
+          {!isSignedIn ? (
+            <SignInButtonWrapper mode="modal">
+              <button className="text-sm text-blue-600 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">Sign in</button>
+            </SignInButtonWrapper>
+          ) : (
+            <UserButtonWrapper afterSignOutUrl="/" />
+          )}
         </div>
 
         {/* Messages + section navigator */}
@@ -769,8 +754,8 @@ export default function ChatPage() {
               <button
                 key={h.id}
                 onClick={() => jumpTo(h.id)}
-                className={`text-left text-xs px-2 py-1.5 rounded-md hover:bg-blue-50 hover:text-blue-600 transition-colors break-words leading-snug ${
-                  h.level === 1 ? 'font-semibold text-gray-700' : h.level === 2 ? 'text-gray-600' : 'text-gray-400 pl-4'
+                className={`text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-gray-100 transition-colors break-words leading-snug ${
+                  h.level === 1 ? 'font-medium text-gray-700' : h.level === 2 ? 'text-gray-500' : 'text-gray-400 pl-4'
                 }`}
                 title={h.label}
               >
@@ -780,10 +765,9 @@ export default function ChatPage() {
 
             return (
               <>
-                {/* Desktop sidebar */}
-                <nav className="hidden lg:flex flex-col w-52 border-l border-gray-100 bg-white/50 py-4 px-2 sticky top-0 self-start max-h-screen overflow-hidden">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-2 flex-shrink-0">Sections</div>
-                  <div className="overflow-y-auto flex-1">
+                {/* Desktop — slim right rail */}
+                <nav className="hidden lg:flex flex-col w-44 border-l border-gray-50 py-6 px-2 sticky top-0 self-start max-h-screen overflow-hidden">
+                  <div className="overflow-y-auto flex-1 space-y-0.5">
                     {sectionButtons}
                   </div>
                 </nav>
@@ -791,7 +775,7 @@ export default function ChatPage() {
                 {/* Mobile floating button */}
                 <button
                   onClick={() => setSectionsOpen(true)}
-                  className="lg:hidden fixed right-3 top-16 z-30 bg-blue-600 text-white rounded-full shadow-lg p-3 hover:bg-blue-700 transition-colors"
+                  className="lg:hidden fixed right-3 bottom-20 z-30 bg-white border border-gray-200 text-gray-600 rounded-full shadow-md p-2.5 hover:bg-gray-50 transition-colors"
                   title="Jump to section"
                 >
                   <List size={20} />
@@ -800,10 +784,10 @@ export default function ChatPage() {
                 {/* Mobile drawer */}
                 {sectionsOpen && (
                   <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
-                    <div className="absolute inset-0 bg-black/30" onClick={() => setSectionsOpen(false)} />
-                    <nav className="relative w-60 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
-                      <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-700">Sections</span>
+                    <div className="absolute inset-0 bg-black/20" onClick={() => setSectionsOpen(false)} />
+                    <nav className="relative w-56 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
+                      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-600">Sections</span>
                         <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 hover:text-gray-900">
                           <X size={18} />
                         </button>
