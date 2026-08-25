@@ -710,7 +710,7 @@ export default function ChatPage() {
                 {/* Mobile floating button */}
                 <button
                   onClick={() => setSectionsOpen(true)}
-                  className="lg:hidden fixed right-3 bottom-20 z-30 bg-blue-600 text-white rounded-full shadow-lg p-3 hover:bg-blue-700 transition-colors"
+                  className="lg:hidden fixed right-3 top-16 z-30 bg-blue-600 text-white rounded-full shadow-lg p-3 hover:bg-blue-700 transition-colors"
                   title="Jump to section"
                 >
                   <List size={20} />
