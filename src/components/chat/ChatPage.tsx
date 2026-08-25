@@ -178,8 +178,8 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
 
 function TransportCard({ transportPlan }: { transportPlan?: any }) {
   if (!transportPlan) return null;
-  const { cityTransitTips, estimatedCosts, days } = transportPlan;
-  if (!cityTransitTips && !estimatedCosts && (!days || days.length === 0)) return null;
+  const { cityTransitTips, estimatedCosts } = transportPlan;
+  if (!cityTransitTips && !estimatedCosts) return null;
 
   return (
     <div id="section-transport" className="my-3 bg-green-50 border border-green-100 rounded-xl p-4 scroll-mt-20">
@@ -190,31 +190,6 @@ function TransportCard({ transportPlan }: { transportPlan?: any }) {
       {cityTransitTips && (
         <div className="text-sm text-green-900 mb-3">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{cityTransitTips}</ReactMarkdown>
-        </div>
-      )}
-
-      {days && days.length > 0 && (
-        <div className="space-y-2 mb-3">
-          <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Daily Route Times</div>
-          {days.map((d: any, i: number) => (
-            <div key={i} className="bg-white/60 rounded-lg p-2">
-              <div className="text-xs font-medium text-gray-700 mb-1">
-                Day {d.day}{d.title ? `: ${d.title}` : ''} <span className="text-gray-400 font-normal">— {d.summary}</span>
-              </div>
-              <div className="space-y-1">
-                {d.legs.map((leg: any, j: number) => (
-                  <div key={j} className="flex items-center gap-2 text-xs text-gray-600">
-                    <span className="font-medium text-gray-700">{leg.recommendedMode}</span>
-                    <span className="text-gray-400">|</span>
-                    <span className="truncate">{leg.from} → {leg.to}</span>
-                    {leg.walkMinutes && (
-                      <span className="text-gray-400 flex-shrink-0">({leg.walkMinutes}min walk{leg.distanceKm ? `, ${leg.distanceKm}km` : ''})</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
         </div>
       )}
 

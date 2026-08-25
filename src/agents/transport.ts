@@ -223,11 +223,18 @@ export async function buildTransportPlan(
 ): Promise<TransportPlan | null> {
   if (!routeLinks || routeLinks.length === 0 || !destination) return null;
 
-  // Build per-day transport info (limit to first 5 days for API rate limits).
-  const daysToProcess = routeLinks.slice(0, 5);
-  const dayTransports = await Promise.all(
-    daysToProcess.map((rl) => buildDayTransport(rl, destination))
-  );
+  // Process all days, but batch them (3 at a time) to respect Nominatim's
+  // rate limit (~1 req/sec). Each day geocodes ~5 stops + routes them.
+  const BATCH_SIZE = 3;
+  const dayTransports: DayTransport[] = [];
+
+  for (let i = 0; i < routeLinks.length; i += BATCH_SIZE) {
+    const batch = routeLinks.slice(i, i + BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map((rl) => buildDayTransport(rl, destination))
+    );
+    dayTransports.push(...batchResults);
+  }
 
   // Generate city-level transit tips and cost estimates.
   const { tips, costs } = await generateCityTransitTips(destination, dayTransports);

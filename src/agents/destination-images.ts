@@ -175,6 +175,33 @@ async function fetchWikimediaCommonsImage(term: string): Promise<string | null> 
   }
 }
 
+// Fallback: use Wikipedia article API to find the lead image for a landmark.
+// This works better for non-English landmark names because Wikipedia articles
+// have redirects from localized names.
+async function fetchWikipediaArticleImage(term: string): Promise<string | null> {
+  try {
+    const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' };
+    // Search for the Wikipedia article
+    const searchRes = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
+      { headers }
+    );
+    if (!searchRes.ok) return null;
+    const data = (await searchRes.json()) as any;
+    const pages = data?.query?.pages;
+    if (!pages) return null;
+
+    for (const pageId in pages) {
+      const page = pages[pageId];
+      const thumb = page?.thumbnail?.source;
+      if (thumb && !isFlagUrl(thumb)) return thumb;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getImageForTerm(term: string, fallbackTerms: string[] = []): Promise<string | null> {
   if (!term) return null;
 
@@ -187,9 +214,13 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
     const cleanedT = cleanTerm(t);
     if (!cleanedT) continue;
 
-    // Use Wikimedia Commons search only.
+    // Try Wikimedia Commons first.
     const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
     if (commonsUrl && !isFlagUrl(commonsUrl)) return commonsUrl;
+
+    // Fallback: Wikipedia article lead image (better for non-English landmark names).
+    const wikiUrl = await fetchWikipediaArticleImage(cleanedT);
+    if (wikiUrl && !isFlagUrl(wikiUrl)) return wikiUrl;
   }
 
   return null;

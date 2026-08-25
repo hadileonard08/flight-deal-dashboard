@@ -266,7 +266,11 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
   let startDate = state.entities.startDate ? new Date(state.entities.startDate) : undefined;
   let endDate = state.entities.endDate ? new Date(state.entities.endDate) : undefined;
   if (startDate && !endDate) {
-    endDate = new Date(startDate.getTime() + DEFAULT_TRIP_DAYS * 24 * 60 * 60 * 1000);
+    // Use durationDays if provided, otherwise default to 5 days
+    const tripDays = state.entities.durationDays && state.entities.durationDays > 0
+      ? state.entities.durationDays
+      : DEFAULT_TRIP_DAYS;
+    endDate = new Date(startDate.getTime() + (tripDays - 1) * 24 * 60 * 60 * 1000);
     state.entities.endDate = endDate.toISOString().split('T')[0];
   }
   const cabin = state.entities.cabin || 'ECONOMY';
@@ -427,11 +431,13 @@ async function generateItinerary(state: typeof ConversationStateAnnotation.State
     const start = new Date(startDate);
     const end = new Date(endDate);
     numDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+  } else if (state.entities.durationDays && state.entities.durationDays > 0) {
+    numDays = state.entities.durationDays;
   }
 
   const dateContext = startDate
     ? `Trip dates: ${startDate}${endDate ? ` to ${endDate}` : ''} (${numDays} days)`
-    : `Trip window: ${state.entities.datesGeneral || 'upcoming'}`;
+    : `Trip window: ${state.entities.datesGeneral || 'upcoming'} (${numDays} days)`;
 
   const prompt = `${COMPANION_PERSONA}
 
@@ -453,7 +459,7 @@ ${feedback}
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.
-- MANDATORY: For EACH day, you MUST include exactly one image placeholder immediately after the day heading, in this exact format: ![IMAGE: specific landmark name]. No URLs. This is required for every single day — do not skip any day. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names.
+- MANDATORY: For EACH day, you MUST include exactly one image placeholder immediately after the day heading, in this exact format: ![IMAGE: specific landmark name]. No URLs. This is required for every single day — do not skip any day. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names. Always use the ENGLISH name of the landmark (e.g. "Helsinki Cathedral" not "Helsingin Tuomiokirkko", "Church of the Rock" not "Temppeliaukio Kirkko").
 - Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Louvre Museum**, **Montmartre**, **Eiffel Tower**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
