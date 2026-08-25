@@ -453,7 +453,7 @@ ${feedback}
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.
-- Include a day-by-day plan. For each day, after the heading include exactly one image placeholder: ![IMAGE: specific English landmark name]. No URLs. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names.
+- MANDATORY: For EACH day, you MUST include exactly one image placeholder immediately after the day heading, in this exact format: ![IMAGE: specific landmark name]. No URLs. This is required for every single day — do not skip any day. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names.
 - Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Louvre Museum**, **Montmartre**, **Eiffel Tower**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
@@ -553,10 +553,22 @@ Output the response as markdown without a heading.`;
 
 async function guardrailsNode(state: typeof ConversationStateAnnotation.State) {
   if (!state.itinerary) return { criticFeedback: [] };
+  const feedback: string[] = [];
+
+  // Check 1: Verify landmarks exist on Wikipedia.
   const unverified = await verifyItineraryLandmarks(state.itinerary, state.entities.destination);
-  if (unverified.length === 0) return { criticFeedback: [] };
-  const feedback = `The following places or landmarks could not be verified and may be hallucinated or closed: ${unverified.join(', ')}. Replace them with real, well-known attractions or transit options that are clearly documented.`;
-  return { criticFeedback: [feedback] };
+  if (unverified.length > 0) {
+    feedback.push(`The following places or landmarks could not be verified and may be hallucinated or closed: ${unverified.join(', ')}. Replace them with real, well-known attractions or transit options that are clearly documented.`);
+  }
+
+  // Check 2: Verify image placeholders are present for each day.
+  const dayCount = (state.itinerary.match(/#{1,4}\s+Day\s+\d+/gi) || []).length;
+  const placeholderCount = (state.itinerary.match(/!\[IMAGE:/gi) || []).length;
+  if (dayCount > 0 && placeholderCount < dayCount) {
+    feedback.push(`The itinerary has ${dayCount} day(s) but only ${placeholderCount} image placeholder(s). Every day MUST have exactly one image placeholder in the format ![IMAGE: landmark name] immediately after the day heading. Add the missing placeholders.`);
+  }
+
+  return { criticFeedback: feedback };
 }
 
 async function criticNode(state: typeof ConversationStateAnnotation.State) {
