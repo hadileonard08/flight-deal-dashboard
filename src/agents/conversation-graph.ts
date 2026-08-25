@@ -24,6 +24,7 @@ const qualityLlm = getQualityModel(0.4);
 const COMPANION_PERSONA = `You are Jalan, a friendly travel companion. You are warm, curious, and helpful — like a friend who loves planning trips. Use a conversational tone, ask one or two follow-up questions when needed, and avoid sounding robotic or overly formal. Keep responses concise but useful.`;
 
 const DEFAULT_TRIP_DAYS = 5;
+const MAX_TRIP_DAYS = 30; // Guardrail: cap itineraries at 30 days
 
 const ConversationStateAnnotation = Annotation.Root({
   userMessage: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
@@ -140,6 +141,28 @@ User: ${state.userMessage}
     const start = new Date(entities.startDate);
     const end = new Date(start.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
     entities.endDate = end.toISOString().split('T')[0];
+  }
+
+  // Guardrail: cap trip duration at MAX_TRIP_DAYS (30 days).
+  // Prevents absurd requests like "2 years" from generating 730 days.
+  if (entities.durationDays && entities.durationDays > MAX_TRIP_DAYS) {
+    entities.durationDays = MAX_TRIP_DAYS;
+    if (entities.startDate) {
+      const start = new Date(entities.startDate);
+      const end = new Date(start.getTime() + (MAX_TRIP_DAYS - 1) * 24 * 60 * 60 * 1000);
+      entities.endDate = end.toISOString().split('T')[0];
+    }
+  }
+  // Also cap if startDate + endDate span more than MAX_TRIP_DAYS
+  if (entities.startDate && entities.endDate) {
+    const start = new Date(entities.startDate);
+    const end = new Date(entities.endDate);
+    const spanDays = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > MAX_TRIP_DAYS) {
+      const cappedEnd = new Date(start.getTime() + (MAX_TRIP_DAYS - 1) * 24 * 60 * 60 * 1000);
+      entities.endDate = cappedEnd.toISOString().split('T')[0];
+      if (!entities.durationDays) entities.durationDays = MAX_TRIP_DAYS;
+    }
   }
 
   // For trip planning requests, default to a flexible date soon if the user didn't specify one.
@@ -436,6 +459,9 @@ async function generateItinerary(state: typeof ConversationStateAnnotation.State
     numDays = state.entities.durationDays;
   }
 
+  // Final safety cap: never generate more than MAX_TRIP_DAYS days
+  if (numDays > MAX_TRIP_DAYS) numDays = MAX_TRIP_DAYS;
+
   const dateContext = startDate
     ? `Trip dates: ${startDate}${endDate ? ` to ${endDate}` : ''} (${numDays} days)`
     : `Trip window: ${state.entities.datesGeneral || 'upcoming'} (${numDays} days)`;
@@ -461,7 +487,7 @@ ${feedback.includes('image placeholder') ? '⚠️ CRITICAL: The previous versio
 
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
-- Plan EXACTLY ${numDays} days. Do not add or skip days.
+- Plan EXACTLY ${numDays} days. Do not add or skip days.${numDays >= MAX_TRIP_DAYS ? ' (Note: the trip was capped at 30 days — mention this naturally in the intro if the user asked for longer.)' : ''}
 - MANDATORY: For EACH day, you MUST include exactly one image placeholder immediately after the day heading, in this exact format: ![IMAGE: specific landmark name]. No URLs. This is required for every single day — do not skip any day. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names. Always use the ENGLISH name of the landmark (e.g. "Helsinki Cathedral" not "Helsingin Tuomiokirkko", "Church of the Rock" not "Temppeliaukio Kirkko").
 - Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Louvre Museum**, **Montmartre**, **Eiffel Tower**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
