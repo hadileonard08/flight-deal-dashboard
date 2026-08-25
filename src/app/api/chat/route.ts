@@ -1,9 +1,6 @@
 import { randomUUID } from 'crypto';
 import { auth } from '@clerk/nextjs/server';
 import { cookies } from 'next/headers';
-import { eq } from 'drizzle-orm';
-import { db } from '@/db';
-import { conversations } from '@/db/schema';
 import { conversationGraph, generateTitle } from '@/agents/conversation-graph';
 import {
   getOrCreateConversation,
@@ -120,33 +117,20 @@ export async function POST(req: Request) {
         emit({ type: 'done', payload, conversationId: conversation.id });
 
         // Persist the assistant message and metadata after streaming is done.
-        // This is fire-and-forget: if the DB write fails for any reason
-        // (e.g. FK race in serverless environments), we don't want to show
-        // the user an error on top of a perfectly good response.
-        (async () => {
-          try {
-            // Re-validate the conversation still exists before saving.
-            // In rare cases the row may not be immediately visible after creation.
-            const [stillThere] = await db
-              .select({ id: conversations.id })
-              .from(conversations)
-              .where(eq(conversations.id, conversation.id))
-              .limit(1);
-            if (!stillThere) {
-              console.warn('Conversation not found after streaming, skipping persist:', conversation.id);
-              return;
-            }
-
-            await updateConversationMetadata(conversation.id, result.entities || {});
-            await saveMessage(conversation.id, {
-              role: 'assistant',
-              content: finalResponse,
-              payload,
-            });
-          } catch (persistError) {
-            console.error('Failed to persist assistant message:', persistError);
-          }
-        })();
+        // These are awaited so the save completes before the serverless
+        // function exits. Wrapped in their own try/catch so a DB failure
+        // (e.g. transient FK/connection issue) doesn't emit an error event
+        // to the client on top of a perfectly good response.
+        try {
+          await updateConversationMetadata(conversation.id, result.entities || {});
+          await saveMessage(conversation.id, {
+            role: 'assistant',
+            content: finalResponse,
+            payload,
+          });
+        } catch (persistError) {
+          console.error('Failed to persist assistant message:', persistError);
+        }
       } catch (error) {
         console.error('Chat error:', error);
         emit({
