@@ -162,6 +162,8 @@ function extractBoldLandmarks(markdown: string): string[] {
   return Array.from(markdown.matchAll(/\*\*([^*]+)\*\*/g))
     .map(m => m[1].trim())
     .filter(name => name.length > 3)
+    .filter(name => name.length < 80) // exclude multi-line paragraphs caught by **
+    .filter(name => !name.includes('\n')) // exclude multi-line content
     .filter(name => !excludePatterns.some(p => p.test(name)))
     .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
 }
