@@ -86,7 +86,9 @@ Instructions:
   - greeting: user just said hi or similar
   - vague: user's message is too vague to act on — no destination, no dates, no clear question (e.g. "I want to travel", "help me", "trips", "something fun")
 
-Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget.
+Optional fields: origin, endDate, cabin (ECONOMY | PREMIUM_ECONOMY | BUSINESS | FIRST), travelers, budget, interests.
+
+The "interests" field should capture any specific themes, activities, or preferences the user mentioned — e.g. "football", "food and nightlife", "art museums", "hiking and nature", "anime and gaming", "history and architecture", "shopping". This is free-form text, not an enum. If the user didn't mention any specific interests, leave it null.
 
 Respond ONLY in JSON:
 {
@@ -102,6 +104,7 @@ Respond ONLY in JSON:
     "cabin": "ECONOMY or null",
     "travelers": 2,
     "budget": "string or null",
+    "interests": "football, stadium tours" or null,
     "intent": "plan_trip | ask_question | refine | greeting"
   },
   "missingFields": ["field1", "field2"]
@@ -303,7 +306,7 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
   const [weatherResult, newsResult, imageResult, dealsResult] = await Promise.all([
     getWeatherData(destinationCode, startDate, endDate, destination),
     startDate
-      ? searchDestinationNews(destinationCode, startDate, endDate || startDate, destination).catch(() => null)
+      ? searchDestinationNews(destinationCode, startDate, endDate || startDate, destination, state.entities.interests || undefined).catch(() => null)
       : Promise.resolve(null),
     getDestinationImageUrl(destinationCode, destination).catch(() => null),
     getRelevantDeals(state.entities),
@@ -474,6 +477,10 @@ You are helping plan a trip. Write an enthusiastic, practical ${
 ${dateContext}
 Flight cabin: ${cabin}
 
+${state.entities.interests ? `The user is specifically interested in: ${state.entities.interests}. Tailor the itinerary around these interests — prioritize relevant attractions, activities, and venues. Still include a few iconic must-sees, but make the interest-themed activities the centerpiece.` : ''}
+
+${state.userMessage ? `User's original request: "${state.userMessage}"` : ''}
+
 Weather forecast or climate note:
 ${typeof weather === 'string' ? weather : JSON.stringify(weather)}
 
@@ -493,7 +500,7 @@ Requirements:
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
 - Keep the tone warm, like a friend sharing recommendations.
-- CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative.
+- CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative. For sports venues, use real stadium names (e.g. "Emirates Stadium", "Stamford Bridge", "Wembley Stadium", "Old Trafford").
 - When mentioning transit, use SPECIFIC station/stop names, not generic system names. For example: "Tsim Sha Tsui MTR Station" not "MTR"; "Shinjuku Station" not "JR Line"; "Châtelet Metro Station" not "Metro". This is needed for route planning.
 
 Getting around / transport:
@@ -512,12 +519,14 @@ async function generatePackingTips(state: typeof ConversationStateAnnotation.Sta
   const weather = state.weather;
   const startDate = state.entities.startDate;
   const endDate = state.entities.endDate;
+  const interests = state.entities.interests;
   const prompt = `${COMPANION_PERSONA}
 
 Write a concise, friendly packing list for a trip to ${destination} from ${startDate || ''} to ${
     endDate || startDate || ''
   }.
 Weather/context: ${typeof weather === 'string' ? weather : JSON.stringify(weather) || 'unknown'}.
+${interests ? `The traveler is interested in: ${interests}. Include interest-specific items if relevant (e.g. comfortable walking shoes for stadium tours, team scarf/jersey for football, swimwear for beach trips, camera for photography trips).` : ''}
 Output only a markdown bullet list.
 `;
   const res = await llm!.invoke(prompt);
@@ -543,7 +552,7 @@ async function answerNode(state: typeof ConversationStateAnnotation.State) {
   const [dealsResult, weatherResult, newsResult] = await Promise.all([
     getRelevantDeals({ ...state.entities, startDate: startDate.toISOString().split('T')[0], endDate: endDate?.toISOString().split('T')[0] }),
     getWeatherData(destinationCode, startDate, endDate, destination).catch(() => null),
-    searchDestinationNews(destinationCode, startDate, endDate || startDate, destination).catch(() => null),
+    searchDestinationNews(destinationCode, startDate, endDate || startDate, destination, state.entities.interests || undefined).catch(() => null),
   ]);
 
   const dealsText = dealsResult.length

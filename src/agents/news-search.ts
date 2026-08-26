@@ -13,7 +13,8 @@ export async function searchDestinationNews(
   destinationCode: string,
   tripStart: Date,
   tripEnd: Date,
-  destinationName?: string
+  destinationName?: string,
+  interests?: string
 ): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
 
@@ -34,8 +35,12 @@ export async function searchDestinationNews(
     return null;
   }
 
+  const interestsContext = interests
+    ? ` The traveler is specifically interested in: ${interests}. Also search for events, news, and happenings related to these interests during the trip window (e.g. sports fixtures, festivals, exhibitions, conventions).`
+    : '';
+
   const prompt = `Search the web for real, current news relevant to a traveler visiting ${cityName} between ${formatDateForPrompt(tripStart)} and ${formatDateForPrompt(tripEnd)}.
-Look specifically for: notable festivals or seasonal happenings, major public holidays or closures, weather advisories, safety/travel advisories, transit disruptions, and any newsworthy events during that window.
+Look specifically for: notable festivals or seasonal happenings, major public holidays or closures, weather advisories, safety/travel advisories, transit disruptions, and any newsworthy events during that window.${interestsContext}
 Respond with a concise markdown bullet list (max 6 bullets) of only what you actually find via search, each with a one-line summary. If you find nothing relevant, respond with exactly: NO_RELEVANT_NEWS`;
 
   try {

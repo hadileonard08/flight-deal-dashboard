@@ -11,6 +11,7 @@ export interface ExtractedEntities {
   travelers?: number;
   budget?: string;
   intent?: 'plan_trip' | 'ask_question' | 'refine' | 'greeting' | 'vague';
+  interests?: string;
 }
 
 export interface ClarifyingQuestion {
