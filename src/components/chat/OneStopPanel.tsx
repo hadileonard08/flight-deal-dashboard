@@ -34,7 +34,7 @@ function formatStops(stops?: number | null): string {
   return `${stops} stops`;
 }
 
-function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: SavedTrip) => void }) {
+function SavedTripCard({ trip, onUpdate, onDelete }: { trip: SavedTrip; onUpdate: (trip: SavedTrip) => void; onDelete?: () => void }) {
   const [activeTab, setActiveTab] = useState<'deals' | 'itinerary' | 'routes' | 'packing' | 'todos' | 'notes'>('deals');
   const [todoText, setTodoText] = useState('');
 
@@ -85,13 +85,24 @@ function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: S
             {trip.dates || 'Dates TBD'}
           </div>
         </div>
-        <button
-          onClick={copyToClipboard}
-          className="text-gray-400 hover:text-blue-600 p-1"
-          title="Copy trip summary"
-        >
-          <Clipboard size={16} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={copyToClipboard}
+            className="text-gray-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Copy trip summary"
+          >
+            <Clipboard size={16} />
+          </button>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              title="Delete trip"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex overflow-x-auto border-b border-gray-200">
@@ -361,16 +372,7 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
             </div>
           ) : savedTrips.length === 1 ? (
             <div className="flex-1 overflow-y-auto p-6">
-              <div className="relative">
-                <button
-                  onClick={() => deleteTrip(savedTrips[0].id)}
-                  className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
-                  title="Delete trip"
-                >
-                  <Trash2 size={14} />
-                </button>
-                <SavedTripCard trip={savedTrips[0]} onUpdate={updateTrip} />
-              </div>
+              <SavedTripCard trip={savedTrips[0]} onUpdate={updateTrip} onDelete={() => deleteTrip(savedTrips[0].id)} />
             </div>
           ) : (
             <div className="flex-1 flex overflow-hidden">
@@ -407,16 +409,7 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
               {/* Active trip detail */}
               <div className="flex-1 overflow-y-auto p-6">
                 {activeTrip ? (
-                  <div className="relative">
-                    <button
-                      onClick={() => deleteTrip(activeTrip.id)}
-                      className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
-                      title="Delete trip"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                    <SavedTripCard trip={activeTrip} onUpdate={updateTrip} />
-                  </div>
+                  <SavedTripCard trip={activeTrip} onUpdate={updateTrip} onDelete={() => deleteTrip(activeTrip.id)} />
                 ) : (
                   <div className="text-center text-gray-400 py-16">Select a trip from the left.</div>
                 )}
