@@ -202,6 +202,138 @@ function TransportCard({ transportPlan }: { transportPlan?: any }) {
   );
 }
 
+// Loading step indicator — shows which pipeline steps have completed.
+const PIPELINE_STEPS = [
+  { status: 'Thinking...', label: 'Understanding your request', icon: '🧠' },
+  { status: 'Asking a quick question...', label: 'Clarifying details', icon: '💬' },
+  { status: 'Looking that up...', label: 'Finding deals', icon: '✈️' },
+  { status: 'Planning your trip...', label: 'Building your itinerary', icon: '🗺️' },
+  { status: 'Double-checking...', label: 'Verifying landmarks', icon: '✓' },
+  { status: 'Putting it all together...', label: 'Finalizing', icon: '✨' },
+];
+
+function LoadingSteps({ currentStatus }: { currentStatus?: string }) {
+  const currentIdx = PIPELINE_STEPS.findIndex(s => s.status === currentStatus);
+  // If we don't recognize the status, show a generic spinner.
+  if (currentIdx === -1) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-blue-600 animate-pulse py-1">
+        <Loader2 size={14} className="animate-spin" />
+        {currentStatus || 'Working...'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-2 space-y-1.5">
+      {PIPELINE_STEPS.map((step, i) => {
+        const isDone = i < currentIdx;
+        const isActive = i === currentIdx;
+        return (
+          <div
+            key={i}
+            className={`flex items-center gap-2.5 text-sm transition-all ${
+              isDone ? 'text-gray-400' : isActive ? 'text-blue-600' : 'text-gray-300'
+            }`}
+          >
+            <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center text-xs rounded-full ${
+              isDone ? 'bg-green-100 text-green-600' : isActive ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 text-gray-400'
+            }`}>
+              {isDone ? '✓' : step.icon}
+            </span>
+            <span className={isActive ? 'font-medium' : ''}>{step.label}</span>
+            {isActive && <Loader2 size={12} className="animate-spin ml-auto" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Split itinerary markdown into sections by "Day X" headings so each day
+// can be rendered as a visual card with a colored left border.
+function renderItineraryMarkdown(markdown: string): React.ReactNode {
+  // Find all "## Day X" or "### Day X" heading positions.
+  const dayHeadingRegex = /^(#{2,3})\s+(Day\s+\d+.*)$/gm;
+  const matches: { index: number; line: string; level: number; title: string }[] = [];
+  let m;
+  while ((m = dayHeadingRegex.exec(markdown)) !== null) {
+    matches.push({ index: m.index, line: m[0], level: m[1].length, title: m[2] });
+  }
+
+  // If no day headings, render as normal markdown.
+  if (matches.length === 0) {
+    return <ItineraryMarkdown>{markdown}</ItineraryMarkdown>;
+  }
+
+  const sections: React.ReactNode[] = [];
+
+  // Content before the first day heading (intro, weather, getting around, etc.)
+  const beforeFirst = markdown.substring(0, matches[0].index).trim();
+  if (beforeFirst) {
+    sections.push(<ItineraryMarkdown key="intro">{beforeFirst}</ItineraryMarkdown>);
+  }
+
+  // Each day section.
+  matches.forEach((match, i) => {
+    const start = match.index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : markdown.length;
+    const sectionContent = markdown.substring(start, end).trim();
+    const dayNum = i + 1;
+
+    sections.push(
+      <div
+        key={`day-${i}`}
+        id={slug(match.title)}
+        className="day-card bg-white border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-20"
+      >
+        <ItineraryMarkdown>{sectionContent}</ItineraryMarkdown>
+      </div>
+    );
+  });
+
+  return <div className="space-y-1">{sections}</div>;
+}
+
+// Reusable markdown renderer with consistent component overrides.
+function ItineraryMarkdown({ children }: { children: string }) {
+  return (
+    <div className="prose prose-sm max-w-none overflow-x-auto">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 id={slug(children)} className="text-xl font-bold text-gray-900 mt-2 mb-1">{children}</h1>,
+          h2: ({ children }) => {
+            const text = typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : String(children || '');
+            const isDayHeading = /^Day\s+\d+/i.test(text);
+            return (
+              <h2
+                id={slug(children)}
+                className={`font-bold mt-0 mb-2 ${isDayHeading ? 'text-lg text-blue-700 flex items-center gap-2' : 'text-lg text-gray-900'}`}
+              >
+                {isDayHeading && <span className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 text-white text-sm rounded-lg font-bold">{text.match(/Day\s+(\d+)/i)?.[1] || ''}</span>}
+                {isDayHeading ? text.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '') : children}
+              </h2>
+            );
+          },
+          h3: ({ children }) => <h3 id={slug(children)} className="text-base font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+          img: ({ src, alt }) => (
+            <figure className="my-3">
+              <img src={src} alt={alt} className="max-w-full h-auto rounded-xl shadow-md" />
+              {alt && alt !== 'IMAGE' && <figcaption className="text-xs text-gray-400 mt-1 text-center">{alt}</figcaption>}
+            </figure>
+          ),
+          table: ({ children }) => <div className="overflow-x-auto my-2"><table className="text-xs">{children}</table></div>,
+          a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">{children}</a>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+          ul: ({ children }) => <ul className="space-y-0.5 my-2">{children}</ul>,
+          li: ({ children }) => <li className="text-gray-700">{children}</li>,
+        }}
+      >{children}</ReactMarkdown>
+    </div>
+  );
+}
+
 function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
@@ -209,24 +341,8 @@ function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMess
 
   return (
     <div className="space-y-1">
-      {message.status ? (
-        <div className="flex items-center gap-2 text-sm text-blue-600 animate-pulse">
-          <Loader2 size={14} className="animate-spin" />
-          {message.status}
-        </div>
-      ) : null}
-      <div className="prose prose-sm max-w-none overflow-x-auto">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            h1: ({ children }) => <h1 id={slug(children)}>{children}</h1>,
-            h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
-            h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
-            img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full h-auto rounded-lg" />,
-            table: ({ children }) => <div className="overflow-x-auto"><table>{children}</table></div>,
-          }}
-        >{message.content}</ReactMarkdown>
-      </div>
+      {message.status ? <LoadingSteps currentStatus={message.status} /> : null}
+      {message.content ? renderItineraryMarkdown(message.content) : null}
       {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} isSignedIn={isSignedIn} /> : null}
     </div>
   );
@@ -574,6 +690,12 @@ export default function ChatPage() {
     <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
+        <div className="p-4 flex items-center gap-2 border-b border-gray-50">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-1.5 rounded-lg">
+            <WalkersIcon className="text-white" size={18} />
+          </div>
+          <span className="font-bold text-lg text-gray-900">Jalan</span>
+        </div>
         <SidebarContent
           conversations={conversations}
           activeConversationId={activeConversationId}
@@ -674,34 +796,52 @@ export default function ChatPage() {
               </div>
             )}
             {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                <div className="bg-blue-100 text-blue-600 p-4 rounded-full mb-4">
-                  <MapPin size={32} />
+              <div className="h-full flex flex-col items-center justify-center text-center px-4 max-w-2xl mx-auto">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-5 rounded-3xl mb-5 shadow-lg">
+                  <WalkersIcon className="text-white" size={40} />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-2">Plan your next trip</h1>
-                <p className="text-gray-500 max-w-md">
-                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary, check the weather, find points deals, and suggest what to pack.
+                <h1 className="text-3xl font-bold text-gray-900 mb-3">Where to next?</h1>
+                <p className="text-gray-500 max-w-md mb-6">
+                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, transport routing, and Wikipedia-verified landmarks.
                 </p>
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  {['Tokyo in October', 'Honeymoon in Thailand', 'Budget trip to Seoul'].map((s) => (
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  {[
+                    { label: '🗼 Tokyo in October', msg: 'Plan a 5-day trip to Tokyo in October 2025' },
+                    { label: '🏖️ Beach week in Bali', msg: 'Plan a relaxing beach trip to Bali for 7 days in November' },
+                    { label: '🍜 Food trip to Bangkok', msg: 'Plan a 4-day food trip to Bangkok in December 2025' },
+                    { label: '⚽ Football in London', msg: 'Plan a 3-day football trip to London in October 2025. I want to visit stadiums.' },
+                    { label: '💍 Honeymoon in Santorini', msg: 'Plan a romantic 5-day honeymoon in Santorini in June 2025' },
+                    { label: '🎒 Budget Seoul weekend', msg: 'Plan a budget 3-day trip to Seoul in March 2025' },
+                  ].map((s) => (
                     <button
-                      key={s}
-                      onClick={() => { sendMessage(s); }}
-                      className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                      key={s.label}
+                      onClick={() => { sendMessage(s.msg); }}
+                      className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm transition-all"
                     >
-                      {s}
+                      {s.label}
                     </button>
                   ))}
+                </div>
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-gray-400">
+                  <span className="flex items-center gap-1">🌤️ Real weather</span>
+                  <span className="flex items-center gap-1">✈️ Live flight deals</span>
+                  <span className="flex items-center gap-1">🗺️ Transport routing</span>
+                  <span className="flex items-center gap-1">✓ Wikipedia-verified</span>
                 </div>
               </div>
             ) : (
               messages.map((m) => (
-                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'} message-fade-in`}>
+                  {m.role === 'assistant' && (
+                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-sm mt-1">
+                      <WalkersIcon className="text-white" size={18} />
+                    </div>
+                  )}
                   <div
-                    className={`max-w-3xl w-full md:w-auto min-w-0 px-5 py-3 rounded-2xl shadow-sm ${
+                    className={`max-w-3xl w-full md:w-auto min-w-0 px-5 py-3 rounded-2xl ${
                       m.role === 'user'
-                        ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                        ? 'bg-blue-600 text-white rounded-br-md'
+                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
                     }`}
                   >
                     <MessageContent
@@ -808,24 +948,30 @@ export default function ChatPage() {
         />
 
         {/* Input area */}
-        <div className="bg-white border-t border-gray-200 p-4">
-          <div className="max-w-3xl mx-auto flex items-end gap-2">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="I want to go to Tokyo in October..."
-              rows={1}
-              className="flex-1 resize-none max-h-32 border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              disabled={isLoading}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || isLoading}
-              className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
-            </button>
+        <div className="bg-white border-t border-gray-100 px-4 py-3">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all px-1 py-1">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Where do you want to go?"
+                rows={1}
+                className="flex-1 resize-none max-h-32 bg-transparent px-3 py-2.5 focus:outline-none text-gray-800 placeholder:text-gray-400"
+                disabled={isLoading}
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || isLoading}
+                className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                title="Send"
+              >
+                {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 text-center mt-1.5">
+              Press Enter to send · Shift+Enter for new line
+            </p>
           </div>
         </div>
       </main>

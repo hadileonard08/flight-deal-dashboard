@@ -24,3 +24,55 @@ pre, code {
   overflow-x: auto;
   white-space: nowrap;
 }
+
+/* Message fade-in animation */
+.message-fade-in {
+  animation: messageFadeIn 0.3s ease-out;
+}
+
+@keyframes messageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Day card styling — visual separation between itinerary days */
+.day-card {
+  background: linear-gradient(to right, rgba(59, 130, 246, 0.02), transparent 30%);
+  transition: box-shadow 0.2s ease;
+}
+
+.day-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* Day card images — rounded with shadow */
+.day-card img {
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Smooth scroll for section navigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar — subtle and modern */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 6px;
+}
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
