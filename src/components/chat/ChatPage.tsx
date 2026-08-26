@@ -769,10 +769,10 @@ export default function ChatPage() {
     <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
-        <div className="p-4 flex items-center gap-2 border-b border-gray-50">
+        <a href="/" className="p-4 flex items-center gap-2 border-b border-gray-50 hover:bg-gray-50 transition-colors">
           <WalkersIcon className="text-blue-600" size={22} />
           <span className="font-bold text-lg text-gray-900">Jalan</span>
-        </div>
+        </a>
         <SidebarContent
           conversations={conversations}
           activeConversationId={activeConversationId}
@@ -789,10 +789,10 @@ export default function ChatPage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-64 bg-white border-r border-gray-200 flex-col flex h-full shadow-xl">
             <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <WalkersIcon className="text-blue-600" size={22} />
                 <span className="font-bold text-lg">Jalan</span>
-              </div>
+              </a>
               <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-gray-900">
                 <X size={20} />
               </button>
@@ -821,10 +821,10 @@ export default function ChatPage() {
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-gray-700 font-semibold">
+            <a href="/" className="flex items-center gap-1.5 text-gray-700 font-semibold hover:opacity-80 transition-opacity">
               <WalkersIcon className="text-blue-600" size={18} />
               <span>Jalan</span>
-            </div>
+            </a>
           </div>
           {!isSignedIn ? (
             <SignInButtonWrapper mode="modal">
