@@ -995,8 +995,8 @@ export default function ChatPage() {
             return (
               <>
                 {/* Desktop — section navigation rail */}
-                <nav className="hidden lg:flex flex-col w-56 border-l border-gray-100 bg-gray-50/50 py-6 px-3 sticky top-0 self-start max-h-screen overflow-hidden">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-3">
+                <nav className="hidden lg:flex flex-col w-56 border-l border-gray-100 bg-gray-50/50 py-6 px-3 h-full overflow-hidden">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-3 flex-shrink-0">
                     Sections
                   </div>
                   <div className="overflow-y-auto flex-1 space-y-2 pr-1">
