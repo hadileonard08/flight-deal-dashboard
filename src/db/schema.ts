@@ -72,3 +72,18 @@ export const messages = pgTable('messages', {
   conversationIdx: index('messages_conversation_id_idx').on(table.conversationId),
   createdAtIdx: index('messages_created_at_idx').on(table.createdAt),
 }));
+
+// Shared trips — a snapshot of a conversation's latest itinerary that can
+// be viewed by anyone with the share ID. Used for the "Share trip link" feature.
+export const sharedTrips = pgTable('shared_trips', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  userId: varchar('user_id', { length: 255 }),
+  title: varchar('title', { length: 255 }),
+  destination: varchar('destination', { length: 255 }),
+  itinerary: text('itinerary').notNull(),
+  payload: text('payload'), // JSON: full ChatPayload (weather, deals, images, etc.)
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  conversationIdx: index('shared_trips_conversation_id_idx').on(table.conversationId),
+}));

@@ -453,6 +453,21 @@ async function generateItinerary(state: typeof ConversationStateAnnotation.State
   const news = state.news || 'No recent news found.';
   const feedback = state.criticFeedback.join('\n') || 'None';
 
+  // For refine requests, extract the previous itinerary from chat history
+  // so the LLM can modify it instead of generating from scratch.
+  const isRefine = state.entities.intent === 'refine';
+  let previousItinerary = '';
+  if (isRefine && state.history.length > 0) {
+    // Find the most recent assistant message with substantial content (the itinerary).
+    for (let i = state.history.length - 1; i >= 0; i--) {
+      const msg = state.history[i];
+      if (msg.role === 'assistant' && msg.content && msg.content.length > 200) {
+        previousItinerary = msg.content;
+        break;
+      }
+    }
+  }
+
   let numDays = DEFAULT_TRIP_DAYS;
   if (startDate && endDate) {
     const start = new Date(startDate);
@@ -480,6 +495,18 @@ Flight cabin: ${cabin}
 ${state.entities.interests ? `The user is specifically interested in: ${state.entities.interests}. Tailor the itinerary around these interests — prioritize relevant attractions, activities, and venues. Still include a few iconic must-sees, but make the interest-themed activities the centerpiece.` : ''}
 
 ${state.userMessage ? `User's original request: "${state.userMessage}"` : ''}
+
+${isRefine && previousItinerary ? `
+⚠️ This is a REFINEMENT request. The user wants to modify their existing itinerary. Here is their current itinerary:
+
+---
+${previousItinerary}
+---
+
+The user's refinement request: "${state.userMessage}"
+
+Modify the existing itinerary based on the user's request. Keep the overall structure and days that the user didn't ask to change. Only modify what the user asked for. If they want fewer days, remove the extra days. If they want more days, add them. If they want to swap an activity, swap it. Preserve the good parts of the existing itinerary.
+` : ''}
 
 Weather forecast or climate note:
 ${typeof weather === 'string' ? weather : JSON.stringify(weather)}

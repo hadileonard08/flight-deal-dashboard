@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X, List, Navigation } from 'lucide-react';
+import { Send, Plane, Loader2, History, Plus, LogIn, MapPin, Calendar, Sun, Wind, Droplets, Briefcase, Trash2, Bookmark, Map, Menu, X, List, Navigation, Share2 } from 'lucide-react';
 import { useUser, SignInButtonWrapper, UserButtonWrapper } from '@/components/AuthProvider';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
@@ -334,7 +334,7 @@ function ItineraryMarkdown({ children }: { children: string }) {
   );
 }
 
-function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
+function MessageContent({ message, onSaveTrip, onShare, shareUrl, isSignedIn }: { message: ChatMessageUI; onSaveTrip?: (payload: ChatPayload) => void; onShare?: () => void; shareUrl?: string; isSignedIn: boolean }) {
   if (message.role === 'user') {
     return <div className="whitespace-pre-wrap">{message.content}</div>;
   }
@@ -343,13 +343,16 @@ function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMess
     <div className="space-y-1">
       {message.status ? <LoadingSteps currentStatus={message.status} /> : null}
       {message.content ? renderItineraryMarkdown(message.content) : null}
-      {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} isSignedIn={isSignedIn} /> : null}
+      {message.payload ? <RichPayload payload={message.payload} onSaveTrip={onSaveTrip} onShare={onShare} shareUrl={shareUrl} isSignedIn={isSignedIn} /> : null}
     </div>
   );
 }
 
-function RichPayload({ payload, onSaveTrip, isSignedIn }: { payload: ChatPayload; onSaveTrip?: (payload: ChatPayload) => void; isSignedIn: boolean }) {
+function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { payload: ChatPayload; onSaveTrip?: (payload: ChatPayload) => void; onShare?: () => void; shareUrl?: string; isSignedIn: boolean }) {
   const hasSavableContent = payload.deals?.length || payload.itinerary || payload.packingTips;
+  const [sharing, setSharing] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
   const saveButton = (
     <button
       onClick={() => onSaveTrip?.(payload)}
@@ -359,10 +362,54 @@ function RichPayload({ payload, onSaveTrip, isSignedIn }: { payload: ChatPayload
     </button>
   );
 
+  const handleShare = async () => {
+    if (!onShare) return;
+    setSharing(true);
+    try {
+      await onShare();
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleCopyShareLink = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="space-y-3">
       {hasSavableContent ? (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2 flex-wrap">
+          {shareUrl ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                readOnly
+                value={shareUrl}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+                className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 w-48 truncate"
+              />
+              <button
+                onClick={handleCopyShareLink}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                {shareCopied ? '✓ Copied!' : 'Copy'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleShare}
+              disabled={sharing}
+              className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {sharing ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+              {sharing ? 'Creating...' : 'Share'}
+            </button>
+          )}
           {isSignedIn ? saveButton : (
             <SignInButtonWrapper mode="modal">
               {saveButton}
@@ -463,6 +510,7 @@ export default function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [oneStopOpen, setOneStopOpen] = useState(false);
+  const [shareUrls, setShareUrls] = useState<Record<string, string>>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
@@ -509,6 +557,22 @@ export default function ChatPage() {
 
     setSavedTrips((prev) => [newTrip, ...prev]);
     setOneStopOpen(true);
+  };
+
+  const shareTrip = async (conversationId: string): Promise<string | null> => {
+    if (!conversationId) return null;
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.url || null;
+    } catch {
+      return null;
+    }
   };
 
   const { data: conversationsData } = useSWR<{ conversations: Conversation[] }>(
@@ -845,6 +909,13 @@ export default function ChatPage() {
                     <MessageContent
                       message={m}
                       onSaveTrip={m.role === 'assistant' ? (payload) => saveTrip(payload, activeConversationId || 'new') : undefined}
+                      onShare={m.role === 'assistant' && activeConversationId ? async () => {
+                        const url = await shareTrip(activeConversationId);
+                        if (url) {
+                          setShareUrls((prev) => ({ ...prev, [m.id]: url }));
+                        }
+                      } : undefined}
+                      shareUrl={shareUrls[m.id]}
                       isSignedIn={isSignedIn}
                     />
                   </div>
