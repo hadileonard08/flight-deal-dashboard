@@ -57,17 +57,17 @@ The chat backend is a LangGraph state machine with the following nodes:
 
 ```mermaid
 flowchart TD
-    START --> extract[Extract<br/>parse intent + entities]
-    extract -->|greeting| respond[Respond]
-    extract -->|vague| clarify[Clarify<br/>conversational follow-up]
+    START --> extract["Extract<br/>parse intent + entities"]
+    extract -->|greeting| respond["Respond"]
+    extract -->|vague| clarify["Clarify<br/>conversational follow-up"]
     extract -->|ask_question + missing fields| clarify
-    extract -->|ask_question| answer[Answer<br/>deal lookup]
+    extract -->|ask_question| answer["Answer<br/>deal lookup"]
     extract -->|plan_trip + missing fields| clarify
-    extract -->|plan_trip/refine| gather[Gather<br/>weather + news + deals + itinerary + transport]
+    extract -->|plan_trip/refine| gather["Gather<br/>weather + news + deals + itinerary + transport"]
     clarify --> END
     answer --> END
-    gather --> guardrails[Guardrails<br/>verify landmarks via Wikipedia]
-    guardrails --> critic[Critic<br/>QA review for hallucinations]
+    gather --> guardrails["Guardrails<br/>verify landmarks via Wikipedia"]
+    guardrails --> critic["Critic<br/>QA review for hallucinations"]
     critic -->|approved| respond
     critic -->|needs revision| gather
     respond --> END
