@@ -382,8 +382,13 @@ function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { p
 
   return (
     <div className="space-y-3">
+      <WeatherCard weather={payload.weather} />
+      <TransportCard transportPlan={payload.transportPlan} />
+      <PackingCard packingTips={payload.packingTips} />
+      <DealsList deals={payload.deals} />
+      <RouteLinks routeLinks={payload.routeLinks} />
       {hasSavableContent ? (
-        <div className="flex justify-end gap-2 flex-wrap">
+        <div className="flex justify-end gap-2 flex-wrap pt-2 border-t border-gray-100">
           {shareUrl ? (
             <div className="flex items-center gap-1.5">
               <input
@@ -417,11 +422,6 @@ function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { p
           )}
         </div>
       ) : null}
-      <WeatherCard weather={payload.weather} />
-      <TransportCard transportPlan={payload.transportPlan} />
-      <PackingCard packingTips={payload.packingTips} />
-      <DealsList deals={payload.deals} />
-      <RouteLinks routeLinks={payload.routeLinks} />
     </div>
   );
 }
