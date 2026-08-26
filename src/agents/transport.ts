@@ -77,23 +77,53 @@ interface GeocodeResult {
 }
 
 async function geocode(place: string, city: string): Promise<GeocodeResult | null> {
-  try {
-    const query = encodeURIComponent(`${place}, ${city}`);
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (transport agent)' } }
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as any[];
-    if (!data || data.length === 0) return null;
-    return {
-      lat: parseFloat(data[0].lat),
-      lon: parseFloat(data[0].lon),
-      displayName: data[0].display_name,
-    };
-  } catch {
-    return null;
+  const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (transport agent)' };
+  // Try up to 3 times — Nominatim rate-limits and returns 429 or empty results.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const query = encodeURIComponent(`${place}, ${city}`);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+        { headers }
+      );
+      if (res.status === 429) {
+        // Rate-limited — wait with exponential backoff.
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) return null;
+      const data = (await res.json()) as any[];
+      if (!data || data.length === 0) {
+        // Retry with a simpler query (just the place name, no city).
+        if (attempt === 0) {
+          const fallbackQuery = encodeURIComponent(place);
+          const fallbackRes = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${fallbackQuery}&format=json&limit=1`,
+            { headers }
+          );
+          if (fallbackRes.ok) {
+            const fallbackData = (await fallbackRes.json()) as any[];
+            if (fallbackData && fallbackData.length > 0) {
+              return {
+                lat: parseFloat(fallbackData[0].lat),
+                lon: parseFloat(fallbackData[0].lon),
+                displayName: fallbackData[0].display_name,
+              };
+            }
+          }
+        }
+        return null;
+      }
+      return {
+        lat: parseFloat(data[0].lat),
+        lon: parseFloat(data[0].lon),
+        displayName: data[0].display_name,
+      };
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 async function getOSRMRoute(
@@ -214,8 +244,8 @@ async function buildDayTransport(
         walkMinutes: null,
         driveMinutes: null,
         distanceKm: null,
-        recommendedMode: 'Transit',
-        note: 'Route data unavailable — check local transit.',
+        recommendedMode: '🚇 Transit',
+        note: `Take local transit from ${fromName} to ${toName}`,
       });
       continue;
     }
@@ -312,9 +342,10 @@ export async function buildTransportPlan(
 ): Promise<TransportPlan | null> {
   if (!routeLinks || routeLinks.length === 0 || !destination) return null;
 
-  // Process all days, but batch them (3 at a time) to respect Nominatim's
+  // Process all days, but batch them (2 at a time) to respect Nominatim's
   // rate limit (~1 req/sec). Each day geocodes ~5 stops + routes them.
-  const BATCH_SIZE = 3;
+  // Add a delay between batches to avoid 429 rate-limiting.
+  const BATCH_SIZE = 2;
   const dayTransports: DayTransport[] = [];
 
   for (let i = 0; i < routeLinks.length; i += BATCH_SIZE) {
@@ -323,6 +354,10 @@ export async function buildTransportPlan(
       batch.map((rl) => buildDayTransport(rl, destination))
     );
     dayTransports.push(...batchResults);
+    // 1 second delay between batches to respect Nominatim rate limits.
+    if (i + BATCH_SIZE < routeLinks.length) {
+      await new Promise(r => setTimeout(r, 1000));
+    }
   }
 
   // Generate city-level transit tips and cost estimates.
