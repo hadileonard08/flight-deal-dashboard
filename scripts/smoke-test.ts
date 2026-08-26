@@ -174,33 +174,40 @@ function extractBoldLandmarks(markdown: string): string[] {
 async function verifyLandmarksOnWikipedia(landmarks: string[]): Promise<string[]> {
   if (landmarks.length === 0) return [];
 
-  // Limit to first 15 landmarks per itinerary to keep Wikipedia API calls
+  // Limit to first 10 landmarks per itinerary to keep Wikipedia API calls
   // reasonable and avoid rate limiting across 3 chat tests.
-  const toVerify = landmarks.slice(0, 15);
+  const toVerify = landmarks.slice(0, 10);
 
   const unverified: string[] = [];
-  const batchSize = 3; // smaller batches to be gentle on Wikipedia
-  for (let i = 0; i < toVerify.length; i += batchSize) {
-    const batch = toVerify.slice(i, i + batchSize);
-    const checks = await Promise.all(batch.map(async (landmark) => {
-      // Try the full name first.
-      const exists = await wikipediaSearchExists(landmark);
-      if (exists) return { landmark, exists: true };
+  // Process landmarks one at a time (sequential, no parallelism) to avoid
+  // Wikipedia API rate-limiting. The previous batch-of-3 with Promise.all
+  // caused up to 6 simultaneous requests per batch, which triggered
+  // rate-limiting and returned false negatives.
+  for (let i = 0; i < toVerify.length; i++) {
+    const landmark = toVerify[i];
 
-      // Fallback: try without common suffixes (e.g. "Trocadéro Gardens" -> "Trocadéro").
+    // Try the full name first.
+    let exists = await wikipediaSearchExists(landmark);
+
+    // Fallback: try without common suffixes (e.g. "Trocadéro Gardens" -> "Trocadéro").
+    if (!exists) {
       const stripped = landmark.replace(/\s+(Gardens|Park|Museum|Square|Plaza|Bridge|Tower|Building|Market|Street|District|Neighborhood|Cathedral|Church|Temple|Shrine|Castle|Palace|Monument|Memorial|Gallery|Centre|Center|Stadium|Arena|Ground|Pub|Bar|Restaurant|Cafe|Station|Tube Station|Metro Station)$/i, '').trim();
       if (stripped && stripped !== landmark) {
-        const strippedExists = await wikipediaSearchExists(stripped);
-        if (strippedExists) return { landmark, exists: true };
+        exists = await wikipediaSearchExists(stripped);
       }
-
-      return { landmark, exists: false };
-    }));
-    for (const { landmark, exists } of checks) {
-      if (!exists) unverified.push(landmark);
     }
-    // 1 second delay between batches to respect Wikipedia rate limits.
-    if (i + batchSize < toVerify.length) await new Promise(r => setTimeout(r, 1000));
+
+    // Retry once after a short delay if not found — Wikipedia sometimes
+    // returns empty results due to transient rate-limiting.
+    if (!exists) {
+      await new Promise(r => setTimeout(r, 500));
+      exists = await wikipediaSearchExists(landmark);
+    }
+
+    if (!exists) unverified.push(landmark);
+
+    // 500ms delay between each landmark to respect Wikipedia rate limits.
+    if (i + 1 < toVerify.length) await new Promise(r => setTimeout(r, 500));
   }
   return unverified;
 }
@@ -393,6 +400,9 @@ async function runSmokeTests(): Promise<Assertion[]> {
         results.push(assert('chat city1 endpoint test', false, `Failed to test /api/chat ${city1.name}: ${(e as Error).message}`));
       }
 
+      // Brief pause before the next chat test to let Wikipedia API rate limits reset.
+      await new Promise(r => setTimeout(r, 2000));
+
       // 5. /api/chat — Random city #2 plan_trip test (verify images work for different destinations).
       try {
         const msg2 = `Plan a ${city2.days}-day trip to ${city2.name} in ${city2.month} 2025`;
@@ -449,6 +459,9 @@ async function runSmokeTests(): Promise<Assertion[]> {
       console.log(`  ⏭️  Skipping chat tests (city + football) — no Gemini tokens consumed\n`);
       results.push(assert('chat tests skipped', true, 'skipped via --skip-chat flag'));
     }
+
+    // Brief pause before the football test to let Wikipedia API rate limits reset.
+    await new Promise(r => setTimeout(r, 2000));
 
     // 6. /api/chat — Football trip to London (verify interest personalization + landmark verification).
     if (!skipChat) {
