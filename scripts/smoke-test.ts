@@ -214,36 +214,50 @@ async function verifyLandmarksOnWikipedia(landmarks: string[]): Promise<string[]
 
 // Check if a term exists on Wikipedia. Tries opensearch first (exact-ish),
 // then falls back to query search (fuzzy). Returns true if found on either.
+// Includes retry logic for Wikipedia rate-limiting (HTTP 429).
 async function wikipediaSearchExists(term: string): Promise<boolean> {
-  try {
-    // 1. Try opensearch (exact-ish matching).
-    const res = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
-      { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
-    );
-    if (res.ok) {
-      const data = await res.json() as [string, string[], string[], string[]];
-      if ((data[1] || []).length > 0) return true;
-    }
+  const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' };
 
-    // 2. Fallback: try query search (fuzzy matching, finds more results).
-    const res2 = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=1&format=json&origin=*`,
-      { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
-    );
-    if (res2.ok) {
-      const data2 = await res2.json() as any;
-      const hits = data2?.query?.search || [];
-      // Accept any query search hit — the fuzzy search is lenient enough
-      // to find articles under different names (e.g. "Akihabara Electric Town"
-      // matches the "Akihabara" article).
-      if (hits.length > 0) return true;
-    }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      // 1. Try opensearch (exact-ish matching).
+      const res = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
+        { headers }
+      );
+      if (res.status === 429) {
+        // Rate-limited — wait and retry.
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      if (res.ok) {
+        const data = await res.json() as [string, string[], string[], string[]];
+        if ((data[1] || []).length > 0) return true;
+      }
 
-    return false;
-  } catch {
-    return true; // fail open
+      // 2. Fallback: try query search (fuzzy matching, finds more results).
+      const res2 = await fetch(
+        `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=1&format=json&origin=*`,
+        { headers }
+      );
+      if (res2.status === 429) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      if (res2.ok) {
+        const data2 = await res2.json() as any;
+        const hits = data2?.query?.search || [];
+        if (hits.length > 0) return true;
+      }
+
+      return false;
+    } catch {
+      return true; // fail open
+    }
   }
+
+  // All retries exhausted due to rate-limiting — fail open.
+  return true;
 }
 
 async function runSmokeTests(): Promise<Assertion[]> {
@@ -401,7 +415,7 @@ async function runSmokeTests(): Promise<Assertion[]> {
       }
 
       // Brief pause before the next chat test to let Wikipedia API rate limits reset.
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 3000));
 
       // 5. /api/chat — Random city #2 plan_trip test (verify images work for different destinations).
       try {
@@ -461,7 +475,7 @@ async function runSmokeTests(): Promise<Assertion[]> {
     }
 
     // Brief pause before the football test to let Wikipedia API rate limits reset.
-    await new Promise(r => setTimeout(r, 2000));
+    await new Promise(r => setTimeout(r, 3000));
 
     // 6. /api/chat — Football trip to London (verify interest personalization + landmark verification).
     if (!skipChat) {
