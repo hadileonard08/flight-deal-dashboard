@@ -800,7 +800,7 @@ export default function ChatPage() {
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-3">Where to next?</h1>
                 <p className="text-gray-500 max-w-md mb-6">
-                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, transport routing, and photos for every day.
+                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, and transport routing.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                   {[
