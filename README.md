@@ -57,29 +57,51 @@ The chat backend is a LangGraph state machine with the following nodes:
 
 ```mermaid
 flowchart TD
-    START --> extract["Extract<br/>parse intent + entities"]
-    extract -->|greeting| respond["Respond"]
-    extract -->|vague| clarify["Clarify<br/>conversational follow-up"]
-    extract -->|ask_question + missing fields| clarify
-    extract -->|ask_question| answer["Answer<br/>deal lookup"]
-    extract -->|plan_trip + missing fields| clarify
-    extract -->|plan_trip/refine| gather["Gather<br/>weather + news + deals + itinerary + transport"]
-    clarify --> END
-    answer --> END
-    gather --> guardrails["Guardrails<br/>verify landmarks via Wikipedia"]
-    guardrails --> critic["Critic<br/>QA review for hallucinations"]
-    critic -->|approved| respond
-    critic -->|needs revision| gather
+    START(["START<br/>[System]"])
+    END(["END<br/>[System]"])
+
+    extract["Extract<br/>[LLM Router]<br/>parse intent + entities"]
+    clarify["Clarify<br/>[LLM Agent]<br/>conversational follow-up"]
+    gather["Gather<br/>[Tool Integration]<br/>weather + news + deals + itinerary + transport"]
+    guardrails["Guardrails<br/>[Deterministic Code]<br/>verify landmarks via Wikipedia API"]
+    critic["Critic<br/>[LLM Evaluator]<br/>QA review for hallucinations"]
+    answer["Answer<br/>[Tool / DB]<br/>deal lookup"]
+    respond["Respond<br/>[LLM Generator]<br/>final response formatter"]
+
+    %% Entry
+    START --> extract
+
+    %% Extract routing — consolidated labels to avoid overlap
+    extract -->|"greeting"| respond
+    extract -->|"vague · ask_question (missing) · plan_trip (missing)"| clarify
+    extract -->|"ask_question (complete)"| answer
+    extract -->|"plan_trip / refine"| gather
+
+    %% All user-facing nodes route through Respond
+    clarify --> respond
+    answer --> respond
+
+    %% Main pipeline
+    gather --> guardrails
+    guardrails --> critic
+
+    %% Critic routing — spaced to avoid collision with Gather → Guardrails
+    critic -->|"approved"| respond
+    critic -.->|"needs revision"| gather
+
+    %% Terminal
     respond --> END
 ```
 
-- **Extract** — uses `chrono-node` + LLM to parse destination, dates, duration, cabin, travelers, budget, and intent (`plan_trip`, `ask_question`, `refine`, `greeting`, `vague`) from the user's message. Enforces a 30-day duration cap.
-- **Clarify** — asks follow-up questions for missing required fields (destination, dates). For vague messages, generates a warm, conversational follow-up with example ideas.
-- **Gather** — fetches weather (Open-Meteo), news (Gemini web search), live deals (Seats.aero), destination image, generates the itinerary and packing list in parallel, then builds route links and the transport plan.
-- **Guardrails** — extracts every landmark from the itinerary and verifies each one exists on Wikipedia. Flags any unverified places as potential hallucinations. Auto-rejects if image placeholders are missing.
-- **Critic** — a strict QA reviewer that checks for hallucinated flights, fake attractions, invented transit lines, missing weather, inconsistent day counts, and unverified landmarks. Sends feedback back to the gather node if the itinerary needs revision (up to 2 revisions, or 3 for missing image placeholders).
-- **Respond** — hydrates image placeholders with real image URLs from 4 sources (deduplicated), assembles the final markdown response.
-- **Answer** — handles deal-only lookups (e.g. *"find deals to Tokyo in December"*) with live Seats.aero search.
+| Node | Type | Description |
+|------|------|-------------|
+| **Extract** | LLM Router | Uses `chrono-node` + LLM to parse destination, dates, duration, cabin, travelers, budget, and intent (`plan_trip`, `ask_question`, `refine`, `greeting`, `vague`). Enforces a 30-day duration cap. |
+| **Clarify** | LLM Agent | Asks follow-up questions for missing required fields (destination, dates). For vague messages, generates a warm, conversational follow-up with example ideas. |
+| **Gather** | Tool Integration | Fetches weather (Open-Meteo), news (Gemini web search), live deals (Seats.aero), destination image, generates the itinerary and packing list in parallel, then builds route links and the transport plan. |
+| **Guardrails** | Deterministic Code | Extracts every landmark from the itinerary and verifies each one exists on Wikipedia. Flags any unverified places as potential hallucinations. Auto-rejects if image placeholders are missing. |
+| **Critic** | LLM Evaluator | Strict QA reviewer that checks for hallucinated flights, fake attractions, invented transit lines, missing weather, inconsistent day counts, and unverified landmarks. Sends feedback back to Gather if the itinerary needs revision (up to 2 revisions, or 3 for missing image placeholders). |
+| **Answer** | Tool / DB | Handles deal-only lookups (e.g. *"find deals to Tokyo in December"*) with live Seats.aero search. |
+| **Respond** | LLM Generator | Hydrates image placeholders with real image URLs from 4 sources (deduplicated), assembles the final markdown response. All user-facing nodes (Clarify, Answer, Critic-approved, greeting) route through Respond before terminating. |
 
 ### Transport agent
 
