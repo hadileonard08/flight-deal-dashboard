@@ -964,24 +964,42 @@ export default function ChatPage() {
               setSectionsOpen(false);
             };
 
-            const sectionButtons = headings.map((h) => (
-              <button
-                key={h.id}
-                onClick={() => jumpTo(h.id)}
-                className={`text-left text-xs px-2.5 py-1.5 rounded-md hover:bg-gray-100 transition-colors break-words leading-snug ${
-                  h.level === 1 ? 'font-medium text-gray-700' : h.level === 2 ? 'text-gray-500' : 'text-gray-400 pl-4'
-                }`}
-                title={h.label}
-              >
-                {h.label}
-              </button>
-            ));
+            const sectionButtons = headings.map((h, index) => {
+              const isDay = h.id.startsWith('day-') || /^day\s+\d+/i.test(h.label);
+              const dayNumber = h.label.match(/Day\s+(\d+)/i)?.[1] || (index + 1);
+              return (
+                <button
+                  key={h.id}
+                  onClick={() => jumpTo(h.id)}
+                  className={`w-full text-left rounded-xl transition-all hover:shadow-sm ${
+                    isDay
+                      ? 'bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 p-3 group'
+                      : 'px-2.5 py-1.5 hover:bg-gray-100'
+                  } ${h.level === 1 ? 'font-medium text-gray-700' : h.level === 2 ? 'text-gray-500' : 'text-gray-400 pl-4'}`}
+                  title={h.label}
+                >
+                  {isDay ? (
+                    <div className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-[10px] font-bold rounded-lg flex items-center justify-center">
+                        {dayNumber}
+                      </span>
+                      <span className="text-xs text-gray-700 leading-tight line-clamp-2">{h.label.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '')}</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs leading-snug break-words">{h.label}</span>
+                  )}
+                </button>
+              );
+            });
 
             return (
               <>
-                {/* Desktop — slim right rail */}
-                <nav className="hidden lg:flex flex-col w-44 border-l border-gray-50 py-6 px-2 sticky top-0 self-start max-h-screen overflow-hidden">
-                  <div className="overflow-y-auto flex-1 space-y-0.5">
+                {/* Desktop — section navigation rail */}
+                <nav className="hidden lg:flex flex-col w-56 border-l border-gray-100 bg-gray-50/50 py-6 px-3 sticky top-0 self-start max-h-screen overflow-hidden">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-3">
+                    Sections
+                  </div>
+                  <div className="overflow-y-auto flex-1 space-y-2 pr-1">
                     {sectionButtons}
                   </div>
                 </nav>
@@ -1006,7 +1024,7 @@ export default function ChatPage() {
                           <X size={18} />
                         </button>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                      <div className="flex-1 overflow-y-auto p-3 space-y-2">
                         {sectionButtons}
                       </div>
                     </nav>
