@@ -215,13 +215,15 @@ function MessageContent({ message, onSaveTrip, isSignedIn }: { message: ChatMess
           {message.status}
         </div>
       ) : null}
-      <div className="prose prose-sm max-w-none">
+      <div className="prose prose-sm max-w-none overflow-x-auto">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
             h1: ({ children }) => <h1 id={slug(children)}>{children}</h1>,
             h2: ({ children }) => <h2 id={slug(children)}>{children}</h2>,
             h3: ({ children }) => <h3 id={slug(children)}>{children}</h3>,
+            img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full h-auto rounded-lg" />,
+            table: ({ children }) => <div className="overflow-x-auto"><table>{children}</table></div>,
           }}
         >{message.content}</ReactMarkdown>
       </div>
@@ -573,7 +575,7 @@ export default function ChatPage() {
   }, [isSignedIn]);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
         <SidebarContent
@@ -651,7 +653,7 @@ export default function ChatPage() {
 
         {/* Messages + section navigator */}
         <div className="flex-1 flex overflow-hidden">
-          <div ref={messagesRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+          <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-6">
             {/* Closable sign-in prompt — appears when a guest sends a message */}
             {showSignInPrompt && !isSignedIn && (
               <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-blue-600 text-white flex items-center justify-between gap-3 shadow-md">
@@ -700,7 +702,7 @@ export default function ChatPage() {
               messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-3xl px-5 py-3 rounded-2xl shadow-sm ${
+                    className={`max-w-3xl w-full md:w-auto min-w-0 px-5 py-3 rounded-2xl shadow-sm ${
                       m.role === 'user'
                         ? 'bg-blue-600 text-white rounded-br-none'
                         : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'

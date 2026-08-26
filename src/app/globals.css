@@ -1,3 +1,26 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prevent horizontal scroll on mobile from wide content */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Ensure images and code blocks never overflow their container */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+pre, code {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Markdown tables: scroll horizontally within the bubble, not the page */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
