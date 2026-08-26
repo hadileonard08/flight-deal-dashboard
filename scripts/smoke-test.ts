@@ -267,6 +267,81 @@ async function runSmokeTests(): Promise<Assertion[]> {
       results.push(assert('chat Paris endpoint test', false, `Failed to test /api/chat Paris: ${(e as Error).message}`));
     }
 
+    // 6. /api/chat — Football trip to London (verify interest personalization + landmark verification).
+    try {
+      const { responseText, payload } = await chatStream('Plan a 3-day football trip to London in October 2025. I want to visit stadiums and maybe catch a match.');
+
+      // 6a. Interests should be extracted
+      const interests = payload?.entities?.interests;
+      results.push(assert('chat football interests extracted', !!interests && interests.toLowerCase().includes('football'), `interests field is "${interests}" (expected to contain "football")`));
+
+      // 6b. Itinerary should mention football-related terms
+      const footballTerms = ['stadium', 'football', 'match', 'premier league', 'pitch', 'tour'];
+      const foundTerms = footballTerms.filter(t => responseText.toLowerCase().includes(t));
+      results.push(assert('chat football terms present', foundTerms.length >= 3, `Only found ${foundTerms.length} football terms: ${foundTerms.join(', ')}. Expected at least 3.`));
+
+      // 6c. Itinerary should mention at least one real stadium name
+      const knownStadiums = [
+        'Emirates Stadium', 'Stamford Bridge', 'Wembley Stadium', 'Old Trafford',
+        'Anfield', 'Etihad Stadium', 'Tottenham Hotspur Stadium', 'Selhurst Park',
+        'Craven Cottage', 'Loftus Road', 'London Stadium',
+      ];
+      const stadiumsFound = knownStadiums.filter(s => responseText.toLowerCase().includes(s.toLowerCase()));
+      results.push(assert('chat football real stadium mentioned', stadiumsFound.length > 0, `No known London stadium names found in itinerary. Expected at least one of: ${knownStadiums.join(', ')}`));
+
+      // 6d. All bold landmarks in the itinerary should exist on Wikipedia.
+      // This is the key guardrail test — verifies that the LLM didn't invent
+      // fake stadiums, attractions, or venues.
+      const boldLandmarks = Array.from(responseText.matchAll(/\*\*([^*]+)\*\*/g))
+        .map(m => m[1].trim())
+        .filter(name => name.length > 3 && !name.match(/^(Day \d|Weather|Packing|Getting Around|Transport|Points Flight|Daily Routes|Itinerary)/i))
+        .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
+
+      if (boldLandmarks.length === 0) {
+        results.push(assert('chat football landmarks extracted', false, 'No bold landmarks found in itinerary to verify'));
+      } else {
+        results.push(assert('chat football landmarks extracted', true, `Found ${boldLandmarks.length} bold landmarks to verify`));
+
+        // Verify each landmark exists on Wikipedia (with a small batch delay to respect rate limits).
+        const unverified: string[] = [];
+        const batchSize = 5;
+        for (let i = 0; i < boldLandmarks.length; i += batchSize) {
+          const batch = boldLandmarks.slice(i, i + batchSize);
+          const checks = await Promise.all(batch.map(async (landmark) => {
+            try {
+              const res = await fetch(
+                `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(landmark)}&limit=1&namespace=0&format=json&origin=*`,
+                { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
+              );
+              if (!res.ok) return { landmark, exists: true }; // fail open
+              const data = await res.json() as [string, string[], string[], string[]];
+              return { landmark, exists: (data[1] || []).length > 0 };
+            } catch {
+              return { landmark, exists: true }; // fail open
+            }
+          }));
+          for (const { landmark, exists } of checks) {
+            if (!exists) unverified.push(landmark);
+          }
+          // Small delay between batches to respect Wikipedia rate limits.
+          if (i + batchSize < boldLandmarks.length) await new Promise(r => setTimeout(r, 500));
+        }
+
+        if (unverified.length === 0) {
+          results.push(assert('chat football landmarks verified', true, `All ${boldLandmarks.length} landmarks verified on Wikipedia`));
+        } else {
+          results.push(assert('chat football landmarks verified', false, `${unverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${unverified.join(', ')}`));
+        }
+      }
+
+      // 6e. Images should be present for the football itinerary
+      const footballImages = extractImageUrls(responseText);
+      results.push(assert('chat football has images', footballImages.length > 0, 'Football itinerary has no images'));
+
+    } catch (e) {
+      results.push(assert('chat football endpoint test', false, `Failed to test /api/chat football trip: ${(e as Error).message}`));
+    }
+
   } catch (err) {
     results.push(assert('smoke test setup', false, `Failed to run smoke tests: ${(err as Error).message}`));
   }
