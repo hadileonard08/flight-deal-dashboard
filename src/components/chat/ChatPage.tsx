@@ -824,7 +824,7 @@ export default function ChatPage() {
                   <span className="flex items-center gap-1">🌤️ Real weather</span>
                   <span className="flex items-center gap-1">✈️ Live flight deals</span>
                   <span className="flex items-center gap-1">🗺️ Transport routing</span>
-                  <span className="flex items-center gap-1">📸 Photos for every day</span>
+                  <span className="flex items-center gap-1">🎒 Packing tips</span>
                 </div>
               </div>
             ) : (
