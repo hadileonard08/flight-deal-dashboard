@@ -691,9 +691,7 @@ export default function ChatPage() {
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
         <div className="p-4 flex items-center gap-2 border-b border-gray-50">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-1.5 rounded-lg">
-            <WalkersIcon className="text-white" size={18} />
-          </div>
+          <WalkersIcon className="text-blue-600" size={22} />
           <span className="font-bold text-lg text-gray-900">Jalan</span>
         </div>
         <SidebarContent
@@ -797,12 +795,12 @@ export default function ChatPage() {
             )}
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4 max-w-2xl mx-auto">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-700 p-5 rounded-3xl mb-5 shadow-lg">
-                  <WalkersIcon className="text-white" size={40} />
+                <div className="mb-5">
+                  <WalkersIcon className="text-blue-600" size={48} />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-3">Where to next?</h1>
                 <p className="text-gray-500 max-w-md mb-6">
-                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, transport routing, and Wikipedia-verified landmarks.
+                  Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, transport routing, and photos for every day.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                   {[
@@ -826,15 +824,15 @@ export default function ChatPage() {
                   <span className="flex items-center gap-1">🌤️ Real weather</span>
                   <span className="flex items-center gap-1">✈️ Live flight deals</span>
                   <span className="flex items-center gap-1">🗺️ Transport routing</span>
-                  <span className="flex items-center gap-1">✓ Wikipedia-verified</span>
+                  <span className="flex items-center gap-1">📸 Photos for every day</span>
                 </div>
               </div>
             ) : (
               messages.map((m) => (
                 <div key={m.id} className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'} message-fade-in`}>
                   {m.role === 'assistant' && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-sm mt-1">
-                      <WalkersIcon className="text-white" size={18} />
+                    <div className="flex-shrink-0 mt-1">
+                      <WalkersIcon className="text-blue-600" size={26} />
                     </div>
                   )}
                   <div
