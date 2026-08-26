@@ -1,9 +1,54 @@
-const BASE_URL = process.env.SMOKE_TEST_URL || 'https://flight-deals-dashboard.vercel.app';
+// Usage:
+//   npx tsx scripts/smoke-test.ts                    # full test against production
+//   npx tsx scripts/smoke-test.ts --local            # test against localhost:3000
+//   npx tsx scripts/smoke-test.ts --skip-chat        # skip chat tests (saves Gemini tokens)
+//   npx tsx scripts/smoke-test.ts --local --skip-chat
+//   SMOKE_TEST_URL=http://localhost:3000 npx tsx scripts/smoke-test.ts
+
+const args = process.argv.slice(2);
+const isLocal = args.includes('--local');
+const skipChat = args.includes('--skip-chat');
+
+const BASE_URL = process.env.SMOKE_TEST_URL || (isLocal ? 'http://localhost:3000' : 'https://flight-deals-dashboard.vercel.app');
+
+if (isLocal) {
+  console.log(`🏠 Running in LOCAL mode — testing against ${BASE_URL}`);
+  console.log(`   Make sure your dev server is running: npm run dev\n`);
+}
+if (skipChat) {
+  console.log(`⏭️  Skipping chat tests (--skip-chat) — saves Gemini tokens\n`);
+}
 
 interface Assertion {
   name: string;
   ok: boolean;
   message: string;
+}
+
+// Pool of cities for randomized smoke tests. Each run picks 2 random cities
+// so we test different destinations each time instead of always Tokyo/Paris.
+const CITY_POOL = [
+  { name: 'Tokyo', month: 'October', days: 5 },
+  { name: 'Paris', month: 'December', days: 5 },
+  { name: 'London', month: 'November', days: 4 },
+  { name: 'Bangkok', month: 'January', days: 4 },
+  { name: 'Seoul', month: 'March', days: 5 },
+  { name: 'Barcelona', month: 'September', days: 5 },
+  { name: 'Rome', month: 'April', days: 4 },
+  { name: 'Istanbul', month: 'May', days: 4 },
+  { name: 'Singapore', month: 'February', days: 3 },
+  { name: 'Amsterdam', month: 'June', days: 4 },
+  { name: 'Dubai', month: 'November', days: 4 },
+  { name: 'Hong Kong', month: 'October', days: 4 },
+  { name: 'Madrid', month: 'July', days: 4 },
+  { name: 'Sydney', month: 'January', days: 5 },
+  { name: 'Lisbon', month: 'August', days: 4 },
+];
+
+// Pick N random cities from the pool (no repeats).
+function pickRandomCities(n: number): typeof CITY_POOL {
+  const shuffled = [...CITY_POOL].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
 }
 
 async function fetchJson(path: string, init?: RequestInit, timeoutMs = 30000) {
@@ -278,122 +323,135 @@ async function runSmokeTests(): Promise<Assertion[]> {
       results.push(assert('good deal found', false, 'No GOOD_DEAL in first 50 to test itinerary'));
     }
 
-    // 4. /api/chat — Tokyo plan_trip test (existing + image checks).
-    try {
-      const { responseText, payload } = await chatStream('Plan a 5-day trip to Tokyo from October 15 to October 20, 2025');
+    // 4. /api/chat — Random city #1 plan_trip test (images, routes, transport, landmarks).
+    if (!skipChat) {
+      const [city1, city2] = pickRandomCities(2);
+      console.log(`  🎲 Random cities for this run: ${city1.name} and ${city2.name}\n`);
 
-      // Route links should be present and non-empty
-      const routeLinks = payload?.routeLinks || [];
-      results.push(assert('chat route links present', routeLinks.length > 0, `expected route links, got ${routeLinks.length}`));
+      try {
+        const msg1 = `Plan a ${city1.days}-day trip to ${city1.name} in ${city1.month} 2025`;
+        console.log(`  → Testing: "${msg1}"`);
+        const { responseText, payload } = await chatStream(msg1);
 
-      // Route links should have highlights (key stops summary)
-      const linksWithHighlights = routeLinks.filter((r: any) => r.highlights && r.highlights.length > 0);
-      results.push(assert('chat route links have highlights', linksWithHighlights.length === routeLinks.length, `${routeLinks.length - linksWithHighlights.length} route link(s) missing highlights`));
+        // Route links should be present and non-empty
+        const routeLinks = payload?.routeLinks || [];
+        results.push(assert('chat route links present', routeLinks.length > 0, `expected route links, got ${routeLinks.length}`));
 
-      // Deals should be diversified by origin (not all same origin) — but having no
-      // matching deals is OK (data availability depends on Seats.aero cache + live search).
-      const chatDeals = payload?.deals || [];
-      if (chatDeals.length > 0) {
-        const origins = new Set(chatDeals.map((d: any) => d.originCode));
-        results.push(assert('chat deals diversified by origin', origins.size > 1, `expected deals from multiple origins, got ${origins.size} unique origin(s): ${Array.from(origins).join(', ')}`));
-      } else {
-        // No deals is valid (no matching award availability) — just note it.
-        results.push(assert('chat deals present', true, 'no deals returned (OK — depends on Seats.aero availability for this route/date)'));
-      }
+        // Route links should have highlights (key stops summary)
+        const linksWithHighlights = routeLinks.filter((r: any) => r.highlights && r.highlights.length > 0);
+        results.push(assert('chat route links have highlights', linksWithHighlights.length === routeLinks.length, `${routeLinks.length - linksWithHighlights.length} route link(s) missing highlights`));
 
-      // Response markdown should NOT contain "Points Flight Deals" heading
-      const mdDealHeadings = (responseText.match(/#{1,3}\s+Points\s+Flight\s+Deals/gi) || []).length;
-      results.push(assert('chat no deals in markdown', mdDealHeadings === 0, `chat response markdown contains ${mdDealHeadings} "Points Flight Deals" heading(s) (should be 0)`));
-
-      // 4a. Tokyo chat: response should contain at least one image
-      const tokyoImages = extractImageUrls(responseText);
-      results.push(assert('chat Tokyo has images', tokyoImages.length > 0, `Tokyo chat response has no images`));
-
-      // 4b. Tokyo chat: images should not be duplicated
-      const tokyoUnique = new Set(tokyoImages);
-      results.push(assert('chat Tokyo images unique', tokyoUnique.size === tokyoImages.length, `${tokyoImages.length - tokyoUnique.size} duplicate image(s) in Tokyo chat (same URL reused)`));
-
-      // 4c. Tokyo chat: payload should have a destination image (soft check — Wikimedia can intermittently fail)
-      const destImage = payload?.images?.destination;
-      if (destImage && destImage.startsWith('http')) {
-        results.push(assert('chat Tokyo destination image', true, ''));
-      } else {
-        console.log(`  ⚠️  WARN: chat Tokyo destination image is missing or invalid (${destImage || 'undefined'}) — Wikimedia lookup may have failed intermittently`);
-        results.push(assert('chat Tokyo destination image', true, `soft pass — destination image missing (${destImage || 'undefined'}) but per-day images are present`));
-      }
-
-      // 4d. Tokyo chat: transport plan should be present
-      const transportPlan = payload?.transportPlan;
-      results.push(assert('chat Tokyo transport plan', !!transportPlan && !!transportPlan.days, 'transport plan missing from payload'));
-
-      // 4e. Tokyo chat: all bold landmarks should exist on Wikipedia
-      const tokyoLandmarks = extractBoldLandmarks(responseText);
-      if (tokyoLandmarks.length === 0) {
-        results.push(assert('chat Tokyo landmarks verified', false, 'No bold landmarks found in Tokyo itinerary to verify'));
-      } else {
-        const tokyoUnverified = await verifyLandmarksOnWikipedia(tokyoLandmarks);
-        if (tokyoUnverified.length === 0) {
-          results.push(assert('chat Tokyo landmarks verified', true, `All ${tokyoLandmarks.length} landmarks verified on Wikipedia`));
+        // Deals should be diversified by origin (not all same origin) — but having no
+        // matching deals is OK (data availability depends on Seats.aero cache + live search).
+        const chatDeals = payload?.deals || [];
+        if (chatDeals.length > 0) {
+          const origins = new Set(chatDeals.map((d: any) => d.originCode));
+          results.push(assert('chat deals diversified by origin', origins.size > 1, `expected deals from multiple origins, got ${origins.size} unique origin(s): ${Array.from(origins).join(', ')}`));
         } else {
-          results.push(assert('chat Tokyo landmarks verified', false, `${tokyoUnverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${tokyoUnverified.join(', ')}`));
+          // No deals is valid (no matching award availability) — just note it.
+          results.push(assert('chat deals present', true, 'no deals returned (OK — depends on Seats.aero availability for this route/date)'));
         }
-      }
-    } catch (e) {
-      results.push(assert('chat Tokyo endpoint test', false, `Failed to test /api/chat Tokyo: ${(e as Error).message}`));
-    }
 
-    // 5. /api/chat — Paris plan_trip test (verify images work for non-Tokyo destinations).
-    try {
-      const { responseText, payload } = await chatStream('Plan a 5-day trip to Paris from December 10 to December 15, 2025');
+        // Response markdown should NOT contain "Points Flight Deals" heading
+        const mdDealHeadings = (responseText.match(/#{1,3}\s+Points\s+Flight\s+Deals/gi) || []).length;
+        results.push(assert('chat no deals in markdown', mdDealHeadings === 0, `chat response markdown contains ${mdDealHeadings} "Points Flight Deals" heading(s) (should be 0)`));
 
-      // 5a. Paris chat: response should contain at least one image
-      const parisImages = extractImageUrls(responseText);
-      const parisPlaceholders = (responseText.match(/!\[IMAGE:/gi) || []).length;
-      const parisHydrated = (responseText.match(/!\[[^\]]*\]\(https?:\/\//gi) || []).length;
-      results.push(assert('chat Paris has images', parisImages.length > 0, `Paris chat response has no images — image agent may be failing for non-Tokyo destinations. Placeholders in raw: ${parisPlaceholders}, hydrated: ${parisHydrated}, response length: ${responseText.length}`));
+        // 4a. City chat: response should contain at least one image
+        const city1Images = extractImageUrls(responseText);
+        results.push(assert(`chat ${city1.name} has images`, city1Images.length > 0, `${city1.name} chat response has no images`));
 
-      // 5b. Paris chat: images should not be duplicated
-      const parisUnique = new Set(parisImages);
-      results.push(assert('chat Paris images unique', parisUnique.size === parisImages.length, `${parisImages.length - parisUnique.size} duplicate image(s) in Paris chat (same URL reused)`));
+        // 4b. City chat: images should not be duplicated
+        const city1Unique = new Set(city1Images);
+        results.push(assert(`chat ${city1.name} images unique`, city1Unique.size === city1Images.length, `${city1Images.length - city1Unique.size} duplicate image(s) in ${city1.name} chat (same URL reused)`));
 
-      // 5c. Paris chat: all image URLs should be valid
-      const parisInvalid = parisImages.filter(u => !isValidImageUrl(u));
-      results.push(assert('chat Paris images valid URLs', parisInvalid.length === 0, `${parisInvalid.length} invalid image URL(s) in Paris chat: ${parisInvalid.slice(0, 2).join(', ')}`));
-
-      // 5d. Paris chat: payload should have a destination image (soft check — Wikimedia can intermittently fail)
-      const parisDestImage = payload?.images?.destination;
-      if (parisDestImage && parisDestImage.startsWith('http')) {
-        results.push(assert('chat Paris destination image', true, ''));
-      } else {
-        console.log(`  ⚠️  WARN: chat Paris destination image is missing or invalid (${parisDestImage || 'undefined'}) — Wikimedia lookup may have failed intermittently`);
-        results.push(assert('chat Paris destination image', true, `soft pass — destination image missing (${parisDestImage || 'undefined'}) but per-day images are present`));
-      }
-
-      // 5e. Paris chat: should have route links
-      const parisRouteLinks = payload?.routeLinks || [];
-      results.push(assert('chat Paris route links', parisRouteLinks.length > 0, `Paris chat has no route links`));
-
-      // 5f. Paris chat: transport plan should be present
-      const parisTransport = payload?.transportPlan;
-      results.push(assert('chat Paris transport plan', !!parisTransport && !!parisTransport.days, 'transport plan missing from Paris payload'));
-
-      // 5g. Paris chat: all bold landmarks should exist on Wikipedia
-      const parisLandmarks = extractBoldLandmarks(responseText);
-      if (parisLandmarks.length === 0) {
-        results.push(assert('chat Paris landmarks verified', false, 'No bold landmarks found in Paris itinerary to verify'));
-      } else {
-        const parisUnverified = await verifyLandmarksOnWikipedia(parisLandmarks);
-        if (parisUnverified.length === 0) {
-          results.push(assert('chat Paris landmarks verified', true, `All ${parisLandmarks.length} landmarks verified on Wikipedia`));
+        // 4c. City chat: payload should have a destination image (soft check)
+        const destImage = payload?.images?.destination;
+        if (destImage && destImage.startsWith('http')) {
+          results.push(assert(`chat ${city1.name} destination image`, true, ''));
         } else {
-          results.push(assert('chat Paris landmarks verified', false, `${parisUnverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${parisUnverified.join(', ')}`));
+          console.log(`  ⚠️  WARN: chat ${city1.name} destination image is missing or invalid (${destImage || 'undefined'}) — Wikimedia lookup may have failed intermittently`);
+          results.push(assert(`chat ${city1.name} destination image`, true, `soft pass — destination image missing (${destImage || 'undefined'}) but per-day images are present`));
         }
+
+        // 4d. City chat: transport plan should be present
+        const transportPlan = payload?.transportPlan;
+        results.push(assert(`chat ${city1.name} transport plan`, !!transportPlan && !!transportPlan.days, 'transport plan missing from payload'));
+
+        // 4e. City chat: all bold landmarks should exist on Wikipedia
+        const city1Landmarks = extractBoldLandmarks(responseText);
+        if (city1Landmarks.length === 0) {
+          results.push(assert(`chat ${city1.name} landmarks verified`, false, 'No bold landmarks found in itinerary to verify'));
+        } else {
+          const city1Unverified = await verifyLandmarksOnWikipedia(city1Landmarks);
+          if (city1Unverified.length === 0) {
+            results.push(assert(`chat ${city1.name} landmarks verified`, true, `All ${city1Landmarks.length} landmarks verified on Wikipedia`));
+          } else {
+            results.push(assert(`chat ${city1.name} landmarks verified`, false, `${city1Unverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${city1Unverified.join(', ')}`));
+          }
+        }
+      } catch (e) {
+        results.push(assert('chat city1 endpoint test', false, `Failed to test /api/chat ${city1.name}: ${(e as Error).message}`));
       }
-    } catch (e) {
-      results.push(assert('chat Paris endpoint test', false, `Failed to test /api/chat Paris: ${(e as Error).message}`));
+
+      // 5. /api/chat — Random city #2 plan_trip test (verify images work for different destinations).
+      try {
+        const msg2 = `Plan a ${city2.days}-day trip to ${city2.name} in ${city2.month} 2025`;
+        console.log(`  → Testing: "${msg2}"`);
+        const { responseText, payload } = await chatStream(msg2);
+
+        // 5a. City chat: response should contain at least one image
+        const city2Images = extractImageUrls(responseText);
+        const city2Placeholders = (responseText.match(/!\[IMAGE:/gi) || []).length;
+        const city2Hydrated = (responseText.match(/!\[[^\]]*\]\(https?:\/\//gi) || []).length;
+        results.push(assert(`chat ${city2.name} has images`, city2Images.length > 0, `${city2.name} chat response has no images — image agent may be failing. Placeholders in raw: ${city2Placeholders}, hydrated: ${city2Hydrated}, response length: ${responseText.length}`));
+
+        // 5b. City chat: images should not be duplicated
+        const city2Unique = new Set(city2Images);
+        results.push(assert(`chat ${city2.name} images unique`, city2Unique.size === city2Images.length, `${city2Images.length - city2Unique.size} duplicate image(s) in ${city2.name} chat (same URL reused)`));
+
+        // 5c. City chat: all image URLs should be valid
+        const city2Invalid = city2Images.filter(u => !isValidImageUrl(u));
+        results.push(assert(`chat ${city2.name} images valid URLs`, city2Invalid.length === 0, `${city2Invalid.length} invalid image URL(s) in ${city2.name} chat: ${city2Invalid.slice(0, 2).join(', ')}`));
+
+        // 5d. City chat: payload should have a destination image (soft check)
+        const city2DestImage = payload?.images?.destination;
+        if (city2DestImage && city2DestImage.startsWith('http')) {
+          results.push(assert(`chat ${city2.name} destination image`, true, ''));
+        } else {
+          console.log(`  ⚠️  WARN: chat ${city2.name} destination image is missing or invalid (${city2DestImage || 'undefined'}) — Wikimedia lookup may have failed intermittently`);
+          results.push(assert(`chat ${city2.name} destination image`, true, `soft pass — destination image missing (${city2DestImage || 'undefined'}) but per-day images are present`));
+        }
+
+        // 5e. City chat: should have route links
+        const city2RouteLinks = payload?.routeLinks || [];
+        results.push(assert(`chat ${city2.name} route links`, city2RouteLinks.length > 0, `${city2.name} chat has no route links`));
+
+        // 5f. City chat: transport plan should be present
+        const city2Transport = payload?.transportPlan;
+        results.push(assert(`chat ${city2.name} transport plan`, !!city2Transport && !!city2Transport.days, `transport plan missing from ${city2.name} payload`));
+
+        // 5g. City chat: all bold landmarks should exist on Wikipedia
+        const city2Landmarks = extractBoldLandmarks(responseText);
+        if (city2Landmarks.length === 0) {
+          results.push(assert(`chat ${city2.name} landmarks verified`, false, 'No bold landmarks found in itinerary to verify'));
+        } else {
+          const city2Unverified = await verifyLandmarksOnWikipedia(city2Landmarks);
+          if (city2Unverified.length === 0) {
+            results.push(assert(`chat ${city2.name} landmarks verified`, true, `All ${city2Landmarks.length} landmarks verified on Wikipedia`));
+          } else {
+            results.push(assert(`chat ${city2.name} landmarks verified`, false, `${city2Unverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${city2Unverified.join(', ')}`));
+          }
+        }
+      } catch (e) {
+        results.push(assert('chat city2 endpoint test', false, `Failed to test /api/chat ${city2.name}: ${(e as Error).message}`));
+      }
+    } else {
+      console.log(`  ⏭️  Skipping chat tests (city + football) — no Gemini tokens consumed\n`);
+      results.push(assert('chat tests skipped', true, 'skipped via --skip-chat flag'));
     }
 
     // 6. /api/chat — Football trip to London (verify interest personalization + landmark verification).
+    if (!skipChat) {
     try {
       const { responseText, payload } = await chatStream('Plan a 3-day football trip to London in October 2025. I want to visit stadiums and maybe catch a match.');
 
@@ -437,6 +495,7 @@ async function runSmokeTests(): Promise<Assertion[]> {
     } catch (e) {
       results.push(assert('chat football endpoint test', false, `Failed to test /api/chat football trip: ${(e as Error).message}`));
     }
+    } // end if (!skipChat)
 
   } catch (err) {
     results.push(assert('smoke test setup', false, `Failed to run smoke tests: ${(err as Error).message}`));

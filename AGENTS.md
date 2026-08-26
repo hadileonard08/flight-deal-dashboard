@@ -29,3 +29,34 @@
 - When enabled, all page requests (except `/maintenance` and static assets) are redirected to `/maintenance`, which shows "We are updating".
 - To enable on Vercel: add `MAINTENANCE_MODE=true` in the project environment variables and redeploy (`npx vercel --prod`).
 - To restore the site, change it to `MAINTENANCE_MODE=false` (or remove it) and redeploy.
+
+## Testing (save Gemini tokens — test locally first!)
+
+### Image quality test (NO Gemini tokens, NO server required)
+```bash
+npx tsx scripts/test-images.ts                          # full test (14 landmarks + 5 destinations + hydration)
+npx tsx scripts/test-images.ts --landmarks "X" "Y"      # test specific landmarks
+npx tsx scripts/test-images.ts --destination London     # test specific destination
+npx tsx scripts/test-images.ts --full                   # hydration test only
+```
+
+### Smoke tests (local first, then production)
+```bash
+# Step 1: Start dev server
+npm run dev
+
+# Step 2: Run smoke tests against localhost (uses Gemini tokens but catches bugs before deploying)
+npx tsx scripts/smoke-test.ts --local
+
+# Step 3: Skip chat tests to save tokens (only tests deals, logistics, itinerary API)
+npx tsx scripts/smoke-test.ts --local --skip-chat
+
+# Step 4: Run against production after deploying
+npx tsx scripts/smoke-test.ts
+```
+
+- `--local` tests against `http://localhost:3000` (default for local dev)
+- `--skip-chat` skips all chat tests (3 chat tests consume ~$0.05-0.10 in Gemini tokens per run)
+- Cities are randomized from a pool of 15 destinations each run (Tokyo, Paris, London, Bangkok, Seoul, Barcelona, Rome, Istanbul, Singapore, Amsterdam, Dubai, Hong Kong, Madrid, Sydney, Lisbon)
+- The football trip test always uses London (to verify stadium landmarks)
+
