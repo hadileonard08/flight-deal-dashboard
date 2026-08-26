@@ -14,20 +14,22 @@ Built with Next.js 14, LangChain/LangGraph, PostgreSQL, Clerk auth, the Seats.ae
 
 Users chat with **Jalan**, a friendly travel companion that:
 
-1. **Understands natural-language trip requests** — e.g. *"Tokyo in October"*, *"honeymoon in Thailand"*, *"Paris for a week"*, *"find any deal to Bangkok in January"*.
+1. **Understands natural-language trip requests** — e.g. *"Tokyo in October"*, *"honeymoon in Thailand"*, *"2 week Japan trip in December"*, *"find any deal to Bangkok in January"*.
 2. **Asks clarifying questions** when details are missing — dates, origin, budget, cabin, trip length. Handles vague messages gracefully with conversational follow-ups.
 3. **Generates a full day-by-day itinerary** with:
    - Real weather forecast from Open-Meteo.
    - Live destination news and events (Gemini web search grounding).
-   - Landmark images for each day from 4 image sources (Wikimedia Commons, Wikipedia, Openverse, Pexels) — deduplicated, with destination image fallback so every day has an image.
+   - High-quality landmark images for each day from 4 image sources (Wikimedia Commons, Wikipedia, Openverse, Pexels) — filtered for relevance and dimensions, deduplicated, with destination image fallback so every day has an image.
    - A "Getting Around" section with local transit tips.
-   - Per-day transport notes (walking/transit guidance).
-4. **Plans transport between every stop** — a dedicated transport agent geocodes each landmark and uses OSRM to get real walking/driving times, then recommends the best mode (walk, transit, ride-share) per leg, plus city-specific transit tips and cost estimates. Handles generic transit terms (MTR, Subway, JR) intelligently.
-5. **Searches live award flight deals** via the Seats.aero Partner API — returns the top 5 lowest-mileage options, diversified by origin city, with duration, stops, taxes, and direct airline booking links.
+   - Per-day transport notes (walking/transit guidance with real times).
+4. **Plans transport between every stop** — a dedicated transport agent geocodes each landmark and uses OSRM to get real walking/driving times, then recommends the best mode (walk, transit, ride-share) per leg, plus city-specific transit tips and cost estimates. Handles generic transit terms (MTR, Subway, JR) intelligently. Includes retry logic for Nominatim rate-limiting on long trips.
+5. **Searches live award flight deals** via the Seats.aero Partner API — returns the top 5 lowest-mileage options, diversified by origin city, with duration, stops, taxes, and direct airline booking links. Supports country-level searches (e.g. "Japan" matches NRT/HND/KIX) with broadened date ranges.
 6. **Provides daily Google Maps route links** — each day's landmarks are turned into a clickable Google Maps directions URL with highlight summaries (e.g. "Louvre → Eiffel Tower → Montmartre").
 7. **Suggests a packing list** based on destination and weather.
-8. **Lets users save trips** to a **One Stop** panel (sign-in gated) with to-dos, notes, deals, itinerary, routes, transport, and packing list.
-9. **Provides a section navigator** — a slim right-side rail (desktop) and floating button + drawer (mobile) that lets users jump to any section of the itinerary (Weather, Transport, Packing, Deals, Routes, individual days).
+8. **Lets users save trips** to a **One Stop** panel (sign-in gated) with a trip selector sidebar for multiple saved trips, to-dos, notes, deals, itinerary (with images), routes, transport, and packing list.
+9. **Provides a section navigator** — a minimalist right-side rail (desktop) and floating button + drawer (mobile) that lets users jump to any section of the itinerary (Weather, Transport, Packing, Deals, Routes, individual days).
+10. **Shares trips via link** — generates a public, read-only shareable URL that displays the full itinerary with all payload sections (weather, transport, packing, deals, routes) and its own section navigator. Links never expire.
+11. **Refines existing itineraries** — when a user asks to modify a previous plan (e.g. "make it shorter", "add more food spots"), the agent uses the previous itinerary as context and edits it instead of regenerating from scratch.
 
 ---
 
@@ -95,7 +97,7 @@ After the itinerary is generated and route links are extracted, a dedicated tran
 5. **Generates city-specific transit tips** via LLM — which transit pass/card to buy, best navigation/ride-share app, cultural tips, and when to walk vs. take transit.
 6. **Estimates transport costs** — markdown table with day pass, single ride, taxi base fare, ride-share, and weekly total.
 
-Processes all days (batched 3 at a time) to respect Nominatim's 1 req/sec rate limit.
+Processes all days (batched 2 at a time with 1-second delays) to respect Nominatim's 1 req/sec rate limit. Includes retry logic with exponential backoff on HTTP 429, and a fallback geocode query without the city name if the first query returns no results. When geocoding fails, shows a helpful "Take local transit from X to Y" message instead of an error.
 
 ### Image hydration
 
@@ -107,6 +109,7 @@ The image agent (`src/agents/destination-images.ts`) tries 4 sources in order fo
 4. **Pexels** — free stock photos (optional, requires `PEXELS_API_KEY`)
 
 Features:
+- **Quality filtering** — filters out irrelevant, low-quality, or unsuitable images using `BAD_IMAGE_PATTERNS`, `MIN_RELEVANCE_SCORE = 0.3`, and dimension checks. Prioritizes landscape-oriented images.
 - **Deduplication** — tracks used URLs and tries alternative search terms to find unique images per day.
 - **Destination image fallback** — pre-fetches the destination city image and uses it as a last resort so every day always has an image.
 - **Aggressive fallback terms** — for each landmark, tries city + landmark + photo/night/skyline/street/district variants.
@@ -126,7 +129,7 @@ When the agent needs flight deals:
 
 ### Hallucination guardrails
 
-- **Wikipedia landmark verification** — every `![IMAGE: ...]` placeholder in the itinerary is checked against Wikipedia's search API. Unverified landmarks are flagged.
+- **Wikipedia landmark verification** — every `![IMAGE: ...]` placeholder in the itinerary is checked against Wikipedia's search API. Unverified landmarks are flagged. Includes retry logic with exponential backoff on HTTP 429 rate-limiting, and fails open (assumes landmark is real) after all retries are exhausted.
 - **Critic prompt** — explicitly checks for invented attractions, closed venues, fake transit lines, made-up schedules, and inconsistent day counts.
 - **Itinerary generator prompt** — instructed to only include real, well-known attractions and to use specific station names (e.g. "Tsim Sha Tsui MTR Station" not "MTR").
 - **Route link filtering** — the Google Maps route builder filters out generic words (morning, afternoon, hotel) and transit-mode names so only real places become waypoints.
@@ -142,10 +145,12 @@ The agent works for any destination worldwide — not just a fixed set of cities
 A sign-in-gated, centered modal accessible from the left sidebar that lets users:
 
 - **Save** any assistant response (deals, itinerary, packing list, route links, transport plan).
-- **View saved trips** organized by destination and dates.
+- **View saved trips** — when multiple trips are saved, a trip selector sidebar shows all trips with destination and dates; clicking one shows its details.
 - **Manage to-dos** — add, check off, and delete tasks per trip.
 - **Write notes** — free-form notes per trip.
 - **Copy trip summary** — copies everything to clipboard.
+- **Delete trips** — organized copy + delete buttons in each trip card header.
+- **Itinerary images** — the itinerary tab renders images inline with proper styling.
 - **Persist locally** — saved trips are stored in `localStorage`.
 
 ---
@@ -171,15 +176,19 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 
 ### Conversational chat
 - Natural-language trip planning with follow-up questions.
+- **Refine/follow-up** — ask to modify an existing itinerary (e.g. "make it shorter", "add more food spots") and the agent edits the previous plan instead of regenerating from scratch.
 - Vague message handling — asks warm, conversational follow-ups with example ideas.
 - Context-aware loading statuses (e.g. *"Checking the weather..."*, *"Looking for deals..."*).
 - Conversation history with dynamic titles and delete.
 - Persistent conversations across sessions (for signed-in users).
 - Gemini-style sidebar with New trip, One Stop, and recent conversations.
 - Closable sign-in prompt that appears when a guest sends their first message.
+- Clickable Jalan logo navigates to home page.
 
 ### Live flight deals
 - Top 5 lowest-mileage award deals from Seats.aero.
+- **Country-level search** — saying "Japan" matches all Japanese airports (NRT, HND, KIX) via country-to-airport-code mapping.
+- **Broadened date ranges** — when a user says "December" without a specific date, searches the entire month across any year. For specific dates, broadens by +/- 7 days to catch nearby deals.
 - **Diversified by origin city** — round-robin selection across multiple US gateways when no origin is specified.
 - Each deal shows: origin → destination, airline, cabin, date, points, taxes, duration, stops.
 - Clickable cards that link directly to the airline's booking page.
@@ -198,9 +207,16 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 - Clickable "Daily Routes" card in the chat.
 
 ### Section navigator
-- **Desktop**: slim right-side rail listing all itinerary sections (days, weather, transport, packing, deals, routes).
+- **Desktop**: minimalist right-side rail listing all itinerary sections (days, weather, transport, packing, deals, routes) as clean text links.
 - **Mobile**: floating button (bottom-right) opens a slide-out drawer with the same section list.
-- Click any section to jump directly to it.
+- Click any section to jump directly to it with smooth scroll and header offset.
+- Also available on shared trip pages.
+
+### Share trip link
+- Generate a public, read-only shareable URL for any itinerary.
+- The shared page displays the full itinerary with all payload sections (weather, transport, packing, deals, routes) and its own section navigator.
+- Links are stored server-side in PostgreSQL and never expire.
+- "Share" and "Save to One Stop" buttons appear at the bottom of each assistant response, after all payload sections.
 
 ### Guardrails
 - Wikipedia landmark verification.
@@ -211,9 +227,10 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 
 ### One Stop panel
 - Sign-in-gated centered modal (95vw x 90vh).
-- Save deals, itinerary, packing list, transport plan, and routes.
+- Save deals, itinerary (with inline images), packing list, transport plan, and routes.
+- **Trip selector sidebar** — when multiple trips are saved, a left sidebar lists all trips with destination and dates; click to view details.
 - To-do list and notes per trip.
-- Copy-to-clipboard trip summary.
+- Copy-to-clipboard and delete buttons organized in each trip card header.
 - localStorage persistence.
 
 ### Mobile-optimized
@@ -231,6 +248,8 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 - `DELETE /api/chat/conversations/[id]` — delete a conversation.
 - `GET /api/chat/history` — load message history for a conversation.
 - `POST /api/chat/merge-session` — merge anonymous session into user account on sign-in.
+- `POST /api/share` — create a shareable link for a conversation's latest itinerary (server-side storage, never expires).
+- `GET /api/share/[id]` — fetch a shared trip by ID (public, no auth required).
 - `GET /api/deals` — paginated cached deals (legacy dashboard support).
 - `POST /api/itinerary` — on-demand itinerary generation (legacy).
 - `POST /api/booking-strategy` — booking strategy agent (legacy).
@@ -291,9 +310,15 @@ src/
       chat/route.ts          # Streaming chat endpoint (SSE)
       chat/conversations/    # Conversation CRUD
       chat/history/          # Message history
+      share/route.ts         # POST: create shareable trip link
+      share/[id]/route.ts    # GET: fetch shared trip (public, no auth)
       ...
+    share/[id]/page.tsx      # Public read-only shared trip page with section nav
+  db/
+    schema.ts                # Drizzle schema: flights, deals, conversations, messages, shared_trips
 scripts/
-  smoke-test.ts              # Post-deploy smoke tests (31 tests: deals, logistics, itinerary, chat endpoint)
+  smoke-test.ts              # Post-deploy smoke tests (38 tests: deals, logistics, itinerary, chat, landmarks, images)
+  test-images.ts             # Local image testing without consuming Gemini tokens
 ```
 
 ---
@@ -340,7 +365,13 @@ scripts/
    ```bash
    SMOKE_TEST_URL=https://jalan-ai.vercel.app npx tsx scripts/smoke-test.ts
    ```
-   31 tests verifying: deals with real airline info, logistics check, itinerary with images + day headings, no duplicate deals section, no tweak prompt in markdown, chat route links, diversified deals by origin, transport plans, image uniqueness, and destination images.
+   38 tests verifying: deals with real airline info, logistics check, itinerary with images + day headings, no duplicate deals section, no tweak prompt in markdown, chat route links, diversified deals by origin, transport plans, image uniqueness, destination images, and Wikipedia landmark verification (with retry logic for rate-limiting).
+
+8. **Run local image tests** (without consuming Gemini tokens):
+   ```bash
+   npx tsx scripts/test-images.ts
+   ```
+   Tests image fetching from all 4 sources (Wikimedia, Wikipedia, Openverse, Pexels) with quality filtering and deduplication.
 
 ---
 
@@ -348,17 +379,20 @@ scripts/
 
 - Built a **conversational travel planner** powered by a LangGraph multi-agent loop (extract → clarify → gather → guardrails → critic → respond) that turns natural-language requests into full itineraries.
 - Configured a **hybrid Gemini model setup** — `gemini-3.5-flash` for quality-critical nodes (itinerary generation, critic) and `gemini-3.5-flash-lite` for speed-critical nodes (extraction, clarification, answers) — balancing quality and cost (~$15-20 per 1,000 trips).
-- Added a **transport agent** that geocodes every itinerary stop via Nominatim, gets real walking/driving times via OSRM, recommends the best transport mode per leg, handles generic transit terms (MTR, JR, Subway), and generates city-specific transit tips + cost estimates via LLM.
-- Integrated **live Seats.aero award deal search** with trip-detail enrichment (duration, stops, aircraft), direct airline booking links, and **deal diversification by origin city** (round-robin selection across US gateways).
-- Added **hallucination guardrails** that verify every itinerary landmark against Wikipedia and flag unverified places for the critic to reject.
+- Added a **refine/follow-up feature** — when a user asks to modify a previous plan, the agent uses the chat history as context and edits the existing itinerary instead of regenerating from scratch.
+- Added a **transport agent** that geocodes every itinerary stop via Nominatim (with retry logic for rate-limiting), gets real walking/driving times via OSRM, recommends the best transport mode per leg, handles generic transit terms (MTR, JR, Subway), and generates city-specific transit tips + cost estimates via LLM.
+- Integrated **live Seats.aero award deal search** with trip-detail enrichment (duration, stops, aircraft), direct airline booking links, **deal diversification by origin city** (round-robin selection across US gateways), and **country-level destination support** (e.g. "Japan" → NRT/HND/KIX) with broadened date ranges.
+- Added **hallucination guardrails** that verify every itinerary landmark against Wikipedia (with retry logic for rate-limiting) and flag unverified places for the critic to reject.
 - Implemented **daily Google Maps route links** with highlight summaries by extracting landmarks from the itinerary and building clickable directions URLs — no API key required.
-- Built a **4-source image hydration agent** (Wikimedia Commons, Wikipedia, Openverse, Pexels) with deduplication and destination image fallback so every day always has an image.
+- Built a **4-source image hydration agent** (Wikimedia Commons, Wikipedia, Openverse, Pexels) with quality filtering (relevance score, dimensions, bad pattern detection), deduplication, and destination image fallback so every day always has a high-quality landscape image.
 - Added a **30-day duration guardrail** that caps absurd requests (e.g. "2 years") at 30 days, enforced in 3 places (extract, generate, prompt).
-- Supports **70+ global destinations** with fallback to city name for weather, news, and images when IATA codes aren't in the lookup tables.
-- Built a **Gemini-style sidebar** with New trip, One Stop, and recent conversations as nav items, plus a closable sign-in prompt for guests.
-- Built a **One Stop panel** (sign-in-gated modal) for users to save deals, itineraries, transport plans, packing lists, routes, to-dos, and notes per trip.
+- Supports **70+ global destinations** with country-to-airport-code mapping for deal searches, and fallback to city name for weather, news, and images when IATA codes aren't in the lookup tables.
+- Built a **share trip link feature** — generates public, read-only shareable URLs (stored server-side in PostgreSQL, never expire) that display the full itinerary with all payload sections and a section navigator.
+- Built a **Gemini-style sidebar** with New trip, One Stop, and recent conversations as nav items, plus a closable sign-in prompt for guests. Logo is clickable to navigate home.
+- Built a **One Stop panel** (sign-in-gated modal) with a trip selector sidebar for multiple saved trips, inline itinerary images, to-dos, notes, copy summary, and delete — all organized in clean card headers.
 - Integrated **Clerk authentication** with anonymous session merging and sign-in-gated features.
 - Added **vague message handling** — when users send unclear messages, the agent asks warm, conversational follow-ups with example trip ideas.
 - Used **chrono-node** for flexible natural-language date parsing (e.g. *"in two weeks"*, *"next October"*, *"2 week trip"*).
-- Optimized **mobile experience** — no horizontal scroll, auto-scroll to top on itinerary completion, responsive layout with mobile sidebar drawer.
-- Implemented **post-deploy smoke tests** (31 tests) that verify deals, logistics, itinerary quality, route links, deal diversification, image uniqueness, transport plans, and chat endpoint behavior.
+- Optimized **mobile experience** — no horizontal scroll, auto-scroll to top on itinerary completion, responsive layout with mobile sidebar drawer, floating section navigator button.
+- Implemented **post-deploy smoke tests** (38 tests) with randomized city selection, Wikipedia landmark verification (with retry logic for rate-limiting), and `--local`/`--skip-chat` flags for token-efficient testing.
+- Added **local image testing script** (`scripts/test-images.ts`) for testing image fetching without consuming Gemini tokens.
