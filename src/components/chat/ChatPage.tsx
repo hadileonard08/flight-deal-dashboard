@@ -774,20 +774,20 @@ export default function ChatPage() {
           <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-6">
             {/* Closable sign-in prompt — appears when a guest sends a message */}
             {showSignInPrompt && !isSignedIn && (
-              <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-blue-600 text-white flex items-center justify-between gap-3 shadow-md">
+              <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-gray-900 text-white flex items-center justify-between gap-3 shadow-md">
                 <div className="flex items-center gap-2 min-w-0">
                   <LogIn size={18} className="flex-shrink-0" />
                   <span className="text-sm font-medium truncate">Sign in to save your trip and access it across devices.</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <SignInButtonWrapper mode="modal">
-                    <button className="text-sm bg-white text-blue-600 font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">
+                    <button className="text-sm bg-white text-gray-900 font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
                       Sign in
                     </button>
                   </SignInButtonWrapper>
                   <button
                     onClick={() => setShowSignInPrompt(false)}
-                    className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+                    className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
                     aria-label="Dismiss"
                   >
                     <X size={18} />
