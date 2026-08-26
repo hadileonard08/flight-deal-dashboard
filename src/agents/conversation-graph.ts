@@ -500,7 +500,7 @@ Requirements:
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
 - Do not invent traveler names.
 - Keep the tone warm, like a friend sharing recommendations.
-- CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative. For sports venues, use real stadium names (e.g. "Emirates Stadium", "Stamford Bridge", "Wembley Stadium", "Old Trafford").
+- CRITICAL: Only include real, well-known attractions, restaurants, and transit options. Do not invent names, places, closed venues, transit lines, schedules, or booking details. If you are unsure about a specific place, replace it with a clearly real alternative. For sports venues, use real stadium names (e.g. "Emirates Stadium", "Stamford Bridge", "Wembley Stadium", "Old Trafford", "Anfield", "Etihad Stadium", "Camp Nou", "Santiago Bernabéu", "Metropolitano Stadium", "Allianz Arena", "Signal Iduna Park", "San Siro", "Juventus Stadium", "Parc des Princes", "Stade Vélodrome", "Amsterdam Arena", "Maracanã Stadium", "Monumental Stadium", "Yankee Stadium", "Madison Square Garden", "Fenway Park", "Wrigley Field", "Tokyo Dome", "Sapporo Dome").
 - When mentioning transit, use SPECIFIC station/stop names, not generic system names. For example: "Tsim Sha Tsui MTR Station" not "MTR"; "Shinjuku Station" not "JR Line"; "Châtelet Metro Station" not "Metro". This is needed for route planning.
 
 Getting around / transport:
