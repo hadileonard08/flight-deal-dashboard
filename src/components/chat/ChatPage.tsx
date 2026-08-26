@@ -47,7 +47,7 @@ function WeatherCard({ weather }: { weather?: any }) {
   if (!weather) return null;
   const summary = typeof weather === 'string' ? weather : JSON.stringify(weather, null, 2);
   return (
-    <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3 scroll-mt-20">
+    <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3 scroll-mt-24">
       <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
         <Sun size={18} /> Weather Outlook
       </div>
@@ -59,7 +59,7 @@ function WeatherCard({ weather }: { weather?: any }) {
 function PackingCard({ packingTips }: { packingTips?: string }) {
   if (!packingTips) return null;
   return (
-    <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3 scroll-mt-20">
+    <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3 scroll-mt-24">
       <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
         <Briefcase size={18} /> Packing Suggestions
       </div>
@@ -93,7 +93,7 @@ function DealsList({ deals }: { deals?: any[] }) {
     .slice(0, 5);
 
   return (
-    <div id="section-deals" className="my-3 scroll-mt-20">
+    <div id="section-deals" className="my-3 scroll-mt-24">
       <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
         <Plane size={18} /> Points Flight Deals
       </div>
@@ -147,7 +147,7 @@ function DealsList({ deals }: { deals?: any[] }) {
 function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
   if (!routeLinks || routeLinks.length === 0) return null;
   return (
-    <div id="section-routes" className="my-3 scroll-mt-20">
+    <div id="section-routes" className="my-3 scroll-mt-24">
       <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
         <Map size={18} /> Daily Routes
       </div>
@@ -182,7 +182,7 @@ function TransportCard({ transportPlan }: { transportPlan?: any }) {
   if (!cityTransitTips && !estimatedCosts) return null;
 
   return (
-    <div id="section-transport" className="my-3 bg-green-50 border border-green-100 rounded-xl p-4 scroll-mt-20">
+    <div id="section-transport" className="my-3 bg-green-50 border border-green-100 rounded-xl p-4 scroll-mt-24">
       <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
         <Navigation size={18} /> Transport & Getting Around
       </div>
@@ -285,7 +285,7 @@ function renderItineraryMarkdown(markdown: string): React.ReactNode {
       <div
         key={`day-${i}`}
         id={slug(match.title)}
-        className="day-card bg-white border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-20"
+        className="day-card bg-white border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-24"
       >
         <ItineraryMarkdown>{sectionContent}</ItineraryMarkdown>
       </div>
@@ -833,7 +833,7 @@ export default function ChatPage() {
 
         {/* Messages + section navigator */}
         <div className="flex-1 flex overflow-hidden">
-          <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-32 space-y-6">
+          <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-44 space-y-6">
             {/* Closable sign-in prompt — appears when a guest sends a message */}
             {showSignInPrompt && !isSignedIn && (
               <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-gray-900 text-white flex items-center justify-between gap-3 shadow-md">
@@ -952,7 +952,15 @@ export default function ChatPage() {
 
             const jumpTo = (id: string) => {
               const el = document.getElementById(id);
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              if (el && messagesRef.current) {
+                // Calculate the scroll position manually so the element appears
+                // below the sticky header, not hidden behind the input area.
+                const container = messagesRef.current;
+                const containerRect = container.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+                const offset = elRect.top - containerRect.top + container.scrollTop - 80;
+                container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+              }
               setSectionsOpen(false);
             };
 
