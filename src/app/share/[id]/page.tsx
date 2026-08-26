@@ -274,8 +274,22 @@ export default function SharedTripPage() {
                   <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
                     🌤️ Weather Outlook
                   </div>
-                  <div className="text-sm text-blue-900 whitespace-pre-wrap">
-                    {typeof trip.payload.weather === 'string' ? trip.payload.weather : JSON.stringify(trip.payload.weather, null, 2)}
+                  <div className="text-sm text-blue-900">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ children }) => <p className="font-semibold text-blue-900 mt-2 mb-1">{children}</p>,
+                        h2: ({ children }) => <p className="font-semibold text-blue-900 mt-2 mb-1">{children}</p>,
+                        h3: ({ children }) => <p className="font-medium text-blue-800 mt-2 mb-1">{children}</p>,
+                        p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-blue-900">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      }}
+                    >
+                      {typeof trip.payload.weather === 'string' ? trip.payload.weather : JSON.stringify(trip.payload.weather, null, 2)}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}
@@ -287,13 +301,36 @@ export default function SharedTripPage() {
                     🗺️ Transport & Getting Around
                   </div>
                   {trip.payload.transportPlan.cityTransitTips && (
-                    <div className="text-sm text-green-900 whitespace-pre-wrap mb-3">
-                      {trip.payload.transportPlan.cityTransitTips}
+                    <div className="text-sm text-green-900 mb-3">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          h1: ({ children }) => <p className="font-semibold text-green-900 mt-2 mb-1">{children}</p>,
+                          h2: ({ children }) => <p className="font-semibold text-green-900 mt-2 mb-1">{children}</p>,
+                          h3: ({ children }) => <p className="font-medium text-green-800 mt-2 mb-1">{children}</p>,
+                          p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-green-900">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+                          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                        }}
+                      >
+                        {trip.payload.transportPlan.cityTransitTips}
+                      </ReactMarkdown>
                     </div>
                   )}
                   {trip.payload.transportPlan.estimatedCosts && (
                     <div className="text-sm text-green-900">
-                      <span className="font-medium">Estimated costs:</span> {trip.payload.transportPlan.estimatedCosts}
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="leading-relaxed">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-green-900">{children}</strong>,
+                          ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                        }}
+                      >
+                        {trip.payload.transportPlan.estimatedCosts}
+                      </ReactMarkdown>
                     </div>
                   )}
                 </div>
@@ -306,7 +343,21 @@ export default function SharedTripPage() {
                     🎒 Packing Suggestions
                   </div>
                   <div className="text-sm text-amber-900">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{trip.payload.packingTips}</ReactMarkdown>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ children }) => <p className="font-semibold text-amber-900 mt-2 mb-1">{children}</p>,
+                        h2: ({ children }) => <p className="font-semibold text-amber-900 mt-2 mb-1">{children}</p>,
+                        h3: ({ children }) => <p className="font-medium text-amber-800 mt-2 mb-1">{children}</p>,
+                        p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold text-amber-900">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+                        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      }}
+                    >
+                      {trip.payload.packingTips}
+                    </ReactMarkdown>
                   </div>
                 </div>
               )}

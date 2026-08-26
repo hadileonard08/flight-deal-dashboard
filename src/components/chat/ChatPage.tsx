@@ -43,6 +43,19 @@ function formatDate(iso?: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// Shared markdown component overrides for payload cards (weather, transport, packing).
+// Renders headings as styled paragraphs so ### and ** don't show as raw markdown.
+const payloadMarkdownComponents = {
+  h1: ({ children }: any) => <p className="font-semibold mt-2 mb-1">{children}</p>,
+  h2: ({ children }: any) => <p className="font-semibold mt-2 mb-1">{children}</p>,
+  h3: ({ children }: any) => <p className="font-medium mt-2 mb-1">{children}</p>,
+  p: ({ children }: any) => <p className="leading-relaxed my-1">{children}</p>,
+  strong: ({ children }: any) => <strong className="font-semibold">{children}</strong>,
+  ul: ({ children }: any) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
+  li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+};
+
 function WeatherCard({ weather }: { weather?: any }) {
   if (!weather) return null;
   const summary = typeof weather === 'string' ? weather : JSON.stringify(weather, null, 2);
@@ -51,7 +64,9 @@ function WeatherCard({ weather }: { weather?: any }) {
       <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
         <Sun size={18} /> Weather Outlook
       </div>
-      <div className="text-sm text-blue-900 whitespace-pre-wrap">{summary}</div>
+      <div className="text-sm text-blue-900">
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{summary}</ReactMarkdown>
+      </div>
     </div>
   );
 }
@@ -64,7 +79,7 @@ function PackingCard({ packingTips }: { packingTips?: string }) {
         <Briefcase size={18} /> Packing Suggestions
       </div>
       <div className="text-sm text-amber-900">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{packingTips}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{packingTips}</ReactMarkdown>
       </div>
     </div>
   );
@@ -189,13 +204,13 @@ function TransportCard({ transportPlan }: { transportPlan?: any }) {
 
       {cityTransitTips && (
         <div className="text-sm text-green-900 mb-3">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{cityTransitTips}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{cityTransitTips}</ReactMarkdown>
         </div>
       )}
 
       {estimatedCosts && (
         <div className="text-sm text-green-900">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{estimatedCosts}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{estimatedCosts}</ReactMarkdown>
         </div>
       )}
     </div>
