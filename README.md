@@ -103,6 +103,24 @@ flowchart TD
 | **Answer** | Tool / DB | Handles deal-only lookups (e.g. *"find deals to Tokyo in December"*) with live Seats.aero search. |
 | **Respond** | LLM Generator | Hydrates image placeholders with real image URLs from 4 sources (deduplicated), assembles the final markdown response. All user-facing nodes (Clarify, Answer, Critic-approved, greeting) route through Respond before terminating. |
 
+#### Routing logic
+
+The Extract node is an **LLM router** — it classifies the user's intent and checks for missing required fields (destination, dates). The routing is conditional:
+
+| User says | Intent | Missing fields? | Routes to |
+|-----------|--------|-----------------|-----------|
+| *"Plan a 5-day trip to Tokyo in October 2025"* | `plan_trip` | No | **Gather** (skip Clarify — all info present) |
+| *"Plan a trip to Japan"* | `plan_trip` | Yes (no dates) | **Clarify** ("When are you thinking of visiting?") |
+| *"Find deals to Bangkok in January"* | `ask_question` | No | **Answer** (deal lookup only, no itinerary) |
+| *"What's the weather like in Bali?"* | `ask_question` | Yes (no dates) | **Clarify** ("When are you going?") |
+| *"I want to travel somewhere"* | `vague` | — | **Clarify** (warm follow-up with example ideas) |
+| *"Hi!"* | `greeting` | — | **Respond** (greeting back) |
+| *"Make it shorter"* (after a plan) | `refine` | No | **Gather** (edits existing itinerary using chat history) |
+
+**Clarify is a conditional detour, not a prerequisite.** If the user provides enough information upfront (destination + dates), the flow skips Clarify and goes directly to Gather. After Clarify asks for missing info and the user replies, the next turn re-routes through Extract — which then sends the complete request to Gather.
+
+The revision loop (Critic → Gather) runs up to 2 times (3 for missing image placeholders) before the Critic auto-approves to prevent infinite loops.
+
 ### Transport agent
 
 After the itinerary is generated and route links are extracted, a dedicated transport agent (`src/agents/transport.ts`) runs to provide real-world transport guidance:
