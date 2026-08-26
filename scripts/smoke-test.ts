@@ -94,6 +94,46 @@ async function chatStream(message: string, timeoutMs = 180000): Promise<{ respon
   }
 }
 
+// Extract bold landmark names from itinerary markdown, excluding headings and generic labels.
+function extractBoldLandmarks(markdown: string): string[] {
+  return Array.from(markdown.matchAll(/\*\*([^*]+)\*\*/g))
+    .map(m => m[1].trim())
+    .filter(name => name.length > 3 && !name.match(/^(Day \d|Weather|Packing|Getting Around|Transport|Points Flight|Daily Routes|Itinerary|Morning|Afternoon|Evening|Night|Lunch|Dinner|Breakfast)/i))
+    .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
+}
+
+// Verify a list of landmark names against Wikipedia's opensearch API.
+// Returns the list of landmarks that could NOT be found (possible hallucinations).
+// Fails open (returns empty) if Wikipedia is unreachable.
+async function verifyLandmarksOnWikipedia(landmarks: string[]): Promise<string[]> {
+  if (landmarks.length === 0) return [];
+
+  const unverified: string[] = [];
+  const batchSize = 5;
+  for (let i = 0; i < landmarks.length; i += batchSize) {
+    const batch = landmarks.slice(i, i + batchSize);
+    const checks = await Promise.all(batch.map(async (landmark) => {
+      try {
+        const res = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(landmark)}&limit=1&namespace=0&format=json&origin=*`,
+          { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
+        );
+        if (!res.ok) return { landmark, exists: true }; // fail open
+        const data = await res.json() as [string, string[], string[], string[]];
+        return { landmark, exists: (data[1] || []).length > 0 };
+      } catch {
+        return { landmark, exists: true }; // fail open
+      }
+    }));
+    for (const { landmark, exists } of checks) {
+      if (!exists) unverified.push(landmark);
+    }
+    // Small delay between batches to respect Wikipedia rate limits.
+    if (i + batchSize < landmarks.length) await new Promise(r => setTimeout(r, 500));
+  }
+  return unverified;
+}
+
 async function runSmokeTests(): Promise<Assertion[]> {
   const results: Assertion[] = [];
 
@@ -225,6 +265,19 @@ async function runSmokeTests(): Promise<Assertion[]> {
       // 4d. Tokyo chat: transport plan should be present
       const transportPlan = payload?.transportPlan;
       results.push(assert('chat Tokyo transport plan', !!transportPlan && !!transportPlan.days, 'transport plan missing from payload'));
+
+      // 4e. Tokyo chat: all bold landmarks should exist on Wikipedia
+      const tokyoLandmarks = extractBoldLandmarks(responseText);
+      if (tokyoLandmarks.length === 0) {
+        results.push(assert('chat Tokyo landmarks verified', false, 'No bold landmarks found in Tokyo itinerary to verify'));
+      } else {
+        const tokyoUnverified = await verifyLandmarksOnWikipedia(tokyoLandmarks);
+        if (tokyoUnverified.length === 0) {
+          results.push(assert('chat Tokyo landmarks verified', true, `All ${tokyoLandmarks.length} landmarks verified on Wikipedia`));
+        } else {
+          results.push(assert('chat Tokyo landmarks verified', false, `${tokyoUnverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${tokyoUnverified.join(', ')}`));
+        }
+      }
     } catch (e) {
       results.push(assert('chat Tokyo endpoint test', false, `Failed to test /api/chat Tokyo: ${(e as Error).message}`));
     }
@@ -263,6 +316,19 @@ async function runSmokeTests(): Promise<Assertion[]> {
       // 5f. Paris chat: transport plan should be present
       const parisTransport = payload?.transportPlan;
       results.push(assert('chat Paris transport plan', !!parisTransport && !!parisTransport.days, 'transport plan missing from Paris payload'));
+
+      // 5g. Paris chat: all bold landmarks should exist on Wikipedia
+      const parisLandmarks = extractBoldLandmarks(responseText);
+      if (parisLandmarks.length === 0) {
+        results.push(assert('chat Paris landmarks verified', false, 'No bold landmarks found in Paris itinerary to verify'));
+      } else {
+        const parisUnverified = await verifyLandmarksOnWikipedia(parisLandmarks);
+        if (parisUnverified.length === 0) {
+          results.push(assert('chat Paris landmarks verified', true, `All ${parisLandmarks.length} landmarks verified on Wikipedia`));
+        } else {
+          results.push(assert('chat Paris landmarks verified', false, `${parisUnverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${parisUnverified.join(', ')}`));
+        }
+      }
     } catch (e) {
       results.push(assert('chat Paris endpoint test', false, `Failed to test /api/chat Paris: ${(e as Error).message}`));
     }
@@ -292,45 +358,15 @@ async function runSmokeTests(): Promise<Assertion[]> {
       // 6d. All bold landmarks in the itinerary should exist on Wikipedia.
       // This is the key guardrail test — verifies that the LLM didn't invent
       // fake stadiums, attractions, or venues.
-      const boldLandmarks = Array.from(responseText.matchAll(/\*\*([^*]+)\*\*/g))
-        .map(m => m[1].trim())
-        .filter(name => name.length > 3 && !name.match(/^(Day \d|Weather|Packing|Getting Around|Transport|Points Flight|Daily Routes|Itinerary)/i))
-        .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
-
-      if (boldLandmarks.length === 0) {
-        results.push(assert('chat football landmarks extracted', false, 'No bold landmarks found in itinerary to verify'));
+      const footballLandmarks = extractBoldLandmarks(responseText);
+      if (footballLandmarks.length === 0) {
+        results.push(assert('chat football landmarks verified', false, 'No bold landmarks found in football itinerary to verify'));
       } else {
-        results.push(assert('chat football landmarks extracted', true, `Found ${boldLandmarks.length} bold landmarks to verify`));
-
-        // Verify each landmark exists on Wikipedia (with a small batch delay to respect rate limits).
-        const unverified: string[] = [];
-        const batchSize = 5;
-        for (let i = 0; i < boldLandmarks.length; i += batchSize) {
-          const batch = boldLandmarks.slice(i, i + batchSize);
-          const checks = await Promise.all(batch.map(async (landmark) => {
-            try {
-              const res = await fetch(
-                `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(landmark)}&limit=1&namespace=0&format=json&origin=*`,
-                { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
-              );
-              if (!res.ok) return { landmark, exists: true }; // fail open
-              const data = await res.json() as [string, string[], string[], string[]];
-              return { landmark, exists: (data[1] || []).length > 0 };
-            } catch {
-              return { landmark, exists: true }; // fail open
-            }
-          }));
-          for (const { landmark, exists } of checks) {
-            if (!exists) unverified.push(landmark);
-          }
-          // Small delay between batches to respect Wikipedia rate limits.
-          if (i + batchSize < boldLandmarks.length) await new Promise(r => setTimeout(r, 500));
-        }
-
-        if (unverified.length === 0) {
-          results.push(assert('chat football landmarks verified', true, `All ${boldLandmarks.length} landmarks verified on Wikipedia`));
+        const footballUnverified = await verifyLandmarksOnWikipedia(footballLandmarks);
+        if (footballUnverified.length === 0) {
+          results.push(assert('chat football landmarks verified', true, `All ${footballLandmarks.length} landmarks verified on Wikipedia`));
         } else {
-          results.push(assert('chat football landmarks verified', false, `${unverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${unverified.join(', ')}`));
+          results.push(assert('chat football landmarks verified', false, `${footballUnverified.length} landmark(s) not found on Wikipedia (possible hallucinations): ${footballUnverified.join(', ')}`));
         }
       }
 
