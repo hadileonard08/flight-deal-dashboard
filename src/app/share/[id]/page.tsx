@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { List, X } from 'lucide-react';
 import WalkersIcon from '@/components/WalkersIcon';
 
 interface SharedTripData {
@@ -106,6 +107,19 @@ function renderItineraryMarkdown(markdown: string): React.ReactNode {
   return <div className="space-y-1">{sections}</div>;
 }
 
+// Extract headings from itinerary markdown for the section navigator.
+function extractHeadings(markdown: string): { id: string; label: string; level: number }[] {
+  const headings: { id: string; label: string; level: number }[] = [];
+  const regex = /^(#{1,3})\s+(.+)$/gm;
+  let m;
+  while ((m = regex.exec(markdown)) !== null) {
+    const level = m[1].length;
+    const label = m[2].trim();
+    headings.push({ id: slug(label), label, level });
+  }
+  return headings;
+}
+
 export default function SharedTripPage() {
   const params = useParams();
   const id = params.id as string;
@@ -113,6 +127,8 @@ export default function SharedTripPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const scrollRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     async function fetchTrip() {
@@ -165,11 +181,47 @@ export default function SharedTripPage() {
     );
   }
 
+  // Build section headings for the navigator.
+  const mdHeadings = trip.itinerary ? extractHeadings(trip.itinerary) : [];
+  const payloadHeadings: { id: string; label: string; level: number }[] = [];
+  if (trip.payload?.weather) payloadHeadings.push({ id: 'section-weather', label: 'Weather Outlook', level: 2 });
+  if (trip.payload?.transportPlan) payloadHeadings.push({ id: 'section-transport', label: 'Transport & Getting Around', level: 2 });
+  if (trip.payload?.packingTips) payloadHeadings.push({ id: 'section-packing', label: 'Packing Suggestions', level: 2 });
+  if (trip.payload?.deals?.length) payloadHeadings.push({ id: 'section-deals', label: 'Flight Deals', level: 2 });
+  if (trip.payload?.routeLinks?.length) payloadHeadings.push({ id: 'section-routes', label: 'Daily Routes', level: 2 });
+  const headings = [...mdHeadings, ...payloadHeadings];
+
+  const jumpTo = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      const headerHeight = 60;
+      const y = el.getBoundingClientRect().top + window.scrollY - headerHeight;
+      window.scrollTo({ top: y, behavior: 'smooth' });
+    }
+    setSectionsOpen(false);
+  };
+
+  const sectionButtons = headings.map((h) => {
+    const isDay = /^day\s+\d+/i.test(h.label);
+    const dayNumber = h.label.match(/Day\s+(\d+)/i)?.[1] || '';
+    const cleanLabel = isDay ? h.label.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '') : h.label;
+    return (
+      <button
+        key={h.id}
+        onClick={() => jumpTo(h.id)}
+        className="w-full text-left text-xs text-gray-500 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 transition-colors truncate"
+        title={h.label}
+      >
+        {isDay ? <span><span className="text-gray-400 mr-1.5">{dayNumber}.</span>{cleanLabel}</span> : h.label}
+      </button>
+    );
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <WalkersIcon className="text-blue-600" size={24} />
             <span className="font-bold text-lg text-gray-900">Jalan</span>
@@ -191,149 +243,178 @@ export default function SharedTripPage() {
         </div>
       </header>
 
-      {/* Trip content */}
-      <main className="max-w-3xl mx-auto px-4 py-6">
-        {/* Trip header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">{trip.title}</h1>
-          {trip.destination && (
-            <p className="text-gray-500 text-sm flex items-center gap-1">
-              📍 {trip.destination}
+      {/* Trip content + section nav */}
+      <div className="max-w-5xl mx-auto flex">
+        {/* Main content */}
+        <main ref={scrollRef} className="flex-1 min-w-0 px-4 py-6">
+          {/* Trip header */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">{trip.title}</h1>
+            {trip.destination && (
+              <p className="text-gray-500 text-sm flex items-center gap-1">
+                📍 {trip.destination}
+              </p>
+            )}
+            <p className="text-gray-400 text-xs mt-2">
+              Shared {new Date(trip.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
-          )}
-          <p className="text-gray-400 text-xs mt-2">
-            Shared {new Date(trip.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-          </p>
-        </div>
+          </div>
 
-        {/* Itinerary */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          {renderItineraryMarkdown(trip.itinerary)}
-        </div>
+          {/* Itinerary */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            {renderItineraryMarkdown(trip.itinerary)}
+          </div>
 
-        {/* Payload sections — weather, transport, packing, deals, routes */}
-        {trip.payload && (
-          <div className="mt-6 space-y-4">
-            {/* Weather */}
-            {trip.payload.weather && (
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
-                  🌤️ Weather Outlook
-                </div>
-                <div className="text-sm text-blue-900 whitespace-pre-wrap">
-                  {typeof trip.payload.weather === 'string' ? trip.payload.weather : JSON.stringify(trip.payload.weather, null, 2)}
-                </div>
-              </div>
-            )}
-
-            {/* Transport */}
-            {trip.payload.transportPlan && (trip.payload.transportPlan.cityTransitTips || trip.payload.transportPlan.estimatedCosts) && (
-              <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
-                  🗺️ Transport & Getting Around
-                </div>
-                {trip.payload.transportPlan.cityTransitTips && (
-                  <div className="text-sm text-green-900 whitespace-pre-wrap mb-3">
-                    {trip.payload.transportPlan.cityTransitTips}
+          {/* Payload sections — weather, transport, packing, deals, routes */}
+          {trip.payload && (
+            <div className="mt-6 space-y-4">
+              {/* Weather */}
+              {trip.payload.weather && (
+                <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
+                    🌤️ Weather Outlook
                   </div>
-                )}
-                {trip.payload.transportPlan.estimatedCosts && (
-                  <div className="text-sm text-green-900">
-                    <span className="font-medium">Estimated costs:</span> {trip.payload.transportPlan.estimatedCosts}
+                  <div className="text-sm text-blue-900 whitespace-pre-wrap">
+                    {typeof trip.payload.weather === 'string' ? trip.payload.weather : JSON.stringify(trip.payload.weather, null, 2)}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
 
-            {/* Packing */}
-            {trip.payload.packingTips && (
-              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
-                <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
-                  🎒 Packing Suggestions
-                </div>
-                <div className="text-sm text-amber-900">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{trip.payload.packingTips}</ReactMarkdown>
-                </div>
-              </div>
-            )}
-
-            {/* Deals */}
-            {trip.payload.deals && trip.payload.deals.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  ✈️ Flight Deals
-                </div>
-                <div className="grid gap-2">
-                  {trip.payload.deals.slice(0, 5).map((deal: any, i: number) => (
-                    <div key={i} className="border border-gray-200 rounded-lg p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium text-gray-900 text-sm">
-                          {deal.originCode} → {deal.destinationCode}
-                        </div>
-                        <div className="text-blue-600 font-semibold text-sm">
-                          {Number(deal.pointsRequired).toLocaleString()} pts
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {deal.airline} · {deal.cabin}
-                      </div>
+              {/* Transport */}
+              {trip.payload.transportPlan && (trip.payload.transportPlan.cityTransitTips || trip.payload.transportPlan.estimatedCosts) && (
+                <div id="section-transport" className="bg-green-50 border border-green-100 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+                    🗺️ Transport & Getting Around
+                  </div>
+                  {trip.payload.transportPlan.cityTransitTips && (
+                    <div className="text-sm text-green-900 whitespace-pre-wrap mb-3">
+                      {trip.payload.transportPlan.cityTransitTips}
                     </div>
-                  ))}
+                  )}
+                  {trip.payload.transportPlan.estimatedCosts && (
+                    <div className="text-sm text-green-900">
+                      <span className="font-medium">Estimated costs:</span> {trip.payload.transportPlan.estimatedCosts}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Route links */}
-            {trip.payload.routeLinks && trip.payload.routeLinks.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
-                  🗺️ Daily Routes
+              {/* Packing */}
+              {trip.payload.packingTips && (
+                <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
+                    🎒 Packing Suggestions
+                  </div>
+                  <div className="text-sm text-amber-900">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{trip.payload.packingTips}</ReactMarkdown>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  {trip.payload.routeLinks.map((link: any, i: number) => (
-                    <a
-                      key={i}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
-                    >
-                      <div className="font-medium text-gray-900 text-sm">
-                        Day {link.day}: {link.title || 'Route'}
+              )}
+
+              {/* Deals */}
+              {trip.payload.deals && trip.payload.deals.length > 0 && (
+                <div id="section-deals" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                    ✈️ Flight Deals
+                  </div>
+                  <div className="grid gap-2">
+                    {trip.payload.deals.slice(0, 5).map((deal: any, i: number) => (
+                      <div key={i} className="border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium text-gray-900 text-sm">
+                            {deal.originCode} → {deal.destinationCode}
+                          </div>
+                          <div className="text-blue-600 font-semibold text-sm">
+                            {Number(deal.pointsRequired).toLocaleString()} pts
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {deal.airline} · {deal.cabin}
+                        </div>
                       </div>
-                      <div className="text-xs text-blue-600 mt-1">Open in Google Maps →</div>
-                    </a>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* Route links */}
+              {trip.payload.routeLinks && trip.payload.routeLinks.length > 0 && (
+                <div id="section-routes" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                    🗺️ Daily Routes
+                  </div>
+                  <div className="grid gap-2">
+                    {trip.payload.routeLinks.map((link: any, i: number) => (
+                      <a
+                        key={i}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
+                      >
+                        <div className="font-medium text-gray-900 text-sm">
+                          Day {link.day}: {link.title || 'Route'}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">Open in Google Maps →</div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="text-center mt-8 mb-4">
+            <p className="text-gray-400 text-sm mb-3">Want a trip like this?</p>
+            <a
+              href="/"
+              className="inline-flex items-center gap-2 bg-blue-600 text-white font-medium px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
+            >
+              <WalkersIcon className="text-white" size={20} />
+              Plan your own trip with Jalan
+            </a>
           </div>
+        </main>
+
+        {/* Desktop section nav rail */}
+        {headings.length >= 2 && (
+          <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 py-6 px-2 h-screen sticky top-0 overflow-hidden flex-shrink-0">
+            <div className="overflow-y-auto flex-1 space-y-0.5">
+              {sectionButtons}
+            </div>
+          </nav>
         )}
 
-        {/* Destination image */}
-        {trip.payload?.images?.destination && (
-          <div className="mt-6 rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-            <img
-              src={trip.payload.images.destination}
-              alt={trip.destination || 'Destination'}
-              className="w-full h-48 object-cover"
-              loading="lazy"
-            />
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="text-center mt-8 mb-4">
-          <p className="text-gray-400 text-sm mb-3">Want a trip like this?</p>
-          <a
-            href="/"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white font-medium px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
+        {/* Mobile floating button */}
+        {headings.length >= 2 && (
+          <button
+            onClick={() => setSectionsOpen(true)}
+            className="lg:hidden fixed right-3 bottom-6 z-30 bg-white border border-gray-200 text-gray-600 rounded-full shadow-md p-2.5 hover:bg-gray-50 transition-colors"
+            title="Jump to section"
           >
-            <WalkersIcon className="text-white" size={20} />
-            Plan your own trip with Jalan
-          </a>
-        </div>
-      </main>
+            <List size={20} />
+          </button>
+        )}
+
+        {/* Mobile drawer */}
+        {sectionsOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
+            <div className="absolute inset-0 bg-black/20" onClick={() => setSectionsOpen(false)} />
+            <nav className="relative w-56 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
+              <div className="p-3 border-b border-gray-100 flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600">Sections</span>
+                <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 hover:text-gray-900">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+                {sectionButtons}
+              </div>
+            </nav>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
