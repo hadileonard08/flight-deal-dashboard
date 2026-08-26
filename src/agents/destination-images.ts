@@ -81,9 +81,55 @@ const FLAG_PATTERNS = [
   /_emblem\./gi
 ];
 
-function isFlagUrl(url: string | null | undefined): boolean {
+// Patterns for images that are NOT photos of the landmark — maps, diagrams,
+// logos, icons, seals, signs, etc. These pollute search results.
+const BAD_IMAGE_PATTERNS = [
+  /flag_of/gi,
+  /\/flag\//gi,
+  /_flag\./gi,
+  /emblem_of/gi,
+  /coat_of_arms/gi,
+  /_emblem\./gi,
+  /_logo/gi,
+  /logo_/gi,
+  /\/logo\//gi,
+  /_icon/gi,
+  /icon_/gi,
+  /_seal/gi,
+  /seal_of/gi,
+  /_map\./gi,
+  /\/map\//gi,
+  /_map_/gi,
+  /location_map/gi,
+  /relief_map/gi,
+  /topographic/gi,
+  /_diagram/gi,
+  /diagram_/gi,
+  /_chart/gi,
+  /_graph/gi,
+  /_infographic/gi,
+  /_skyline\./gi,  // skyline diagrams are often low quality
+  /_sign\./gi,
+  /_plaque/gi,
+  /_statue_of/gi,  // often returns a statue OF someone, not the landmark
+  /text_document/gi,
+  /_blank\./gi,
+  /placeholder/gi,
+  /\.svg$/i,  // SVGs are usually icons/diagrams, not photos
+];
+
+// Minimum relevance score (0-1) for accepting an image. Images below this
+// threshold are likely not photos of the searched landmark.
+const MIN_RELEVANCE_SCORE = 0.3;
+
+function isBadImageUrl(url: string | null | undefined): boolean {
   if (!url) return true;
-  return FLAG_PATTERNS.some(pattern => pattern.test(url));
+  return BAD_IMAGE_PATTERNS.some(pattern => pattern.test(url));
+}
+
+// Keep the old function name for backward compatibility.
+function isFlagUrl(url: string | null | undefined): boolean {
+  return isBadImageUrl(url);
 }
 
 export async function getDestinationImageUrl(destinationCode: string, destinationName?: string): Promise<string | null> {
@@ -92,10 +138,10 @@ export async function getDestinationImageUrl(destinationCode: string, destinatio
 
   // Prefer a cityscape / skyline image over a flag or coat of arms.
   const cityscapeUrl = await getImageForTerm(`${city} skyline`, [`${city} cityscape`, `${city} city`]);
-  if (cityscapeUrl && !isFlagUrl(cityscapeUrl)) return cityscapeUrl;
+  if (cityscapeUrl && !isBadImageUrl(cityscapeUrl)) return cityscapeUrl;
 
   const cityUrl = await getImageForTerm(city, [`${city} city`, `${city} landmark`]);
-  if (cityUrl && !isFlagUrl(cityUrl)) return cityUrl;
+  if (cityUrl && !isBadImageUrl(cityUrl)) return cityUrl;
 
   return null;
 }
@@ -114,9 +160,21 @@ function scoreImageRelevance(title: string, term: string): number {
   if (termWords.length === 0) return 0;
   let matches = 0;
   for (const word of termWords) {
+    // Match if the title contains the term word, or vice versa.
+    // Also try singular/plural matching.
     if (titleWords.some(t => t.includes(word) || word.includes(t) || t.replace(/s$/, '') === word.replace(/s$/, ''))) matches++;
   }
   return matches / termWords.length;
+}
+
+// Check if an image URL looks like a real photo based on its dimensions
+// (if available from the API response). Rejects tiny images, icons, and
+// extremely tall/narrow images that are likely diagrams or signs.
+function hasGoodDimensions(width?: number, height?: number): boolean {
+  if (!width || !height) return true; // If dimensions unknown, don't reject.
+  if (width < 200 || height < 150) return false;  // Too small.
+  if (height > width * 2) return false;  // Very tall — likely a sign/banner.
+  return true;
 }
 
 function expandImageTerm(term: string): string[] {
@@ -162,7 +220,7 @@ async function fetchWikimediaCommonsImage(term: string): Promise<string | null> 
     const pages = data?.query?.pages;
     if (!pages) return null;
 
-    const candidates: { url: string; title: string; score: number }[] = [];
+    const candidates: { url: string; title: string; score: number; width?: number; height?: number }[] = [];
 
     for (const pageId in pages) {
       const page = pages[pageId];
@@ -170,16 +228,29 @@ async function fetchWikimediaCommonsImage(term: string): Promise<string | null> 
       const title = page?.title;
       if (imageinfo && imageinfo.length > 0) {
         const url = imageinfo[0].thumburl || imageinfo[0].url;
-        if (url && !isFlagUrl(url)) {
-          candidates.push({ url, title, score: scoreImageRelevance(title, term) });
+        const width = imageinfo[0]?.thumbwidth || imageinfo[0]?.width;
+        const height = imageinfo[0]?.thumbheight || imageinfo[0]?.height;
+        if (url && !isBadImageUrl(url) && hasGoodDimensions(width, height)) {
+          const score = scoreImageRelevance(title, term);
+          candidates.push({ url, title, score, width, height });
         }
       }
     }
 
     if (candidates.length === 0) return null;
 
-    // Prefer the image whose filename/title most closely matches the search term.
-    candidates.sort((a, b) => b.score - a.score);
+    // Sort by relevance score, then prefer landscape orientation.
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      // Prefer landscape (width > height) for better display.
+      const aLandscape = (a.width || 0) > (a.height || 0) ? 1 : 0;
+      const bLandscape = (b.width || 0) > (b.height || 0) ? 1 : 0;
+      return bLandscape - aLandscape;
+    });
+
+    // Only accept if the best candidate has a reasonable relevance score.
+    if (candidates[0].score < MIN_RELEVANCE_SCORE) return null;
+
     return candidates[0].url;
   } catch (error) {
     console.log('Wikimedia Commons image lookup failed for', term, ':', (error as Error).message);
@@ -195,7 +266,7 @@ async function fetchWikipediaArticleImage(term: string): Promise<string | null> 
     const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' };
     // Search for the Wikipedia article
     const searchRes = await fetch(
-      `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
+      `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=3&prop=pageimages|pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
       { headers }
     );
     if (!searchRes.ok) return null;
@@ -203,10 +274,23 @@ async function fetchWikipediaArticleImage(term: string): Promise<string | null> 
     const pages = data?.query?.pages;
     if (!pages) return null;
 
-    for (const pageId in pages) {
-      const page = pages[pageId];
+    // Sort pages by relevance to the search term.
+    const pageList = Object.values(pages) as any[];
+    pageList.sort((a, b) => {
+      const aScore = scoreImageRelevance(a?.title || '', term);
+      const bScore = scoreImageRelevance(b?.title || '', term);
+      return bScore - aScore;
+    });
+
+    for (const page of pageList) {
       const thumb = page?.thumbnail?.source;
-      if (thumb && !isFlagUrl(thumb)) return thumb;
+      const width = page?.thumbnail?.width;
+      const height = page?.thumbnail?.height;
+      if (thumb && !isBadImageUrl(thumb) && hasGoodDimensions(width, height)) {
+        // Check relevance of the article title to the search term.
+        const score = scoreImageRelevance(page?.title || '', term);
+        if (score >= MIN_RELEVANCE_SCORE) return thumb;
+      }
     }
     return null;
   } catch {
@@ -228,19 +312,19 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
 
     // Source 1: Wikimedia Commons (public domain, high quality).
     const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
-    if (commonsUrl && !isFlagUrl(commonsUrl)) return commonsUrl;
+    if (commonsUrl && !isBadImageUrl(commonsUrl)) return commonsUrl;
 
     // Source 2: Wikipedia article lead image (better for non-English landmark names).
     const wikiUrl = await fetchWikipediaArticleImage(cleanedT);
-    if (wikiUrl && !isFlagUrl(wikiUrl)) return wikiUrl;
+    if (wikiUrl && !isBadImageUrl(wikiUrl)) return wikiUrl;
 
     // Source 3: Openverse (Creative Commons images from Flickr, Wikimedia, etc.).
     const openverseUrl = await fetchOpenverseImage(cleanedT);
-    if (openverseUrl && !isFlagUrl(openverseUrl)) return openverseUrl;
+    if (openverseUrl && !isBadImageUrl(openverseUrl)) return openverseUrl;
 
     // Source 4: Pexels (free stock photos, requires PEXELS_API_KEY).
     const pexelsUrl = await fetchPexelsImage(cleanedT);
-    if (pexelsUrl && !isFlagUrl(pexelsUrl)) return pexelsUrl;
+    if (pexelsUrl && !isBadImageUrl(pexelsUrl)) return pexelsUrl;
   }
 
   return null;
@@ -251,7 +335,7 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
 async function fetchOpenverseImage(term: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://api.openverse.engineering/v1/images/?q=${encodeURIComponent(term)}&page_size=5`,
+      `https://api.openverse.engineering/v1/images/?q=${encodeURIComponent(term)}&page_size=10`,
       {
         headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' },
       }
@@ -260,14 +344,38 @@ async function fetchOpenverseImage(term: string): Promise<string | null> {
     const data = (await res.json()) as any;
     if (!data?.results || data.results.length === 0) return null;
 
+    // Score each result by relevance and filter out bad images.
+    const candidates: { url: string; title: string; score: number; width?: number; height?: number }[] = [];
+
     for (const result of data.results) {
-      const url = result.url || result.thumbnail;
-      if (url && !isFlagUrl(url)) {
-        // Prefer the higher-res url, but thumbnail is OK too.
-        return result.url && !isFlagUrl(result.url) ? result.url : result.thumbnail;
-      }
+      const url = result.url;
+      const thumb = result.thumbnail;
+      const title = result.title || '';
+      const width = result.width;
+      const height = result.height;
+
+      const candidateUrl = url && !isBadImageUrl(url) ? url : (thumb && !isBadImageUrl(thumb) ? thumb : null);
+      if (!candidateUrl) continue;
+      if (!hasGoodDimensions(width, height)) continue;
+
+      const score = scoreImageRelevance(title, term);
+      candidates.push({ url: candidateUrl, title, score, width, height });
     }
-    return null;
+
+    if (candidates.length === 0) return null;
+
+    // Sort by relevance, then prefer landscape.
+    candidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const aLandscape = (a.width || 0) > (a.height || 0) ? 1 : 0;
+      const bLandscape = (b.width || 0) > (b.height || 0) ? 1 : 0;
+      return bLandscape - aLandscape;
+    });
+
+    // Only accept if the best candidate has a reasonable relevance score.
+    if (candidates[0].score < MIN_RELEVANCE_SCORE) return null;
+
+    return candidates[0].url;
   } catch (error) {
     console.log('Openverse image lookup failed for', term, ':', (error as Error).message);
     return null;
@@ -281,7 +389,7 @@ async function fetchPexelsImage(term: string): Promise<string | null> {
 
   try {
     const res = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&per_page=5`,
+      `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&per_page=10&orientation=landscape`,
       {
         headers: { Authorization: apiKey },
       }
@@ -290,11 +398,26 @@ async function fetchPexelsImage(term: string): Promise<string | null> {
     const data = (await res.json()) as any;
     if (!data?.photos || data.photos.length === 0) return null;
 
+    // Score each photo by relevance.
+    const candidates: { url: string; alt: string; score: number }[] = [];
+
     for (const photo of data.photos) {
-      const url = photo.src?.medium || photo.src?.small || photo.src?.original;
-      if (url && !isFlagUrl(url)) return url;
+      const url = photo.src?.large || photo.src?.medium || photo.src?.small || photo.src?.original;
+      const alt = photo.alt || '';
+      if (url && !isBadImageUrl(url)) {
+        const score = scoreImageRelevance(alt, term);
+        candidates.push({ url, alt, score });
+      }
     }
-    return null;
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => b.score - a.score);
+
+    // Pexels stock photos are generally high quality, so accept even low
+    // relevance scores (the search itself is fairly accurate). But still
+    // prefer the most relevant result.
+    return candidates[0].url;
   } catch (error) {
     console.log('Pexels image lookup failed for', term, ':', (error as Error).message);
     return null;
