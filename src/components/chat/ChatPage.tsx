@@ -9,6 +9,7 @@ import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import useSWR, { mutate } from 'swr';
 import type { ChatMessageUI, ChatPayload, SavedTrip, RouteLink } from '@/lib/chat-state';
 import OneStopPanel from './OneStopPanel';
+import ThemeToggle from '@/components/ThemeToggle';
 import WalkersIcon from '@/components/WalkersIcon';
 
 interface Conversation {
@@ -60,11 +61,11 @@ function WeatherCard({ weather }: { weather?: any }) {
   if (!weather) return null;
   const summary = typeof weather === 'string' ? weather : JSON.stringify(weather, null, 2);
   return (
-    <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-xl p-4 my-3 scroll-mt-24">
-      <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
+    <div id="section-weather" className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-xl p-4 my-3 scroll-mt-24">
+      <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-semibold mb-2">
         <Sun size={18} /> Weather Outlook
       </div>
-      <div className="text-sm text-blue-900">
+      <div className="text-sm text-blue-900 dark:text-blue-100">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{summary}</ReactMarkdown>
       </div>
     </div>
@@ -74,11 +75,11 @@ function WeatherCard({ weather }: { weather?: any }) {
 function PackingCard({ packingTips }: { packingTips?: string }) {
   if (!packingTips) return null;
   return (
-    <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-xl p-4 my-3 scroll-mt-24">
-      <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
+    <div id="section-packing" className="bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/50 rounded-xl p-4 my-3 scroll-mt-24">
+      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold mb-2">
         <Briefcase size={18} /> Packing Suggestions
       </div>
-      <div className="text-sm text-amber-900">
+      <div className="text-sm text-amber-900 dark:text-amber-100">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{packingTips}</ReactMarkdown>
       </div>
     </div>
@@ -109,7 +110,7 @@ function DealsList({ deals }: { deals?: any[] }) {
 
   return (
     <div id="section-deals" className="my-3 scroll-mt-24">
-      <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-semibold mb-2">
         <Plane size={18} /> Points Flight Deals
       </div>
       <div className="grid gap-2">
@@ -126,17 +127,17 @@ function DealsList({ deals }: { deals?: any[] }) {
               href={bookingUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="block bg-white border border-gray-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm hover:border-blue-300 hover:shadow-md transition-all no-underline"
+              className="block bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 shadow-sm hover:border-blue-300 hover:shadow-md transition-all no-underline"
             >
               <div>
-                <div className="font-semibold text-gray-900">
+                <div className="font-semibold text-gray-900 dark:text-gray-100">
                   {deal.originCode} → {deal.destinationCode}
                 </div>
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
                   {deal.airline} · {deal.cabin} · {formatDate(deal.departureDate)}
                   {deal.returnDate ? ` - ${formatDate(deal.returnDate)}` : ''}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                   {formatDuration(deal.duration)}
                   {deal.duration && deal.stops !== null && deal.stops !== undefined ? ' · ' : ''}
                   {formatStops(deal.stops)}
@@ -163,7 +164,7 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
   if (!routeLinks || routeLinks.length === 0) return null;
   return (
     <div id="section-routes" className="my-3 scroll-mt-24">
-      <div className="flex items-center gap-2 text-gray-700 font-semibold mb-2">
+      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-semibold mb-2">
         <Map size={18} /> Daily Routes
       </div>
       <div className="grid gap-2">
@@ -173,14 +174,14 @@ function RouteLinks({ routeLinks }: { routeLinks?: RouteLink[] }) {
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between bg-white border border-gray-200 rounded-xl p-3 hover:border-blue-300 hover:shadow-sm transition-all no-underline"
+            className="flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-3 hover:border-blue-300 hover:shadow-sm transition-all no-underline"
           >
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-gray-900">
+              <div className="font-medium text-gray-900 dark:text-gray-100">
                 Day {link.day}{link.title ? `: ${link.title}` : ''}
               </div>
               {link.highlights && (
-                <div className="text-xs text-gray-500 mt-0.5 truncate">{link.highlights}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{link.highlights}</div>
               )}
             </div>
             <div className="text-xs text-blue-600 font-medium flex-shrink-0 ml-2">Open in Google Maps →</div>
@@ -197,19 +198,19 @@ function TransportCard({ transportPlan }: { transportPlan?: any }) {
   if (!cityTransitTips && !estimatedCosts) return null;
 
   return (
-    <div id="section-transport" className="my-3 bg-green-50 border border-green-100 rounded-xl p-4 scroll-mt-24">
-      <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+    <div id="section-transport" className="my-3 bg-green-50 dark:bg-green-950/40 border border-green-100 dark:border-green-900/50 rounded-xl p-4 scroll-mt-24">
+      <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-semibold mb-2">
         <Navigation size={18} /> Transport & Getting Around
       </div>
 
       {cityTransitTips && (
-        <div className="text-sm text-green-900 mb-3">
+        <div className="text-sm text-green-900 dark:text-green-100 mb-3">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{cityTransitTips}</ReactMarkdown>
         </div>
       )}
 
       {estimatedCosts && (
-        <div className="text-sm text-green-900">
+        <div className="text-sm text-green-900 dark:text-green-100">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={payloadMarkdownComponents}>{estimatedCosts}</ReactMarkdown>
         </div>
       )}
@@ -248,11 +249,11 @@ function LoadingSteps({ currentStatus }: { currentStatus?: string }) {
           <div
             key={i}
             className={`flex items-center gap-2.5 text-sm transition-all ${
-              isDone ? 'text-gray-400' : isActive ? 'text-blue-600' : 'text-gray-300'
+              isDone ? 'text-gray-400 dark:text-gray-500' : isActive ? 'text-blue-600' : 'text-gray-300 dark:text-gray-600'
             }`}
           >
             <span className={`flex-shrink-0 w-5 h-5 flex items-center justify-center text-xs rounded-full ${
-              isDone ? 'bg-green-100 text-green-600' : isActive ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 text-gray-400'
+              isDone ? 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400' : isActive ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 animate-pulse' : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600'
             }`}>
               {isDone ? '✓' : step.icon}
             </span>
@@ -300,7 +301,7 @@ function renderItineraryMarkdown(markdown: string): React.ReactNode {
       <div
         key={`day-${i}`}
         id={slug(match.title)}
-        className="day-card bg-white border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-24"
+        className="day-card bg-white dark:bg-gray-800 border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-24"
       >
         <ItineraryMarkdown>{sectionContent}</ItineraryMarkdown>
       </div>
@@ -313,36 +314,36 @@ function renderItineraryMarkdown(markdown: string): React.ReactNode {
 // Reusable markdown renderer with consistent component overrides.
 function ItineraryMarkdown({ children }: { children: string }) {
   return (
-    <div className="prose prose-sm max-w-none overflow-x-auto">
+    <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 id={slug(children)} className="text-xl font-bold text-gray-900 mt-2 mb-1">{children}</h1>,
+          h1: ({ children }) => <h1 id={slug(children)} className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 mb-1">{children}</h1>,
           h2: ({ children }) => {
             const text = typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : String(children || '');
             const isDayHeading = /^Day\s+\d+/i.test(text);
             return (
               <h2
                 id={slug(children)}
-                className={`font-bold mt-0 mb-2 ${isDayHeading ? 'text-lg text-blue-700 flex items-center gap-2' : 'text-lg text-gray-900'}`}
+                className={`font-bold mt-0 mb-2 ${isDayHeading ? 'text-lg text-blue-700 flex items-center gap-2' : 'text-lg text-gray-900 dark:text-gray-100'}`}
               >
                 {isDayHeading && <span className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 text-white text-sm rounded-lg font-bold">{text.match(/Day\s+(\d+)/i)?.[1] || ''}</span>}
                 {isDayHeading ? text.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '') : children}
               </h2>
             );
           },
-          h3: ({ children }) => <h3 id={slug(children)} className="text-base font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
+          h3: ({ children }) => <h3 id={slug(children)} className="text-base font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">{children}</h3>,
           img: ({ src, alt }) => (
             <figure className="my-3">
               <img src={src} alt={alt} className="max-w-full h-auto rounded-xl shadow-md" />
-              {alt && alt !== 'IMAGE' && <figcaption className="text-xs text-gray-400 mt-1 text-center">{alt}</figcaption>}
+              {alt && alt !== 'IMAGE' && <figcaption className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-center">{alt}</figcaption>}
             </figure>
           ),
           table: ({ children }) => <div className="overflow-x-auto my-2"><table className="text-xs">{children}</table></div>,
           a: ({ children, href }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 underline">{children}</a>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
           ul: ({ children }) => <ul className="space-y-0.5 my-2">{children}</ul>,
-          li: ({ children }) => <li className="text-gray-700">{children}</li>,
+          li: ({ children }) => <li className="text-gray-700 dark:text-gray-300">{children}</li>,
         }}
       >{children}</ReactMarkdown>
     </div>
@@ -403,7 +404,7 @@ function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { p
       <DealsList deals={payload.deals} />
       <RouteLinks routeLinks={payload.routeLinks} />
       {hasSavableContent ? (
-        <div className="flex justify-end gap-2 flex-wrap pt-2 border-t border-gray-100">
+        <div className="flex justify-end gap-2 flex-wrap pt-2 border-t border-gray-100 dark:border-gray-800">
           {shareUrl ? (
             <div className="flex items-center gap-1.5">
               <input
@@ -411,7 +412,7 @@ function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { p
                 readOnly
                 value={shareUrl}
                 onClick={(e) => (e.target as HTMLInputElement).select()}
-                className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 w-48 truncate"
+                className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 w-48 truncate"
               />
               <button
                 onClick={handleCopyShareLink}
@@ -424,7 +425,7 @@ function RichPayload({ payload, onSaveTrip, onShare, shareUrl, isSignedIn }: { p
             <button
               onClick={handleShare}
               disabled={sharing}
-              className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+              className="flex items-center gap-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
               {sharing ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
               {sharing ? 'Creating...' : 'Share'}
@@ -461,25 +462,25 @@ function SidebarContent({
       <div className="p-3 space-y-1">
         <button
           onClick={onNewChat}
-          className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors"
+          className="w-full flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 py-2.5 px-3 rounded-lg transition-colors"
         >
           <Plus size={18} className="text-gray-500" /> New trip
         </button>
         <button
           onClick={onOpenOneStop}
-          className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors"
+          className="w-full flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 py-2.5 px-3 rounded-lg transition-colors"
         >
           <Bookmark size={18} className="text-gray-500" /> One Stop
         </button>
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
-        <div className="text-xs font-medium text-gray-400 px-3 pb-1">Recent</div>
+        <div className="text-xs font-medium text-gray-400 dark:text-gray-500 px-3 pb-1">Recent</div>
         {conversations.map((c) => (
           <div
             key={c.id}
             onClick={() => onLoadConversation(c.id)}
             className={`group flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-              activeConversationId === c.id ? 'bg-gray-100 text-gray-900' : 'hover:bg-gray-50 text-gray-600'
+              activeConversationId === c.id ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100' : 'hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300'
             }`}
           >
             <span className="truncate flex items-center min-w-0">
@@ -492,7 +493,7 @@ function SidebarContent({
                 await fetch(`/api/chat/conversations/${c.id}`, { method: 'DELETE' });
                 mutate('/api/chat/conversations');
               }}
-              className="p-1 text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+              className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
               title="Delete conversation"
             >
               <Trash2 size={14} />
@@ -500,17 +501,17 @@ function SidebarContent({
           </div>
         ))}
       </div>
-      <div className="p-3 border-t border-gray-100">
+      <div className="p-3 border-t border-gray-100 dark:border-gray-800">
         {!isSignedIn ? (
           <SignInButtonWrapper mode="modal">
-            <button className="w-full flex items-center gap-2 text-sm text-gray-700 hover:bg-gray-100 py-2.5 px-3 rounded-lg transition-colors">
+            <button className="w-full flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 py-2.5 px-3 rounded-lg transition-colors">
               <LogIn size={18} className="text-gray-500" /> Sign in
             </button>
           </SignInButtonWrapper>
         ) : (
           <div className="flex items-center gap-2 px-3 py-1">
             <UserButtonWrapper afterSignOutUrl="/" />
-            <span className="text-sm text-gray-500">Account</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">Account</span>
           </div>
         )}
       </div>
@@ -768,10 +769,10 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-x-hidden">
       {/* Desktop Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-100 flex-col hidden md:flex">
-        <a href="/" className="p-4 flex items-center gap-2 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex-col hidden md:flex">
+        <a href="/" className="p-4 flex items-center gap-2 border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
           <WalkersIcon className="text-blue-600" size={22} />
-          <span className="font-bold text-lg text-gray-900">Jalan</span>
+          <span className="font-bold text-lg text-gray-900 dark:text-gray-100">Jalan</span>
         </a>
         <SidebarContent
           conversations={conversations}
@@ -787,13 +788,13 @@ export default function ChatPage() {
       {sidebarOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative w-64 bg-white border-r border-gray-200 flex-col flex h-full shadow-xl">
+          <aside className="relative w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex-col flex h-full shadow-xl">
             <div className="p-3 border-b border-gray-200 flex items-center justify-between">
               <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <WalkersIcon className="text-blue-600" size={22} />
                 <span className="font-bold text-lg">Jalan</span>
               </a>
-              <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 hover:text-gray-900">
+              <button onClick={() => setSidebarOpen(false)} className="p-1 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
                 <X size={20} />
               </button>
             </div>
@@ -812,23 +813,23 @@ export default function ChatPage() {
       {/* Main chat */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Mobile header */}
-        <div className="md:hidden bg-white border-b border-gray-100 p-3 flex items-center justify-between">
+        <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 p-3 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="p-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
             title="Menu"
           >
             <Menu size={22} />
           </button>
           <div className="flex items-center gap-2">
-            <a href="/" className="flex items-center gap-1.5 text-gray-700 font-semibold hover:opacity-80 transition-opacity">
+            <a href="/" className="flex items-center gap-1.5 text-gray-700 dark:text-gray-200 font-semibold hover:opacity-80 transition-opacity">
               <WalkersIcon className="text-blue-600" size={18} />
               <span>Jalan</span>
             </a>
           </div>
           {!isSignedIn ? (
             <SignInButtonWrapper mode="modal">
-              <button className="text-sm text-blue-600 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">Sign in</button>
+              <button className="text-sm text-blue-600 dark:text-blue-400 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Sign in</button>
             </SignInButtonWrapper>
           ) : (
             <UserButtonWrapper afterSignOutUrl="/" />
@@ -836,10 +837,11 @@ export default function ChatPage() {
         </div>
 
         {/* Desktop header — minimal, just account on the right */}
-        <div className="hidden md:flex items-center justify-end bg-white border-b border-gray-100 px-6 py-2.5">
+        <div className="hidden md:flex items-center justify-end bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 px-6 py-2.5">
+          <ThemeToggle />
           {!isSignedIn ? (
             <SignInButtonWrapper mode="modal">
-              <button className="text-sm text-blue-600 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors">Sign in</button>
+              <button className="text-sm text-blue-600 dark:text-blue-400 font-medium px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">Sign in</button>
             </SignInButtonWrapper>
           ) : (
             <UserButtonWrapper afterSignOutUrl="/" />
@@ -877,8 +879,8 @@ export default function ChatPage() {
                 <div className="mb-5">
                   <WalkersIcon className="text-blue-600" size={48} />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">Where to next?</h1>
-                <p className="text-gray-500 max-w-md mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-3">Where to next?</h1>
+                <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
                   Tell me where you want to go and when. I&apos;ll build a day-by-day itinerary with real weather, live flight deals, and transport routing.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
@@ -893,7 +895,7 @@ export default function ChatPage() {
                     <button
                       key={s.label}
                       onClick={() => { sendMessage(s.msg); }}
-                      className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm transition-all"
+                      className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm text-gray-600 dark:text-gray-300 hover:border-blue-400 hover:text-blue-600 hover:shadow-sm transition-all"
                     >
                       {s.label}
                     </button>
@@ -918,7 +920,7 @@ export default function ChatPage() {
                     className={`max-w-3xl w-full md:w-auto min-w-0 px-5 py-3 rounded-2xl ${
                       m.role === 'user'
                         ? 'bg-blue-600 text-white rounded-br-md'
-                        : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
+                        : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-md shadow-sm'
                     }`}
                   >
                     <MessageContent
@@ -939,7 +941,7 @@ export default function ChatPage() {
             )}
             {/* Tweak prompt — at the bottom of the chat, after all messages */}
             {messages.length > 0 && !isLoading && messages[messages.length - 1]?.role === 'assistant' && (
-              <div className="max-w-3xl mx-auto text-center text-sm text-gray-400 italic py-4 border-t border-gray-100 mt-2">
+              <div className="max-w-3xl mx-auto text-center text-sm text-gray-400 dark:text-gray-500 italic py-4 border-t border-gray-100 dark:border-gray-800 mt-2">
                 Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it.
               </div>
             )}
@@ -987,11 +989,11 @@ export default function ChatPage() {
                 <button
                   key={h.id}
                   onClick={() => jumpTo(h.id)}
-                  className="w-full text-left text-xs text-gray-500 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 transition-colors truncate"
+                  className="w-full text-left text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors truncate"
                   title={h.label}
                 >
                   {isDay ? (
-                    <span><span className="text-gray-400 mr-1.5">{dayNumber}.</span>{cleanLabel}</span>
+                    <span><span className="text-gray-400 dark:text-gray-600 mr-1.5">{dayNumber}.</span>{cleanLabel}</span>
                   ) : (
                     h.label
                   )}
@@ -1002,7 +1004,7 @@ export default function ChatPage() {
             return (
               <>
                 {/* Desktop — section navigation rail */}
-                <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 py-4 px-2 h-full overflow-hidden">
+                <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 dark:border-gray-800 py-4 px-2 h-full overflow-hidden">
                   <div className="overflow-y-auto flex-1 space-y-0.5">
                     {sectionButtons}
                   </div>
@@ -1011,7 +1013,7 @@ export default function ChatPage() {
                 {/* Mobile floating button */}
                 <button
                   onClick={() => setSectionsOpen(true)}
-                  className="lg:hidden fixed right-3 bottom-20 z-30 bg-white border border-gray-200 text-gray-600 rounded-full shadow-md p-2.5 hover:bg-gray-50 transition-colors"
+                  className="lg:hidden fixed right-3 bottom-20 z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full shadow-md p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   title="Jump to section"
                 >
                   <List size={20} />
@@ -1021,10 +1023,10 @@ export default function ChatPage() {
                 {sectionsOpen && (
                   <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
                     <div className="absolute inset-0 bg-black/20" onClick={() => setSectionsOpen(false)} />
-                    <nav className="relative w-56 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
-                      <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-600">Sections</span>
-                        <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 hover:text-gray-900">
+                    <nav className="relative w-56 bg-white dark:bg-gray-900 shadow-xl h-full flex flex-col overflow-y-auto">
+                      <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Sections</span>
+                        <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100">
                           <X size={18} />
                         </button>
                       </div>
@@ -1047,16 +1049,16 @@ export default function ChatPage() {
         />
 
         {/* Input area */}
-        <div className="bg-white border-t border-gray-100 px-4 py-3">
+        <div className="bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 py-3">
           <div className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-2xl shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all px-1 py-1">
+            <div className="flex items-end gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/30 transition-all px-1 py-1">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Where do you want to go?"
                 rows={1}
-                className="flex-1 resize-none max-h-32 bg-transparent px-3 py-2.5 focus:outline-none text-gray-800 placeholder:text-gray-400"
+                className="flex-1 resize-none max-h-32 bg-transparent px-3 py-2.5 focus:outline-none text-gray-800 dark:text-gray-200 placeholder:text-gray-400"
                 disabled={isLoading}
               />
               <button
@@ -1068,7 +1070,7 @@ export default function ChatPage() {
                 {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
               </button>
             </div>
-            <p className="text-xs text-gray-400 text-center mt-1.5">
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center mt-1.5">
               Press Enter to send · Shift+Enter for new line
             </p>
           </div>

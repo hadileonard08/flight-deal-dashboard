@@ -24,41 +24,41 @@ function slug(text: any): string {
 // Reusable markdown renderer with consistent component overrides.
 function ItineraryMarkdown({ children }: { children: string }) {
   return (
-    <div className="prose prose-sm max-w-none overflow-x-auto">
+    <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 id={slug(children)} className="text-xl font-bold text-gray-900 mt-2 mb-1">{children}</h1>,
+          h1: ({ children }) => <h1 id={slug(children)} className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-2 mb-1">{children}</h1>,
           h2: ({ children }) => {
             const text = typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : String(children || '');
             const isDayHeading = /^Day\s+\d+/i.test(text);
             return (
               <h2
                 id={slug(children)}
-                className={`font-bold mt-0 mb-2 ${isDayHeading ? 'text-lg text-blue-700 flex items-center gap-2' : 'text-lg text-gray-900'}`}
+                className={`font-bold mt-0 mb-2 ${isDayHeading ? 'text-lg text-blue-700 flex items-center gap-2' : 'text-lg text-gray-900 dark:text-gray-100'}`}
               >
                 {isDayHeading && <span className="inline-flex items-center justify-center w-7 h-7 bg-blue-600 text-white text-sm rounded-lg font-bold">{text.match(/Day\s+(\d+)/i)?.[1] || ''}</span>}
                 {isDayHeading ? text.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '') : children}
               </h2>
             );
           },
-          h3: ({ children }) => <h3 id={slug(children)} className="text-base font-semibold text-gray-800 mt-3 mb-1">{children}</h3>,
-          p: ({ children }) => <p className="text-gray-700 leading-relaxed my-2">{children}</p>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-          ul: ({ children }) => <ul className="list-disc list-inside text-gray-700 my-2 space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal list-inside text-gray-700 my-2 space-y-0.5">{children}</ol>,
+          h3: ({ children }) => <h3 id={slug(children)} className="text-base font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">{children}</h3>,
+          p: ({ children }) => <p className="text-gray-700 dark:text-gray-300 leading-relaxed my-2">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-gray-100">{children}</strong>,
+          ul: ({ children }) => <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 my-2 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal list-inside text-gray-700 dark:text-gray-300 my-2 space-y-0.5">{children}</ol>,
           a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">{children}</a>,
           img: ({ src, alt }) => (
             <figure className="my-3">
               {src && <img src={src} alt={alt || ''} className="rounded-xl shadow-md w-full" loading="lazy" />}
-              {alt && <figcaption className="text-xs text-gray-400 text-center mt-1">{alt}</figcaption>}
+              {alt && <figcaption className="text-xs text-gray-400 dark:text-gray-500 text-center mt-1">{alt}</figcaption>}
             </figure>
           ),
-          blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-200 pl-3 text-gray-600 italic my-2">{children}</blockquote>,
-          hr: () => <hr className="border-gray-100 my-4" />,
+          blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-200 dark:border-gray-700 pl-3 text-gray-600 dark:text-gray-400 italic my-2">{children}</blockquote>,
+          hr: () => <hr className="border-gray-100 dark:border-gray-800 my-4" />,
           table: ({ children }) => <table className="w-full text-sm border-collapse my-3">{children}</table>,
-          th: ({ children }) => <th className="border border-gray-200 px-2 py-1 text-left font-semibold bg-gray-50">{children}</th>,
-          td: ({ children }) => <td className="border border-gray-200 px-2 py-1">{children}</td>,
+          th: ({ children }) => <th className="border border-gray-200 dark:border-gray-700 px-2 py-1 text-left font-semibold bg-gray-50 dark:bg-gray-800">{children}</th>,
+          td: ({ children }) => <td className="border border-gray-200 dark:border-gray-700 px-2 py-1">{children}</td>,
         }}
       >
         {children}
@@ -97,7 +97,7 @@ function renderItineraryMarkdown(markdown: string): React.ReactNode {
       <div
         key={`day-${i}`}
         id={slug(match.title)}
-        className="day-card bg-white border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-20"
+        className="day-card bg-white dark:bg-gray-800 border-l-4 border-blue-400 rounded-r-xl pl-4 pr-3 py-3 my-4 scroll-mt-20"
       >
         <ItineraryMarkdown>{sectionContent}</ItineraryMarkdown>
       </div>
@@ -157,10 +157,10 @@ export default function SharedTripPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-gray-500 text-sm">Loading trip...</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Loading trip...</p>
         </div>
       </div>
     );
@@ -168,11 +168,11 @@ export default function SharedTripPage() {
 
   if (error || !trip) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center max-w-md">
-          <WalkersIcon className="text-gray-300 mx-auto mb-4" size={48} />
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Trip not found</h1>
-          <p className="text-gray-500 text-sm">{error || 'This shared trip may have been deleted or the link is invalid.'}</p>
+          <WalkersIcon className="text-gray-300 dark:text-gray-600 mx-auto mb-4" size={48} />
+          <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Trip not found</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">{error || 'This shared trip may have been deleted or the link is invalid.'}</p>
           <a href="/" className="inline-block mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium">
             Plan your own trip →
           </a>
@@ -209,27 +209,27 @@ export default function SharedTripPage() {
       <button
         key={h.id}
         onClick={() => jumpTo(h.id)}
-        className="w-full text-left text-xs text-gray-500 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 transition-colors truncate"
+        className="w-full text-left text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors truncate"
         title={h.label}
       >
-        {isDay ? <span><span className="text-gray-400 mr-1.5">{dayNumber}.</span>{cleanLabel}</span> : h.label}
+        {isDay ? <span><span className="text-gray-400 dark:text-gray-600 mr-1.5">{dayNumber}.</span>{cleanLabel}</span> : h.label}
       </button>
     );
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <WalkersIcon className="text-blue-600" size={24} />
-            <span className="font-bold text-lg text-gray-900">Jalan</span>
+            <span className="font-bold text-lg text-gray-900 dark:text-gray-100">Jalan</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyLink}
-              className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1.5"
+              className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-1.5"
             >
               {copied ? '✓ Copied!' : '🔗 Copy link'}
             </button>
@@ -248,20 +248,20 @@ export default function SharedTripPage() {
         {/* Main content */}
         <main ref={scrollRef} className="flex-1 min-w-0 px-4 py-6">
           {/* Trip header */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-1">{trip.title}</h1>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">{trip.title}</h1>
             {trip.destination && (
-              <p className="text-gray-500 text-sm flex items-center gap-1">
+              <p className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-1">
                 📍 {trip.destination}
               </p>
             )}
-            <p className="text-gray-400 text-xs mt-2">
+            <p className="text-gray-400 dark:text-gray-500 text-xs mt-2">
               Shared {new Date(trip.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
 
           {/* Itinerary */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
             {renderItineraryMarkdown(trip.itinerary)}
           </div>
 
@@ -270,19 +270,19 @@ export default function SharedTripPage() {
             <div className="mt-6 space-y-4">
               {/* Weather */}
               {trip.payload.weather && (
-                <div id="section-weather" className="bg-blue-50 border border-blue-100 rounded-2xl p-5 scroll-mt-20">
-                  <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
+                <div id="section-weather" className="bg-blue-50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-semibold mb-2">
                     🌤️ Weather Outlook
                   </div>
-                  <div className="text-sm text-blue-900">
+                  <div className="text-sm text-blue-900 dark:text-blue-100">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        h1: ({ children }) => <p className="font-semibold text-blue-900 mt-2 mb-1">{children}</p>,
-                        h2: ({ children }) => <p className="font-semibold text-blue-900 mt-2 mb-1">{children}</p>,
-                        h3: ({ children }) => <p className="font-medium text-blue-800 mt-2 mb-1">{children}</p>,
+                        h1: ({ children }) => <p className="font-semibold text-blue-900 dark:text-blue-100 mt-2 mb-1">{children}</p>,
+                        h2: ({ children }) => <p className="font-semibold text-blue-900 dark:text-blue-100 mt-2 mb-1">{children}</p>,
+                        h3: ({ children }) => <p className="font-medium text-blue-800 dark:text-blue-300 mt-2 mb-1">{children}</p>,
                         p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-blue-900">{children}</strong>,
+                        strong: ({ children }) => <strong className="font-semibold text-blue-900 dark:text-blue-100">{children}</strong>,
                         ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                         ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
                         li: ({ children }) => <li className="leading-relaxed">{children}</li>,
@@ -296,20 +296,20 @@ export default function SharedTripPage() {
 
               {/* Transport */}
               {trip.payload.transportPlan && (trip.payload.transportPlan.cityTransitTips || trip.payload.transportPlan.estimatedCosts) && (
-                <div id="section-transport" className="bg-green-50 border border-green-100 rounded-2xl p-5 scroll-mt-20">
-                  <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+                <div id="section-transport" className="bg-green-50 dark:bg-green-950/40 border border-green-100 dark:border-green-900/50 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-semibold mb-2">
                     🗺️ Transport & Getting Around
                   </div>
                   {trip.payload.transportPlan.cityTransitTips && (
-                    <div className="text-sm text-green-900 mb-3">
+                    <div className="text-sm text-green-900 dark:text-green-100 mb-3">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          h1: ({ children }) => <p className="font-semibold text-green-900 mt-2 mb-1">{children}</p>,
-                          h2: ({ children }) => <p className="font-semibold text-green-900 mt-2 mb-1">{children}</p>,
-                          h3: ({ children }) => <p className="font-medium text-green-800 mt-2 mb-1">{children}</p>,
+                          h1: ({ children }) => <p className="font-semibold text-green-900 dark:text-green-100 mt-2 mb-1">{children}</p>,
+                          h2: ({ children }) => <p className="font-semibold text-green-900 dark:text-green-100 mt-2 mb-1">{children}</p>,
+                          h3: ({ children }) => <p className="font-medium text-green-800 dark:text-green-300 mt-2 mb-1">{children}</p>,
                           p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-green-900">{children}</strong>,
+                          strong: ({ children }) => <strong className="font-semibold text-green-900 dark:text-green-100">{children}</strong>,
                           ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                           ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
                           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
@@ -320,12 +320,12 @@ export default function SharedTripPage() {
                     </div>
                   )}
                   {trip.payload.transportPlan.estimatedCosts && (
-                    <div className="text-sm text-green-900">
+                    <div className="text-sm text-green-900 dark:text-green-100">
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
                           p: ({ children }) => <p className="leading-relaxed">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-green-900">{children}</strong>,
+                          strong: ({ children }) => <strong className="font-semibold text-green-900 dark:text-green-100">{children}</strong>,
                           ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                         }}
                       >
@@ -338,19 +338,19 @@ export default function SharedTripPage() {
 
               {/* Packing */}
               {trip.payload.packingTips && (
-                <div id="section-packing" className="bg-amber-50 border border-amber-100 rounded-2xl p-5 scroll-mt-20">
-                  <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
+                <div id="section-packing" className="bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900/50 rounded-2xl p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-semibold mb-2">
                     🎒 Packing Suggestions
                   </div>
-                  <div className="text-sm text-amber-900">
+                  <div className="text-sm text-amber-900 dark:text-amber-100">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        h1: ({ children }) => <p className="font-semibold text-amber-900 mt-2 mb-1">{children}</p>,
-                        h2: ({ children }) => <p className="font-semibold text-amber-900 mt-2 mb-1">{children}</p>,
-                        h3: ({ children }) => <p className="font-medium text-amber-800 mt-2 mb-1">{children}</p>,
+                        h1: ({ children }) => <p className="font-semibold text-amber-900 dark:text-amber-100 mt-2 mb-1">{children}</p>,
+                        h2: ({ children }) => <p className="font-semibold text-amber-900 dark:text-amber-100 mt-2 mb-1">{children}</p>,
+                        h3: ({ children }) => <p className="font-medium text-amber-800 dark:text-amber-300 mt-2 mb-1">{children}</p>,
                         p: ({ children }) => <p className="leading-relaxed my-1">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-amber-900">{children}</strong>,
+                        strong: ({ children }) => <strong className="font-semibold text-amber-900 dark:text-amber-100">{children}</strong>,
                         ul: ({ children }) => <ul className="list-disc list-inside my-1 space-y-0.5">{children}</ul>,
                         ol: ({ children }) => <ol className="list-decimal list-inside my-1 space-y-0.5">{children}</ol>,
                         li: ({ children }) => <li className="leading-relaxed">{children}</li>,
@@ -364,22 +364,22 @@ export default function SharedTripPage() {
 
               {/* Deals */}
               {trip.payload.deals && trip.payload.deals.length > 0 && (
-                <div id="section-deals" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 scroll-mt-20">
-                  <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                <div id="section-deals" className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-semibold mb-3">
                     ✈️ Flight Deals
                   </div>
                   <div className="grid gap-2">
                     {trip.payload.deals.slice(0, 5).map((deal: any, i: number) => (
-                      <div key={i} className="border border-gray-200 rounded-lg p-3">
+                      <div key={i} className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                         <div className="flex items-center justify-between">
-                          <div className="font-medium text-gray-900 text-sm">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                             {deal.originCode} → {deal.destinationCode}
                           </div>
                           <div className="text-blue-600 font-semibold text-sm">
                             {Number(deal.pointsRequired).toLocaleString()} pts
                           </div>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {deal.airline} · {deal.cabin}
                         </div>
                       </div>
@@ -390,8 +390,8 @@ export default function SharedTripPage() {
 
               {/* Route links */}
               {trip.payload.routeLinks && trip.payload.routeLinks.length > 0 && (
-                <div id="section-routes" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 scroll-mt-20">
-                  <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                <div id="section-routes" className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 scroll-mt-20">
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 font-semibold mb-3">
                     🗺️ Daily Routes
                   </div>
                   <div className="grid gap-2">
@@ -401,9 +401,9 @@ export default function SharedTripPage() {
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
+                        className="block border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
                       >
-                        <div className="font-medium text-gray-900 text-sm">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
                           Day {link.day}: {link.title || 'Route'}
                         </div>
                         <div className="text-xs text-blue-600 mt-1">Open in Google Maps →</div>
@@ -417,7 +417,7 @@ export default function SharedTripPage() {
 
           {/* Footer */}
           <div className="text-center mt-8 mb-4">
-            <p className="text-gray-400 text-sm mb-3">Want a trip like this?</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm mb-3">Want a trip like this?</p>
             <a
               href="/"
               className="inline-flex items-center gap-2 bg-blue-600 text-white font-medium px-5 py-2.5 rounded-xl hover:bg-blue-700 transition-colors"
@@ -430,7 +430,7 @@ export default function SharedTripPage() {
 
         {/* Desktop section nav rail */}
         {headings.length >= 2 && (
-          <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 py-6 px-2 h-screen sticky top-0 overflow-hidden flex-shrink-0">
+          <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 dark:border-gray-800 py-6 px-2 h-screen sticky top-0 overflow-hidden flex-shrink-0">
             <div className="overflow-y-auto flex-1 space-y-0.5">
               {sectionButtons}
             </div>
@@ -441,7 +441,7 @@ export default function SharedTripPage() {
         {headings.length >= 2 && (
           <button
             onClick={() => setSectionsOpen(true)}
-            className="lg:hidden fixed right-3 bottom-6 z-30 bg-white border border-gray-200 text-gray-600 rounded-full shadow-md p-2.5 hover:bg-gray-50 transition-colors"
+            className="lg:hidden fixed right-3 bottom-6 z-30 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 rounded-full shadow-md p-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             title="Jump to section"
           >
             <List size={20} />
@@ -452,10 +452,10 @@ export default function SharedTripPage() {
         {sectionsOpen && (
           <div className="lg:hidden fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/20" onClick={() => setSectionsOpen(false)} />
-            <nav className="relative w-56 bg-white shadow-xl h-full flex flex-col overflow-y-auto">
-              <div className="p-3 border-b border-gray-100 flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-600">Sections</span>
-                <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 hover:text-gray-900">
+            <nav className="relative w-56 bg-white dark:bg-gray-900 shadow-xl h-full flex flex-col overflow-y-auto">
+              <div className="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Sections</span>
+                <button onClick={() => setSectionsOpen(false)} className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-100">
                   <X size={18} />
                 </button>
               </div>
