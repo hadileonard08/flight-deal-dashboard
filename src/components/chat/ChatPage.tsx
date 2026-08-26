@@ -833,7 +833,7 @@ export default function ChatPage() {
 
         {/* Messages + section navigator */}
         <div className="flex-1 flex overflow-hidden">
-          <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 space-y-6">
+          <div ref={messagesRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 pb-32 space-y-6">
             {/* Closable sign-in prompt — appears when a guest sends a message */}
             {showSignInPrompt && !isSignedIn && (
               <div className="sticky top-0 z-20 -mx-4 md:-mx-6 -mt-4 md:-mt-6 mb-2 px-4 md:px-6 py-3 bg-gray-900 text-white flex items-center justify-between gap-3 shadow-md">
