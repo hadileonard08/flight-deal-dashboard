@@ -7,10 +7,11 @@ import { verifyItineraryLandmarks, buildRouteLinks } from './itinerary-guardrail
 import { buildTransportPlan, injectTransportNotes } from './transport';
 import { db } from '../db';
 import { flights, deals } from '../db/schema';
-import { eq, gte, lte, inArray, and } from 'drizzle-orm';
+import { eq, gte, lte, inArray, and, sql } from 'drizzle-orm';
 import * as chrono from 'chrono-node';
 import { searchSeatsAeroLive } from '../lib/seatsaero';
 import { getAirlineBookingUrl } from '../lib/airline-booking';
+import { CITY_MAP } from '../lib/city-map';
 import type {
   ExtractedEntities,
   ClarifyingQuestion,
@@ -94,7 +95,7 @@ Respond ONLY in JSON:
 {
   "entities": {
     "destination": "city or country",
-    "destinationCode": "IATA city code if known",
+    "destinationCode": "3-letter IATA airport code (e.g. NRT, HND, LHR) — if the user says a country like 'Japan', pick the main airport code (e.g. NRT for Tokyo)",
     "origin": "home city",
     "originCode": "IATA city code if known",
     "startDate": "YYYY-MM-DD or null",
@@ -364,23 +365,128 @@ async function getWeatherData(
   }
 }
 
+// Map a country name or 2-letter country code to all airport codes in CITY_MAP.
+// e.g. "Japan" / "JP" -> ["HND", "NRT", "KIX"]
+function resolveDestinationCodes(destinationCode: string, destinationName?: string): string[] {
+  if (!destinationCode) return [];
+
+  // If it's already a 3-letter IATA code, use it directly.
+  if (destinationCode.length === 3 && destinationCode === destinationCode.toUpperCase()) {
+    // Check if it's a known airport code
+    if (CITY_MAP[destinationCode]) return [destinationCode];
+  }
+
+  // Try matching by country code (2-letter)
+  if (destinationCode.length === 2) {
+    const codes = Object.entries(CITY_MAP)
+      .filter(([, info]) => info.countryCode === destinationCode.toUpperCase())
+      .map(([code]) => code);
+    if (codes.length > 0) return codes;
+  }
+
+  // Try matching by country name
+  const countryMap: Record<string, string> = {
+    'japan': 'JP', 'jp': 'JP', 'jpn': 'JP',
+    'korea': 'KR', 'south korea': 'KR', 'kr': 'KR',
+    'thailand': 'TH', 'th': 'TH',
+    'singapore': 'SG', 'sg': 'SG',
+    'indonesia': 'ID', 'id': 'ID',
+    'india': 'IN', 'in': 'IN',
+    'taiwan': 'TW', 'tw': 'TW',
+    'hong kong': 'HK', 'hk': 'HK',
+    'malaysia': 'MY', 'my': 'MY',
+    'philippines': 'PH', 'ph': 'PH',
+    'vietnam': 'VN', 'vn': 'VN',
+    'uk': 'GB', 'united kingdom': 'GB', 'gb': 'GB', 'england': 'GB',
+    'france': 'FR', 'fr': 'FR',
+    'germany': 'DE', 'de': 'DE',
+    'netherlands': 'NL', 'nl': 'NL',
+    'spain': 'ES', 'es': 'ES',
+    'italy': 'IT', 'it': 'IT',
+    'switzerland': 'CH', 'ch': 'CH',
+    'austria': 'AT', 'at': 'AT',
+    'ireland': 'IE', 'ie': 'IE',
+    'portugal': 'PT', 'pt': 'PT',
+    'greece': 'GR', 'gr': 'GR',
+    'czech': 'CZ', 'czechia': 'CZ', 'cz': 'CZ',
+    'poland': 'PL', 'pl': 'PL',
+    'denmark': 'DK', 'dk': 'DK',
+    'sweden': 'SE', 'se': 'SE',
+    'norway': 'NO', 'no': 'NO',
+    'finland': 'FI', 'fi': 'FI',
+    'turkey': 'TR', 'tr': 'TR',
+    'uae': 'AE', 'united arab emirates': 'AE', 'ae': 'AE',
+    'qatar': 'QA', 'qa': 'QA',
+    'israel': 'IL', 'il': 'IL',
+    'mexico': 'MX', 'mx': 'MX',
+    'colombia': 'CO', 'co': 'CO',
+    'peru': 'PE', 'pe': 'PE',
+    'chile': 'CL', 'cl': 'CL',
+    'argentina': 'AR', 'ar': 'AR',
+    'brazil': 'BR', 'br': 'BR',
+    'australia': 'AU', 'au': 'AU',
+    'new zealand': 'NZ', 'nz': 'NZ',
+    'fiji': 'FJ', 'fj': 'FJ',
+    'south africa': 'ZA', 'za': 'ZA',
+    'kenya': 'KE', 'ke': 'KE',
+    'morocco': 'MA', 'ma': 'MA',
+  };
+
+  const normalized = (destinationName || destinationCode).trim().toLowerCase();
+  const countryCode = countryMap[normalized] || countryMap[destinationCode.toLowerCase()];
+  if (countryCode) {
+    const codes = Object.entries(CITY_MAP)
+      .filter(([, info]) => info.countryCode === countryCode)
+      .map(([code]) => code);
+    if (codes.length > 0) return codes;
+  }
+
+  // Last resort: try the code as-is (might be a valid IATA code not in CITY_MAP)
+  return [destinationCode];
+}
+
 async function getRelevantDeals(entities: ExtractedEntities) {
   const originCode = entities.originCode;
-  const destinationCode = entities.destinationCode;
+  const rawDestCode = entities.destinationCode;
   const startDate = entities.startDate;
   const endDate = entities.endDate || entities.startDate;
   const cabin = entities.cabin;
 
-  if (!destinationCode) return [];
+  if (!rawDestCode) return [];
+
+  // Resolve country names/codes to all matching airport codes.
+  // e.g. "Japan" -> ["HND", "NRT", "KIX"]
+  const destCodes = resolveDestinationCodes(rawDestCode, entities.destination);
 
   const conditions = [
-    eq(flights.destinationCode, destinationCode),
+    inArray(flights.destinationCode, destCodes),
     inArray(deals.category, ['GOOD_DEAL', 'MAYBE_GOOD_DEAL', 'OKAY_DEAL']),
   ];
 
   if (originCode) conditions.push(eq(flights.originCode, originCode));
-  if (startDate) conditions.push(gte(flights.departureDate, new Date(startDate)));
-  if (endDate) conditions.push(lte(flights.departureDate, new Date(endDate)));
+
+  // Broaden date filtering: if the user said "December" without a specific date,
+  // search the entire month across any year. Only use exact date range if
+  // a specific startDate was provided.
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+
+    // If the trip is within a single month and the start date is the 1st,
+    // the user probably said "December" — search the whole month.
+    if (sameMonth && start.getDate() === 1) {
+      const monthNum = start.getMonth() + 1; // JS months are 0-indexed
+      conditions.push(sql`EXTRACT(MONTH FROM ${flights.departureDate}) = ${monthNum}`);
+    } else {
+      // Specific date range — but broaden to +/- 7 days to catch nearby deals
+      const broadStart = new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const broadEnd = new Date(end.getTime() + 7 * 24 * 60 * 60 * 1000);
+      conditions.push(gte(flights.departureDate, broadStart));
+      conditions.push(lte(flights.departureDate, broadEnd));
+    }
+  }
+
   if (cabin) conditions.push(eq(flights.cabin, cabin));
 
   const rows = await db
@@ -436,7 +542,7 @@ async function getRelevantDeals(entities: ExtractedEntities) {
   // Fallback to live Seats.aero search if no cached deals match.
   return searchSeatsAeroLive({
     originCode,
-    destinationCode,
+    destinationCode: destCodes[0], // Use first resolved code for live search
     startDate,
     endDate,
     cabin,
