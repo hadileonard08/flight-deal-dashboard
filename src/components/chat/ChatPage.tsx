@@ -351,7 +351,6 @@ export default function ChatPage() {
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
 
   // Load saved trips from localStorage on mount.
@@ -406,19 +405,16 @@ export default function ChatPage() {
     if (messagesRef.current) messagesRef.current.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // When loading a new response, scroll to top so the user reads from the start.
+  // When loading starts, scroll to top so the user reads from the start.
   useEffect(() => {
     if (isLoading) scrollToTop();
   }, [isLoading]);
 
-  // While streaming content updates, follow along.
+  // When streaming finishes, scroll to top so the user sees the itinerary
+  // from the beginning, not the end.
   useEffect(() => {
-    if (!isLoading) scrollToBottom();
-  }, [messages]);
+    if (!isLoading && messages.length > 0) scrollToTop();
+  }, [isLoading]);
 
   const loadConversation = useCallback(async (id: string) => {
     setActiveConversationId(id);
@@ -723,7 +719,6 @@ export default function ChatPage() {
                 Want to tweak anything? Just say the word — shorter trip, different budget, business class, you name it.
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
 
           {/* Section navigator — right side mini tab (desktop) + floating button (mobile) */}
