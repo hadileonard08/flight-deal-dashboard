@@ -211,6 +211,105 @@ export default function SharedTripPage() {
           {renderItineraryMarkdown(trip.itinerary)}
         </div>
 
+        {/* Payload sections — weather, transport, packing, deals, routes */}
+        {trip.payload && (
+          <div className="mt-6 space-y-4">
+            {/* Weather */}
+            {trip.payload.weather && (
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
+                  🌤️ Weather Outlook
+                </div>
+                <div className="text-sm text-blue-900 whitespace-pre-wrap">
+                  {typeof trip.payload.weather === 'string' ? trip.payload.weather : JSON.stringify(trip.payload.weather, null, 2)}
+                </div>
+              </div>
+            )}
+
+            {/* Transport */}
+            {trip.payload.transportPlan && (trip.payload.transportPlan.cityTransitTips || trip.payload.transportPlan.estimatedCosts) && (
+              <div className="bg-green-50 border border-green-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 text-green-700 font-semibold mb-2">
+                  🗺️ Transport & Getting Around
+                </div>
+                {trip.payload.transportPlan.cityTransitTips && (
+                  <div className="text-sm text-green-900 whitespace-pre-wrap mb-3">
+                    {trip.payload.transportPlan.cityTransitTips}
+                  </div>
+                )}
+                {trip.payload.transportPlan.estimatedCosts && (
+                  <div className="text-sm text-green-900">
+                    <span className="font-medium">Estimated costs:</span> {trip.payload.transportPlan.estimatedCosts}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Packing */}
+            {trip.payload.packingTips && (
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+                <div className="flex items-center gap-2 text-amber-700 font-semibold mb-2">
+                  🎒 Packing Suggestions
+                </div>
+                <div className="text-sm text-amber-900">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{trip.payload.packingTips}</ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Deals */}
+            {trip.payload.deals && trip.payload.deals.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                  ✈️ Flight Deals
+                </div>
+                <div className="grid gap-2">
+                  {trip.payload.deals.slice(0, 5).map((deal: any, i: number) => (
+                    <div key={i} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-900 text-sm">
+                          {deal.originCode} → {deal.destinationCode}
+                        </div>
+                        <div className="text-blue-600 font-semibold text-sm">
+                          {Number(deal.pointsRequired).toLocaleString()} pts
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {deal.airline} · {deal.cabin}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Route links */}
+            {trip.payload.routeLinks && trip.payload.routeLinks.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <div className="flex items-center gap-2 text-gray-700 font-semibold mb-3">
+                  🗺️ Daily Routes
+                </div>
+                <div className="grid gap-2">
+                  {trip.payload.routeLinks.map((link: any, i: number) => (
+                    <a
+                      key={i}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block border border-gray-200 rounded-lg p-3 hover:border-blue-300 transition-colors no-underline"
+                    >
+                      <div className="font-medium text-gray-900 text-sm">
+                        Day {link.day}: {link.title || 'Route'}
+                      </div>
+                      <div className="text-xs text-blue-600 mt-1">Open in Google Maps →</div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Destination image */}
         {trip.payload?.images?.destination && (
           <div className="mt-6 rounded-2xl overflow-hidden shadow-sm border border-gray-100">

@@ -158,7 +158,25 @@ function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: S
         {activeTab === 'itinerary' && (
           <div className="prose prose-sm max-w-none text-gray-700">
             {payload.itinerary ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.itinerary}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  img: ({ src, alt }) => (
+                    <figure className="my-3">
+                      {src && <img src={src} alt={alt || ''} className="rounded-xl shadow-md w-full" loading="lazy" />}
+                      {alt && <figcaption className="text-xs text-gray-400 text-center mt-1">{alt}</figcaption>}
+                    </figure>
+                  ),
+                  h1: ({ children }) => <h1 className="text-lg font-bold text-gray-900 mt-2 mb-1">{children}</h1>,
+                  h2: ({ children }) => <h2 className="text-base font-bold text-gray-900 mt-3 mb-1">{children}</h2>,
+                  h3: ({ children }) => <h3 className="text-sm font-semibold text-gray-800 mt-2 mb-1">{children}</h3>,
+                  strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                  ul: ({ children }) => <ul className="list-disc list-inside my-2 space-y-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside my-2 space-y-0.5">{children}</ol>,
+                }}
+              >
+                {payload.itinerary}
+              </ReactMarkdown>
             ) : (
               <div className="text-sm text-gray-500">No itinerary saved.</div>
             )}
@@ -192,7 +210,16 @@ function SavedTripCard({ trip, onUpdate }: { trip: SavedTrip; onUpdate: (trip: S
         {activeTab === 'packing' && (
           <div className="prose prose-sm max-w-none text-gray-700">
             {payload.packingTips ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.packingTips}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  ul: ({ children }) => <ul className="list-disc list-inside my-2 space-y-0.5">{children}</ul>,
+                  ol: ({ children }) => <ol className="list-decimal list-inside my-2 space-y-0.5">{children}</ol>,
+                  strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                }}
+              >
+                {payload.packingTips}
+              </ReactMarkdown>
             ) : (
               <div className="text-sm text-gray-500">No packing list saved.</div>
             )}
@@ -281,13 +308,19 @@ function buildTripSummary(trip: SavedTrip): string {
 }
 
 export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrips }: OneStopPanelProps) {
+  const [activeTripId, setActiveTripId] = useState<string | null>(null);
+
   const updateTrip = (updated: SavedTrip) => {
     setSavedTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   };
 
   const deleteTrip = (id: string) => {
     setSavedTrips((prev) => prev.filter((t) => t.id !== id));
+    if (activeTripId === id) setActiveTripId(null);
   };
+
+  // Auto-select the first trip if none is selected.
+  const activeTrip = savedTrips.find((t) => t.id === activeTripId) || savedTrips[0] || null;
 
   return (
     <>
@@ -303,7 +336,7 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
         }`}
       >
         <div
-          className={`w-[95vw] h-[90vh] max-w-[900px] max-h-[900px] bg-white shadow-2xl rounded-2xl flex flex-col transform transition-all duration-300 ${
+          className={`w-[95vw] h-[90vh] max-w-[1000px] max-h-[900px] bg-white shadow-2xl rounded-2xl flex flex-col transform transition-all duration-300 ${
             isOpen ? 'scale-100' : 'scale-95'
           }`}
         >
@@ -316,30 +349,80 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {savedTrips.length === 0 ? (
-              <div className="text-center py-16 text-gray-500">
+          {savedTrips.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center text-gray-500">
+              <div className="text-center">
                 <div className="bg-blue-100 text-blue-600 p-5 rounded-full inline-flex mb-4">
                   <Clipboard size={28} />
                 </div>
                 <p className="text-base">No saved trips yet.</p>
                 <p className="text-sm mt-1">Save a deal, itinerary, or packing list from any assistant message.</p>
               </div>
-            ) : (
-              savedTrips.map((trip) => (
-                <div key={trip.id} className="relative">
-                  <button
-                    onClick={() => deleteTrip(trip.id)}
-                    className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
-                    title="Delete trip"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                  <SavedTripCard trip={trip} onUpdate={updateTrip} />
+            </div>
+          ) : savedTrips.length === 1 ? (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="relative">
+                <button
+                  onClick={() => deleteTrip(savedTrips[0].id)}
+                  className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
+                  title="Delete trip"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <SavedTripCard trip={savedTrips[0]} onUpdate={updateTrip} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex overflow-hidden">
+              {/* Trip selector sidebar */}
+              <div className="w-56 border-r border-gray-100 flex flex-col flex-shrink-0">
+                <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 py-3 border-b border-gray-50">
+                  Saved Trips ({savedTrips.length})
                 </div>
-              ))
-            )}
-          </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {savedTrips.map((trip) => (
+                    <button
+                      key={trip.id}
+                      onClick={() => setActiveTripId(trip.id)}
+                      className={`w-full text-left rounded-lg p-3 transition-colors group ${
+                        activeTrip?.id === trip.id
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'hover:bg-gray-50 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin size={14} className={activeTrip?.id === trip.id ? 'text-blue-600' : 'text-gray-400'} />
+                        <span className={`text-sm font-medium truncate ${activeTrip?.id === trip.id ? 'text-blue-700' : 'text-gray-700'}`}>
+                          {trip.destination || 'Trip'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1 ml-5 truncate">
+                        {trip.dates || 'Dates TBD'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Active trip detail */}
+              <div className="flex-1 overflow-y-auto p-6">
+                {activeTrip ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => deleteTrip(activeTrip.id)}
+                      className="absolute top-2 right-2 z-10 p-1 text-gray-400 hover:text-red-600"
+                      title="Delete trip"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <SavedTripCard trip={activeTrip} onUpdate={updateTrip} />
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-400 py-16">Select a trip from the left.</div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
