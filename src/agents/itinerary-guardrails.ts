@@ -14,20 +14,29 @@ function extractLandmarkNames(itinerary: string): string[] {
 }
 
 async function wikipediaSearchExists(term: string): Promise<boolean> {
-  try {
-    const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (itinerary guardrails)' };
-    const res = await fetch(
-      `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
-      { headers }
-    );
-    if (!res.ok) return true; // Fail open if Wikipedia is down.
-    const data = (await res.json()) as [string, string[], string[], string[]];
-    const results = data[1] || [];
-    return results.length > 0;
-  } catch (error) {
-    console.error('Wikipedia guardrail check failed for', term, ':', (error as Error).message);
-    return true; // Fail open.
+  const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (itinerary guardrails)' };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(
+        `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
+        { headers }
+      );
+      if (res.status === 429) {
+        // Rate-limited — wait and retry with exponential backoff.
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      if (!res.ok) return true; // Fail open if Wikipedia is down.
+      const data = (await res.json()) as [string, string[], string[], string[]];
+      const results = data[1] || [];
+      return results.length > 0;
+    } catch (error) {
+      console.error('Wikipedia guardrail check failed for', term, ':', (error as Error).message);
+      return true; // Fail open.
+    }
   }
+  // All retries exhausted due to rate-limiting — fail open.
+  return true;
 }
 
 export async function verifyItineraryLandmarks(itinerary: string, destination?: string): Promise<string[]> {
