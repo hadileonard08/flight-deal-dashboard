@@ -964,29 +964,21 @@ export default function ChatPage() {
               setSectionsOpen(false);
             };
 
-            const sectionButtons = headings.map((h, index) => {
+            const sectionButtons = headings.map((h) => {
               const isDay = h.id.startsWith('day-') || /^day\s+\d+/i.test(h.label);
-              const dayNumber = h.label.match(/Day\s+(\d+)/i)?.[1] || (index + 1);
+              const dayNumber = h.label.match(/Day\s+(\d+)/i)?.[1] || '';
+              const cleanLabel = isDay ? h.label.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '') : h.label;
               return (
                 <button
                   key={h.id}
                   onClick={() => jumpTo(h.id)}
-                  className={`w-full text-left rounded-xl transition-all hover:shadow-sm ${
-                    isDay
-                      ? 'bg-white border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 p-3 group'
-                      : 'px-2.5 py-1.5 hover:bg-gray-100'
-                  } ${h.level === 1 ? 'font-medium text-gray-700' : h.level === 2 ? 'text-gray-500' : 'text-gray-400 pl-4'}`}
+                  className="w-full text-left text-xs text-gray-500 hover:text-blue-600 py-1.5 px-2 rounded-md hover:bg-blue-50 transition-colors truncate"
                   title={h.label}
                 >
                   {isDay ? (
-                    <div className="flex items-center gap-2">
-                      <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white text-[10px] font-bold rounded-lg flex items-center justify-center">
-                        {dayNumber}
-                      </span>
-                      <span className="text-xs text-gray-700 leading-tight line-clamp-2">{h.label.replace(/^Day\s+\d+\s*[:\-—]?\s*/i, '')}</span>
-                    </div>
+                    <span><span className="text-gray-400 mr-1.5">{dayNumber}.</span>{cleanLabel}</span>
                   ) : (
-                    <span className="text-xs leading-snug break-words">{h.label}</span>
+                    h.label
                   )}
                 </button>
               );
@@ -995,11 +987,8 @@ export default function ChatPage() {
             return (
               <>
                 {/* Desktop — section navigation rail */}
-                <nav className="hidden lg:flex flex-col w-56 border-l border-gray-100 bg-gray-50/50 py-6 px-3 h-full overflow-hidden">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mb-3 flex-shrink-0">
-                    Sections
-                  </div>
-                  <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                <nav className="hidden lg:flex flex-col w-48 border-l border-gray-100 py-4 px-2 h-full overflow-hidden">
+                  <div className="overflow-y-auto flex-1 space-y-0.5">
                     {sectionButtons}
                   </div>
                 </nav>
@@ -1024,7 +1013,7 @@ export default function ChatPage() {
                           <X size={18} />
                         </button>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                      <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
                         {sectionButtons}
                       </div>
                     </nav>
