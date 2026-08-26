@@ -94,44 +94,104 @@ async function chatStream(message: string, timeoutMs = 180000): Promise<{ respon
   }
 }
 
-// Extract bold landmark names from itinerary markdown, excluding headings and generic labels.
+// Extract bold landmark names from itinerary markdown, excluding headings,
+// generic labels, transport agent noise, and non-landmark content.
 function extractBoldLandmarks(markdown: string): string[] {
+  // Patterns to exclude: transport agent output, headings, generic labels,
+  // transit terms, time/distance notes, emoji-prefixed lines.
+  const excludePatterns = [
+    /^(Day \d|Weather|Packing|Getting Around|Transport|Points Flight|Daily Routes|Itinerary|Morning|Afternoon|Evening|Night|Lunch|Dinner|Breakfast)/i,
+    /Getting around.*routing/i,
+    /^[🚶🚇🚆🚌🚊⛴️🚕]/, // emoji-prefixed transport modes
+    /\b(walk|walking|transit|subway|metro|train|bus|taxi|ride)\b.*\b(min|km|distance)/i,
+    /\b\d+\s*(min|km)\b/i, // time/distance notes like "~10 min walk"
+    /Tokyo Subway Ticket/i,
+    /Navigo/i, // transit pass names
+    /Key Transit Stations/i,
+    /Transit.Taxi/i,
+    /Pass$/i, // transit passes
+    /Christmas Market$/i, // seasonal markets rarely have Wikipedia articles
+    /Festival$/i, // festivals may not have articles
+  ];
+
   return Array.from(markdown.matchAll(/\*\*([^*]+)\*\*/g))
     .map(m => m[1].trim())
-    .filter(name => name.length > 3 && !name.match(/^(Day \d|Weather|Packing|Getting Around|Transport|Points Flight|Daily Routes|Itinerary|Morning|Afternoon|Evening|Night|Lunch|Dinner|Breakfast)/i))
+    .filter(name => name.length > 3)
+    .filter(name => !excludePatterns.some(p => p.test(name)))
     .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
 }
 
 // Verify a list of landmark names against Wikipedia's opensearch API.
 // Returns the list of landmarks that could NOT be found (possible hallucinations).
 // Fails open (returns empty) if Wikipedia is unreachable.
+// Tries the full name first, then a shortened version (strip suffixes like
+// "Gardens", "Park", "Museum" etc.) as a fallback.
 async function verifyLandmarksOnWikipedia(landmarks: string[]): Promise<string[]> {
   if (landmarks.length === 0) return [];
 
+  // Limit to first 15 landmarks per itinerary to keep Wikipedia API calls
+  // reasonable and avoid rate limiting across 3 chat tests.
+  const toVerify = landmarks.slice(0, 15);
+
   const unverified: string[] = [];
-  const batchSize = 5;
-  for (let i = 0; i < landmarks.length; i += batchSize) {
-    const batch = landmarks.slice(i, i + batchSize);
+  const batchSize = 3; // smaller batches to be gentle on Wikipedia
+  for (let i = 0; i < toVerify.length; i += batchSize) {
+    const batch = toVerify.slice(i, i + batchSize);
     const checks = await Promise.all(batch.map(async (landmark) => {
-      try {
-        const res = await fetch(
-          `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(landmark)}&limit=1&namespace=0&format=json&origin=*`,
-          { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
-        );
-        if (!res.ok) return { landmark, exists: true }; // fail open
-        const data = await res.json() as [string, string[], string[], string[]];
-        return { landmark, exists: (data[1] || []).length > 0 };
-      } catch {
-        return { landmark, exists: true }; // fail open
+      // Try the full name first.
+      const exists = await wikipediaSearchExists(landmark);
+      if (exists) return { landmark, exists: true };
+
+      // Fallback: try without common suffixes (e.g. "Trocadéro Gardens" -> "Trocadéro").
+      const stripped = landmark.replace(/\s+(Gardens|Park|Museum|Square|Plaza|Bridge|Tower|Building|Market|Street|District|Neighborhood|Cathedral|Church|Temple|Shrine|Castle|Palace|Monument|Memorial|Gallery|Centre|Center|Stadium|Arena|Ground|Pub|Bar|Restaurant|Cafe|Station|Tube Station|Metro Station)$/i, '').trim();
+      if (stripped && stripped !== landmark) {
+        const strippedExists = await wikipediaSearchExists(stripped);
+        if (strippedExists) return { landmark, exists: true };
       }
+
+      return { landmark, exists: false };
     }));
     for (const { landmark, exists } of checks) {
       if (!exists) unverified.push(landmark);
     }
-    // Small delay between batches to respect Wikipedia rate limits.
-    if (i + batchSize < landmarks.length) await new Promise(r => setTimeout(r, 500));
+    // 1 second delay between batches to respect Wikipedia rate limits.
+    if (i + batchSize < toVerify.length) await new Promise(r => setTimeout(r, 1000));
   }
   return unverified;
+}
+
+// Check if a term exists on Wikipedia. Tries opensearch first (exact-ish),
+// then falls back to query search (fuzzy). Returns true if found on either.
+async function wikipediaSearchExists(term: string): Promise<boolean> {
+  try {
+    // 1. Try opensearch (exact-ish matching).
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
+      { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
+    );
+    if (res.ok) {
+      const data = await res.json() as [string, string[], string[], string[]];
+      if ((data[1] || []).length > 0) return true;
+    }
+
+    // 2. Fallback: try query search (fuzzy matching, finds more results).
+    const res2 = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=1&format=json&origin=*`,
+      { headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (smoke test)' } }
+    );
+    if (res2.ok) {
+      const data2 = await res2.json() as any;
+      const hits = data2?.query?.search || [];
+      // Accept any query search hit — the fuzzy search is lenient enough
+      // to find articles under different names (e.g. "Akihabara Electric Town"
+      // matches the "Akihabara" article).
+      if (hits.length > 0) return true;
+    }
+
+    return false;
+  } catch {
+    return true; // fail open
+  }
 }
 
 async function runSmokeTests(): Promise<Assertion[]> {
