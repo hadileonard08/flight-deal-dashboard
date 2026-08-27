@@ -87,3 +87,21 @@ export const sharedTrips = pgTable('shared_trips', {
 }, (table) => ({
   conversationIdx: index('shared_trips_conversation_id_idx').on(table.conversationId),
 }));
+
+// Saved trips — a user's saved trip to their One Stop panel.
+// Keyed by Clerk userId so trips sync across devices.
+// Guests use localStorage as a fallback (no DB row).
+export const savedTrips = pgTable('saved_trips', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  conversationId: varchar('conversation_id', { length: 255 }),
+  destination: varchar('destination', { length: 255 }).notNull(),
+  dates: varchar('dates', { length: 255 }),
+  payload: text('payload').notNull(), // JSON: full ChatPayload
+  todos: text('todos').notNull().default('[]'), // JSON: [{ id, text, done }]
+  notes: text('notes').notNull().default(''),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('saved_trips_user_id_idx').on(table.userId),
+}));

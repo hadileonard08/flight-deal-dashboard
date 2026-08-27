@@ -533,26 +533,43 @@ export default function ChatPage() {
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
 
-  // Load saved trips from localStorage on mount.
+  // Load saved trips — from API if signed in, from localStorage if guest.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('trip-ai-onestop');
-      if (raw) setSavedTrips(JSON.parse(raw));
-    } catch {
-      // ignore
+    if (!isLoaded) return;
+    if (isSignedIn) {
+      // Fetch from server for signed-in users.
+      fetch('/api/saved-trips')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.trips) setSavedTrips(data.trips);
+        })
+        .catch(() => {
+          // Fall back to localStorage if API fails.
+          try {
+            const raw = localStorage.getItem('trip-ai-onestop');
+            if (raw) setSavedTrips(JSON.parse(raw));
+          } catch { /* ignore */ }
+        });
+    } else {
+      // Guest — load from localStorage.
+      try {
+        const raw = localStorage.getItem('trip-ai-onestop');
+        if (raw) setSavedTrips(JSON.parse(raw));
+      } catch { /* ignore */ }
     }
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
-  // Persist saved trips to localStorage.
+  // Persist saved trips to localStorage (always, as a fallback for guests).
   useEffect(() => {
+    if (!isLoaded || isSignedIn) return; // Only persist locally for guests.
     try {
       localStorage.setItem('trip-ai-onestop', JSON.stringify(savedTrips));
     } catch {
       // ignore
     }
-  }, [savedTrips]);
+  }, [savedTrips, isLoaded, isSignedIn]);
 
-  const saveTrip = (payload: ChatPayload, conversationId: string) => {
+  const saveTrip = async (payload: ChatPayload, conversationId: string) => {
     const destination = payload.entities?.destination || 'Trip';
     const startDate = payload.entities?.startDate;
     const endDate = payload.entities?.endDate;
@@ -560,6 +577,28 @@ export default function ChatPage() {
       ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
       : payload.entities?.datesGeneral || 'Dates TBD';
 
+    if (isSignedIn) {
+      // Save to server for signed-in users.
+      try {
+        const res = await fetch('/api/saved-trips', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId, destination, dates, payload }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.trip) {
+            setSavedTrips((prev) => [data.trip, ...prev]);
+            setOneStopOpen(true);
+            return;
+          }
+        }
+      } catch {
+        // Fall through to localStorage.
+      }
+    }
+
+    // Guest or API failure — save to localStorage.
     const newTrip: SavedTrip = {
       id: crypto.randomUUID(),
       conversationId,
@@ -570,7 +609,6 @@ export default function ChatPage() {
       notes: '',
       savedAt: new Date().toISOString(),
     };
-
     setSavedTrips((prev) => [newTrip, ...prev]);
     setOneStopOpen(true);
   };
@@ -1046,6 +1084,7 @@ export default function ChatPage() {
           onClose={() => setOneStopOpen(false)}
           savedTrips={savedTrips}
           setSavedTrips={setSavedTrips}
+          isSignedIn={isSignedIn}
         />
 
         {/* Input area */}

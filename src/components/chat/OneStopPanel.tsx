@@ -12,6 +12,7 @@ interface OneStopPanelProps {
   onClose: () => void;
   savedTrips: SavedTrip[];
   setSavedTrips: React.Dispatch<React.SetStateAction<SavedTrip[]>>;
+  isSignedIn: boolean;
 }
 
 function formatDate(iso?: string | Date) {
@@ -318,16 +319,30 @@ function buildTripSummary(trip: SavedTrip): string {
   return summary;
 }
 
-export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrips }: OneStopPanelProps) {
+export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrips, isSignedIn }: OneStopPanelProps) {
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
 
   const updateTrip = (updated: SavedTrip) => {
     setSavedTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    // Sync to server if signed in.
+    if (isSignedIn) {
+      fetch(`/api/saved-trips/${updated.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ todos: updated.todos, notes: updated.notes }),
+      }).catch(() => { /* silent fail — local state is already updated */ });
+    }
   };
 
   const deleteTrip = (id: string) => {
     setSavedTrips((prev) => prev.filter((t) => t.id !== id));
     if (activeTripId === id) setActiveTripId(null);
+    // Sync to server if signed in.
+    if (isSignedIn) {
+      fetch(`/api/saved-trips/${id}`, {
+        method: 'DELETE',
+      }).catch(() => { /* silent fail — local state is already updated */ });
+    }
   };
 
   // Auto-select the first trip if none is selected.
