@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/email-deals",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-old-flights",
+      "schedule": "0 3 * * *"
     }
   ]
 }
