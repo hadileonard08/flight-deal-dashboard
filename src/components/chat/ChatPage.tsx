@@ -767,7 +767,7 @@ export default function ChatPage() {
   }, [isSignedIn]);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-x-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-gray-950 overflow-x-hidden">
       {/* Desktop Sidebar */}
       <aside className="w-64 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex-col hidden md:flex">
         <a href="/" className="p-4 flex items-center gap-2 border-b border-gray-50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
