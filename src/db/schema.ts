@@ -105,3 +105,23 @@ export const savedTrips = pgTable('saved_trips', {
 }, (table) => ({
   userIdx: index('saved_trips_user_id_idx').on(table.userId),
 }));
+
+// Deal alerts — a user's saved search criteria for price drop notifications.
+// When the scraper finds a new GOOD_DEAL matching these criteria, the user
+// gets an email notification. Keyed by Clerk userId.
+export const dealAlerts = pgTable('deal_alerts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  origin: varchar('origin', { length: 10 }), // IATA code, or null for "any origin"
+  destination: varchar('destination', { length: 10 }), // IATA code, or null for "any destination"
+  cabin: varchar('cabin', { length: 20 }), // ECONOMY, BUSINESS, FIRST, PREMIUM_ECONOMY, or null for "any cabin"
+  month: varchar('month', { length: 7 }), // YYYY-MM, or null for "any month"
+  minCPP: decimal('min_cpp', { precision: 5, scale: 2 }).notNull().default('1.5'), // minimum cents-per-point to trigger
+  lastNotifiedAt: timestamp('last_notified_at'), // last time this alert sent an email
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('deal_alerts_user_id_idx').on(table.userId),
+  activeIdx: index('deal_alerts_is_active_idx').on(table.isActive),
+}));

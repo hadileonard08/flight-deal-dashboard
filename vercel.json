@@ -5,6 +5,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/check-alerts",
+      "schedule": "30 9 * * *"
+    },
+    {
       "path": "/api/cron/cleanup-old-flights",
       "schedule": "0 3 * * *"
     }

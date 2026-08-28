@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Plus, Trash2, CheckSquare, Square, Plane, Clipboard, StickyNote, MapPin, Calendar, Map } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Plus, Trash2, CheckSquare, Square, Plane, Clipboard, StickyNote, MapPin, Calendar, Map, Bell } from 'lucide-react';
 import type { SavedTrip, ChatPayload } from '@/lib/chat-state';
 import { getAirlineBookingUrl } from '@/lib/airline-booking';
 import ReactMarkdown from 'react-markdown';
@@ -321,6 +321,10 @@ function buildTripSummary(trip: SavedTrip): string {
 
 export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrips, isSignedIn }: OneStopPanelProps) {
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
+  const [view, setView] = useState<'trips' | 'alerts'>('trips');
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alertForm, setAlertForm] = useState({ origin: '', destination: '', cabin: '', month: '', minCPP: '1.5' });
+  const [creatingAlert, setCreatingAlert] = useState(false);
 
   const updateTrip = (updated: SavedTrip) => {
     setSavedTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
@@ -348,6 +352,59 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
   // Auto-select the first trip if none is selected.
   const activeTrip = savedTrips.find((t) => t.id === activeTripId) || savedTrips[0] || null;
 
+  // Fetch alerts when the panel opens or view switches to alerts.
+  useEffect(() => {
+    if (isOpen && view === 'alerts' && isSignedIn) {
+      fetch('/api/deal-alerts')
+        .then((r) => r.json())
+        .then((data) => { if (data.alerts) setAlerts(data.alerts); })
+        .catch(() => {});
+    }
+  }, [isOpen, view, isSignedIn]);
+
+  const createAlert = async () => {
+    setCreatingAlert(true);
+    try {
+      const res = await fetch('/api/deal-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin: alertForm.origin.toUpperCase() || undefined,
+          destination: alertForm.destination.toUpperCase() || undefined,
+          cabin: alertForm.cabin || undefined,
+          month: alertForm.month || undefined,
+          minCPP: alertForm.minCPP || '1.5',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.alert) {
+          setAlerts((prev) => [data.alert, ...prev]);
+          setAlertForm({ origin: '', destination: '', cabin: '', month: '', minCPP: '1.5' });
+        }
+      }
+    } catch { /* ignore */ }
+    setCreatingAlert(false);
+  };
+
+  const deleteAlert = async (id: string) => {
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+    try {
+      await fetch(`/api/deal-alerts/${id}`, { method: 'DELETE' });
+    } catch { /* ignore */ }
+  };
+
+  const toggleAlert = async (id: string, isActive: boolean) => {
+    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, isActive: !isActive } : a)));
+    try {
+      await fetch(`/api/deal-alerts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !isActive }),
+      });
+    } catch { /* ignore */ }
+  };
+
   return (
     <>
       {isOpen ? (
@@ -367,15 +424,191 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
           }`}
         >
           <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-t-2xl">
-            <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100">
-              <Plane size={22} className="text-blue-600" /> One Stop
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100">
+                <Plane size={22} className="text-blue-600" /> One Stop
+              </div>
+              {isSignedIn && (
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => setView('trips')}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      view === 'trips'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    Trips
+                  </button>
+                  <button
+                    onClick={() => setView('alerts')}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                      view === 'alerts'
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <Bell size={12} /> Alerts
+                    {alerts.length > 0 && (
+                      <span className="ml-0.5 bg-blue-600 text-white text-[10px] px-1.5 rounded-full">{alerts.length}</span>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
             <button onClick={onClose} className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">
               <X size={22} />
             </button>
           </div>
 
-          {savedTrips.length === 0 ? (
+          {view === 'alerts' ? (
+            /* --- Alerts View --- */
+            <div className="flex-1 overflow-y-auto p-6">
+              {!isSignedIn ? (
+                <div className="text-center text-gray-500 dark:text-gray-400 py-16">
+                  <Bell size={32} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                  <p className="text-sm">Sign in to create deal alerts.</p>
+                  <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Get email notifications when new deals match your criteria.</p>
+                </div>
+              ) : (
+                <div className="max-w-2xl mx-auto space-y-6">
+                  {/* Create alert form */}
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-gray-50 dark:bg-gray-800/50">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+                      <Bell size={16} className="text-blue-600" /> Create New Alert
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">We'll email you when a new GOOD_DEAL matches your criteria. Leave fields blank for "any".</p>
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Origin (IATA)</label>
+                        <input
+                          type="text"
+                          value={alertForm.origin}
+                          onChange={(e) => setAlertForm({ ...alertForm, origin: e.target.value.toUpperCase().slice(0, 3) })}
+                          placeholder="SFO"
+                          className="w-full text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 uppercase"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Destination (IATA)</label>
+                        <input
+                          type="text"
+                          value={alertForm.destination}
+                          onChange={(e) => setAlertForm({ ...alertForm, destination: e.target.value.toUpperCase().slice(0, 3) })}
+                          placeholder="NRT"
+                          className="w-full text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400 uppercase"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Cabin</label>
+                        <select
+                          value={alertForm.cabin}
+                          onChange={(e) => setAlertForm({ ...alertForm, cabin: e.target.value })}
+                          className="w-full text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400"
+                        >
+                          <option value="">Any cabin</option>
+                          <option value="ECONOMY">Economy</option>
+                          <option value="PREMIUM_ECONOMY">Premium Economy</option>
+                          <option value="BUSINESS">Business</option>
+                          <option value="FIRST">First</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Month (YYYY-MM)</label>
+                        <input
+                          type="month"
+                          value={alertForm.month}
+                          onChange={(e) => setAlertForm({ ...alertForm, month: e.target.value })}
+                          className="w-full text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Min CPP (cents per point)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.5"
+                          max="5"
+                          value={alertForm.minCPP}
+                          onChange={(e) => setAlertForm({ ...alertForm, minCPP: e.target.value })}
+                          className="w-24 text-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-400"
+                        />
+                      </div>
+                      <button
+                        onClick={createAlert}
+                        disabled={creatingAlert}
+                        className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        <Plus size={16} /> {creatingAlert ? 'Creating...' : 'Create Alert'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Existing alerts list */}
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Your Alerts ({alerts.length})</h3>
+                    {alerts.length === 0 ? (
+                      <div className="text-sm text-gray-400 dark:text-gray-500 text-center py-8">
+                        No alerts yet. Create one above to get notified when deals match.
+                      </div>
+                    ) : (
+                      alerts.map((alert) => (
+                        <div key={alert.id} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-800 flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap text-sm">
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {alert.origin || 'Any'} → {alert.destination || 'Any'}
+                              </span>
+                              {alert.cabin && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                                  {alert.cabin.replace('_', ' ')}
+                                </span>
+                              )}
+                              {alert.month && (
+                                <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                                  {alert.month}
+                                </span>
+                              )}
+                              <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full">
+                                ≥ {alert.minCPP}¢/pt
+                              </span>
+                            </div>
+                            {alert.lastNotifiedAt && (
+                              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                Last notified: {new Date(alert.lastNotifiedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-3">
+                            <button
+                              onClick={() => toggleAlert(alert.id, alert.isActive)}
+                              className={`text-xs px-2 py-1 rounded-lg transition-colors ${
+                                alert.isActive
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                              }`}
+                            >
+                              {alert.isActive ? 'Active' : 'Paused'}
+                            </button>
+                            <button
+                              onClick={() => deleteAlert(alert.id)}
+                              className="text-gray-400 dark:text-gray-500 hover:text-red-600 p-1"
+                              title="Delete alert"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : savedTrips.length === 0 ? (
+            /* --- Trips View (empty) --- */
             <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
               <div className="text-center">
                 <div className="bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 p-5 rounded-full inline-flex mb-4">
@@ -386,10 +619,12 @@ export default function OneStopPanel({ isOpen, onClose, savedTrips, setSavedTrip
               </div>
             </div>
           ) : savedTrips.length === 1 ? (
+            /* --- Trips View (single trip) --- */
             <div className="flex-1 overflow-y-auto p-6">
               <SavedTripCard trip={savedTrips[0]} onUpdate={updateTrip} onDelete={() => deleteTrip(savedTrips[0].id)} />
             </div>
           ) : (
+            /* --- Trips View (multiple trips) --- */
             <div className="flex-1 flex overflow-hidden">
               {/* Trip selector sidebar */}
               <div className="w-56 border-r border-gray-100 dark:border-gray-800 flex flex-col flex-shrink-0">
