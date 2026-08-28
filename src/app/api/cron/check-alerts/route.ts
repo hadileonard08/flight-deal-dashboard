@@ -87,10 +87,10 @@ async function handleAlerts(req: NextRequest) {
       const matching = recentDeals.filter((d) => dealMatchesAlert(d, alert));
       if (matching.length === 0) continue;
 
-      // Don't spam — only send if we haven't notified this alert in the last 12 hours.
+      // Don't spam — only send if we haven't notified this alert in the last 3 days.
       if (alert.lastNotifiedAt) {
         const hoursSince = (Date.now() - new Date(alert.lastNotifiedAt).getTime()) / (1000 * 60 * 60);
-        if (hoursSince < 12) continue;
+        if (hoursSince < 72) continue;
       }
 
       // Send the email.
