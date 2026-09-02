@@ -12,7 +12,7 @@
  * No Gemini tokens consumed. No server required.
  */
 
-import { getImageForTerm, getDestinationImageUrl, hydrateItineraryImages } from '../src/agents/destination-images';
+import { getImageForTerm, getDestinationImageUrl, hydrateItineraryImages, scoreImageRelevance } from '../src/agents/destination-images';
 
 interface ImageResult {
   term: string;
@@ -35,6 +35,7 @@ const DEFAULT_LANDMARKS = [
   'Nakamise Shopping Street',
   'Trocadéro Gardens',
   'Brick Lane Market',
+  'Sindhu Night Market',
   // Stadiums (often confused with other things)
   'Camp Nou',
   'Allianz Arena',
@@ -55,7 +56,7 @@ function determineSource(url: string): string {
 function determineRelevance(url: string): 'high' | 'medium' | 'low' | 'none' {
   if (!url) return 'none';
   // Check for common bad patterns
-  if (/flag|emblem|logo|icon|seal|map|diagram|chart|graph|infographic|\.svg/i.test(url)) return 'low';
+  if (/flag|emblem|logo|icon|seal|map|diagram|chart|graph|infographic|\.pdf|\.svg/i.test(url)) return 'low';
   if (/placeholder|blank|text_document/i.test(url)) return 'none';
   return 'high';
 }
@@ -155,6 +156,14 @@ Dive into anime culture at **Akihabara Electric Town**. Visit **Ueno Park**.
 }
 
 async function main() {
+  const badSindhuScore = scoreImageRelevance(
+    'The British Empire in the nineteenth century, its progress and expansion',
+    'Sindhu Night Market',
+  );
+  if (badSindhuScore !== 0) {
+    throw new Error(`Unrelated Sindhu candidate scored ${badSindhuScore}; expected 0`);
+  }
+
   const args = process.argv.slice(2);
 
   // Parse args

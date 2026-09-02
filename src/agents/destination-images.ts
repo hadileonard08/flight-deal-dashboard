@@ -115,12 +115,13 @@ const BAD_IMAGE_PATTERNS = [
   /text_document/gi,
   /_blank\./gi,
   /placeholder/gi,
+  /\.pdf(?:\.|$)/i,
   /\.svg$/i,  // SVGs are usually icons/diagrams, not photos
 ];
 
 // Minimum relevance score (0-1) for accepting an image. Images below this
 // threshold are likely not photos of the searched landmark.
-const MIN_RELEVANCE_SCORE = 0.3;
+const MIN_RELEVANCE_SCORE = 0.5;
 
 function isBadImageUrl(url: string | null | undefined): boolean {
   if (!url) return true;
@@ -153,16 +154,18 @@ function cleanTerm(term: string): string {
     .trim();
 }
 
-function scoreImageRelevance(title: string, term: string): number {
+export function scoreImageRelevance(title: string, term: string): number {
   const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ');
   const titleWords = normalize(title).split(/\s+/).filter(Boolean);
   const termWords = normalize(term).split(/\s+/).filter(w => w.length > 2);
   if (termWords.length === 0) return 0;
   let matches = 0;
   for (const word of termWords) {
-    // Match if the title contains the term word, or vice versa.
-    // Also try singular/plural matching.
-    if (titleWords.some(t => t.includes(word) || word.includes(t) || t.replace(/s$/, '') === word.replace(/s$/, ''))) matches++;
+    const singularWord = word.replace(/s$/, '');
+    if (titleWords.some((titleWord) => {
+      const singularTitle = titleWord.replace(/s$/, '');
+      return singularTitle === singularWord || (word.length >= 5 && titleWord.includes(word));
+    })) matches++;
   }
   return matches / termWords.length;
 }
@@ -196,7 +199,7 @@ function expandImageTerm(term: string): string[] {
   if (!base.toLowerCase().endsWith('temple')) variants.push(`${base} temple`);
 
   // Strip generic suffixes and try the shorter name (e.g. "Senso-ji Temple" -> "Senso-ji").
-  const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine|Station|Street|Market|District|Building)$/i, '').trim();
+  const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine|Building)$/i, '').trim();
   if (stripped && stripped !== base) {
     variants.push(stripped);
   }
@@ -304,9 +307,13 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
   const cleaned = cleanTerm(term);
   if (!cleaned) return null;
 
+  const knownAliases: Record<string, string[]> = {
+    'sindhu night market': ['Pasar Sindhu Sanur Bali', 'Sanur Bali night market street food', 'Bali traditional food market'],
+  };
   const termsToTry = expandImageTerm(cleaned);
+  const aliases = knownAliases[cleaned.toLowerCase()] || [];
 
-  for (const t of [...termsToTry, ...fallbackTerms]) {
+  for (const t of [...termsToTry, ...aliases, ...fallbackTerms]) {
     const cleanedT = cleanTerm(t);
     if (!cleanedT) continue;
 
@@ -492,6 +499,9 @@ export async function hydrateItineraryImages(
 
         // Don't add destination as fallback if the term IS the destination.
         if (destLower !== termLower) {
+          if (/\bmarket\b/i.test(cleanedTerm)) {
+            fallbackTerms.push(`${dest} night market street food`, `${dest} traditional food market`);
+          }
           fallbackTerms.push(
             `${dest} ${term}`,
             `${term} ${dest}`,
