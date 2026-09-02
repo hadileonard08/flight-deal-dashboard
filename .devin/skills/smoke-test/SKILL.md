@@ -1,21 +1,31 @@
 ---
 name: smoke-test
-description: Run post-deploy smoke tests for the flight-deal dashboard
+description: Run local or post-deploy smoke tests only when explicitly requested
 subagent: true
 allowed-tools:
   - exec
   - read
-  - write
-  - edit
 ---
 
-After every code update and deploy, run the flight-deal dashboard smoke test routine:
+Run this skill only when the user explicitly asks to run smoke tests. Never invoke it automatically while investigating or fixing a bug.
 
-1. Build the project: `npm run build`
-2. Deploy to Vercel: `npx vercel --prod --yes`
-3. Alias the production deployment to `flight-deals-dashboard.vercel.app` if it is not already aliased.
-4. Run `npx tsx -r dotenv/config scripts/smoke-test.ts` (set `SMOKE_TEST_URL` if needed; it defaults to `https://flight-deals-dashboard.vercel.app`).
-5. The smoke test verifies:
+Required workflow for bug fixes:
+
+1. Reproduce the reported issue with the narrowest relevant test.
+2. Identify the root cause.
+3. Implement the fix outside this skill.
+4. Run the focused regression test first.
+5. Run broader local smoke tests only after the focused test passes and only when requested.
+6. Deploy only when the user explicitly requests deployment. Never deploy as part of this skill.
+7. Run post-deploy smoke tests only after an explicitly requested deployment.
+
+Commands:
+
+- Local full suite: `npx tsx -r dotenv/config scripts/smoke-test.ts --local`
+- Local suite without chat/LLM usage: `npx tsx -r dotenv/config scripts/smoke-test.ts --local --skip-chat`
+- Production suite: `npx tsx -r dotenv/config scripts/smoke-test.ts`
+
+The smoke test verifies:
    - `/api/deals` returns deals with real airline info (duration, stops, cashAirline, aircraftType, segments) from Seats.aero.
    - `/api/logistics-check` for a multi-stop deal mentions the real layover airport and stop count.
    - `/api/itinerary` for a GOOD_DEAL returns an itinerary with:
@@ -40,4 +50,4 @@ After every code update and deploy, run the flight-deal dashboard smoke test rou
      - Payload has a valid destination image URL.
      - Route links are present.
      - Transport plan is present in payload.
-6. If any assertions fail, report the failures, inspect the relevant code, and fix the issue before declaring the update complete.
+If assertions fail, report the failures and stop. Do not edit code or deploy from this skill.
