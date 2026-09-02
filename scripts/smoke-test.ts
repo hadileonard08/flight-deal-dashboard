@@ -82,6 +82,18 @@ function isValidImageUrl(url: string): boolean {
   return url.startsWith('http') && /\.(jpg|jpeg|png|gif|webp|svg)/i.test(url);
 }
 
+function extractPastCalendarDates(text: string): string[] {
+  const candidates = new Set<string>();
+  for (const match of text.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) candidates.add(match[0]);
+  for (const match of text.matchAll(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi)) candidates.add(match[0]);
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return [...candidates].filter((candidate) => {
+    const parsed = /^\d{4}-/.test(candidate) ? new Date(`${candidate}T00:00:00Z`) : new Date(candidate);
+    return !Number.isNaN(parsed.getTime()) && parsed < today;
+  });
+}
+
 // Parse an SSE stream from /api/chat and return the response text + payload.
 async function chatStream(message: string, timeoutMs = 180000): Promise<{ responseText: string; payload: any }> {
   const controller = new AbortController();
@@ -356,6 +368,10 @@ async function runSmokeTests(): Promise<Assertion[]> {
         const msg1 = `Plan a ${city1.days}-day trip to ${city1.name} in ${city1.month}`;
         console.log(`  → Testing: "${msg1}"`);
         const { responseText, payload } = await chatStream(msg1);
+        const city1PastDates = extractPastCalendarDates(responseText);
+        const city1DayCount = (responseText.match(/#{1,4}\s+Day\s+\d+/gi) || []).length;
+        results.push(assert(`chat ${city1.name} has no past dates`, city1PastDates.length === 0, `found past date(s): ${city1PastDates.join(', ')}`));
+        results.push(assert(`chat ${city1.name} duration exact`, city1DayCount === city1.days, `expected ${city1.days} days, found ${city1DayCount}`));
 
         // Route links should be present and non-empty
         const routeLinks = payload?.routeLinks || [];
@@ -425,6 +441,10 @@ async function runSmokeTests(): Promise<Assertion[]> {
         const msg2 = `Plan a ${city2.days}-day trip to ${city2.name} in ${city2.month}`;
         console.log(`  → Testing: "${msg2}"`);
         const { responseText, payload } = await chatStream(msg2);
+        const city2PastDates = extractPastCalendarDates(responseText);
+        const city2DayCount = (responseText.match(/#{1,4}\s+Day\s+\d+/gi) || []).length;
+        results.push(assert(`chat ${city2.name} has no past dates`, city2PastDates.length === 0, `found past date(s): ${city2PastDates.join(', ')}`));
+        results.push(assert(`chat ${city2.name} duration exact`, city2DayCount === city2.days, `expected ${city2.days} days, found ${city2DayCount}`));
 
         // 5a. City chat: response should contain at least one image
         const city2Images = extractImageUrls(responseText);
@@ -483,7 +503,11 @@ async function runSmokeTests(): Promise<Assertion[]> {
     // 6. /api/chat — Football trip to London (verify interest personalization + landmark verification).
     if (!skipChat) {
     try {
-      const { responseText, payload } = await chatStream('Plan a 3-day football trip to London in October 2025. I want to visit stadiums and maybe catch a match.');
+      const { responseText, payload } = await chatStream('Plan a 3-day football trip to London next October. I want to visit stadiums and maybe catch a match.');
+      const footballPastDates = extractPastCalendarDates(responseText);
+      const footballDayCount = (responseText.match(/#{1,4}\s+Day\s+\d+/gi) || []).length;
+      results.push(assert('chat football has no past dates', footballPastDates.length === 0, `found past date(s): ${footballPastDates.join(', ')}`));
+      results.push(assert('chat football duration exact', footballDayCount === 3, `expected 3 days, found ${footballDayCount}`));
 
       // 6a. Interests should be extracted
       const interests = payload?.entities?.interests;
@@ -524,6 +548,15 @@ async function runSmokeTests(): Promise<Assertion[]> {
 
     } catch (e) {
       results.push(assert('chat football endpoint test', false, `Failed to test /api/chat football trip: ${(e as Error).message}`));
+    }
+
+    try {
+      const pastYear = new Date().getUTCFullYear() - 1;
+      const { responseText, payload } = await chatStream(`Plan a trip to Paris from October 1, ${pastYear} to October 5, ${pastYear}.`);
+      results.push(assert('chat rejects explicit past travel dates', /past/i.test(responseText), `expected a past-date rejection, received: ${responseText.slice(0, 200)}`));
+      results.push(assert('chat creates no past itinerary', !payload?.itinerary && !/#{1,4}\s+Day\s+\d+/i.test(responseText), 'a past-date request generated an itinerary'));
+    } catch (e) {
+      results.push(assert('chat past-date guard test', false, `Failed to test explicit past dates: ${(e as Error).message}`));
     }
     } // end if (!skipChat)
 

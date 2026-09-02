@@ -923,12 +923,12 @@ export default function ChatPage() {
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mb-6">
                   {[
-                    { label: '🗼 Tokyo in October', msg: 'Plan a 5-day trip to Tokyo in October 2025' },
+                    { label: '🗼 Tokyo in October', msg: 'Plan a 5-day trip to Tokyo in October' },
                     { label: '🏖️ Beach week in Bali', msg: 'Plan a relaxing beach trip to Bali for 7 days in November' },
-                    { label: '🍜 Food trip to Bangkok', msg: 'Plan a 4-day food trip to Bangkok in December 2025' },
-                    { label: '⚽ Football in London', msg: 'Plan a 3-day football trip to London in October 2025. I want to visit stadiums.' },
-                    { label: '💍 Honeymoon in Santorini', msg: 'Plan a romantic 5-day honeymoon in Santorini in June 2025' },
-                    { label: '🎒 Budget Seoul weekend', msg: 'Plan a budget 3-day trip to Seoul in March 2025' },
+                    { label: '🍜 Food trip to Bangkok', msg: 'Plan a 4-day food trip to Bangkok in December' },
+                    { label: '⚽ Football in London', msg: 'Plan a 3-day football trip to London in October. I want to visit stadiums.' },
+                    { label: '💍 Honeymoon in Santorini', msg: 'Plan a romantic 5-day honeymoon in Santorini in June' },
+                    { label: '🎒 Budget Seoul weekend', msg: 'Plan a budget 3-day trip to Seoul in March' },
                   ].map((s) => (
                     <button
                       key={s.label}

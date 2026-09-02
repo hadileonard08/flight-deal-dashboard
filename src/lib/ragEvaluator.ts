@@ -239,11 +239,18 @@ export async function evaluateRagQuality(input: RagEvaluationInput): Promise<Rag
       // withStructuredOutput at runtime, but their TypeScript overloads
       // are incompatible in a union type.
       const structured = (model as any).withStructuredOutput(RagEvaluationSchema);
-      const result = await structured.invoke(prompt);
-      if (result) {
-        logEvaluation(result as RagEvaluation, input);
-        return result as RagEvaluation;
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = RagEvaluationSchema.parse(await structured.invoke(prompt));
+          logEvaluation(result, input);
+          return result;
+        } catch (error: unknown) {
+          lastError = error;
+          console.warn(`[RAG Evaluator] Structured-output attempt ${attempt}/2 failed.`);
+        }
       }
+      throw lastError;
     }
   }
 

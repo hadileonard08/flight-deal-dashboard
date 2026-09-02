@@ -2,7 +2,7 @@
 
 **Live app:** https://jalan-ai.vercel.app
 
-A conversational travel planning assistant that turns natural-language requests into full day-by-day itineraries with live weather, real points flight deals, transport routing, packing lists, daily Google Maps route links, and hallucination guardrails — all powered by a LangGraph multi-agent loop with a hybrid Gemini model configuration.
+A conversational travel planning assistant that turns natural-language requests into full day-by-day itineraries with live weather, real points flight deals, transport routing, packing lists, daily Google Maps route links, deterministic safety checks, and a RAG Triad LLM-as-a-judge self-correction loop — all powered by LangGraph and a hybrid Gemini model configuration.
 
 _"jalan" means "to walk" or "to travel" in Indonesian._
 
@@ -62,11 +62,13 @@ flowchart TD
 
     extract["Extract<br/>[LLM Router]<br/>parse intent + entities"]
     clarify["Clarify<br/>[LLM Agent]<br/>conversational follow-up"]
-    gather["Gather<br/>[Tool Integration]<br/>weather + news + deals + itinerary + transport"]
-    guardrails["Guardrails<br/>[Deterministic Code]<br/>verify landmarks via Wikipedia API"]
-    critic["Critic<br/>[LLM Evaluator]<br/>QA review for hallucinations"]
+    gather["Gather<br/>[Tool Integration]<br/>weather + news + deals + images"]
+    generate["Generate<br/>[LLM Generator]<br/>itinerary + packing + transport"]
+    guardrails["Guardrails<br/>[Deterministic Code]<br/>landmarks + dates + duration"]
+    critic["Critic<br/>[RAG Evaluator]<br/>relevance + groundedness"]
     answer["Answer<br/>[Tool / DB]<br/>deal lookup"]
-    respond["Respond<br/>[LLM Generator]<br/>final response formatter"]
+    respond["Respond<br/>[Response Formatter]<br/>hydrate + assemble"]
+    reject["Reject<br/>[Safe Fallback]<br/>withhold unverified draft"]
 
     %% Entry
     START --> extract
@@ -77,31 +79,35 @@ flowchart TD
     extract -->|"ask_question (complete)"| answer
     extract -->|"plan_trip / refine"| gather
 
-    %% All user-facing nodes route through Respond
-    clarify --> respond
-    answer --> respond
+    %% Clarifications and direct answers are already final responses
+    clarify --> END
+    answer --> END
 
     %% Main pipeline
-    gather --> guardrails
+    gather --> generate
+    generate --> guardrails
     guardrails --> critic
 
-    %% Critic routing — spaced to avoid collision with Gather → Guardrails
-    critic -->|"approved"| respond
-    critic -.->|"needs revision"| gather
+    %% Retrieval runs once; only generation repeats during self-correction
+    critic -->|"Groundedness + Answer Relevance ≥ 4"| respond
+    critic -.->|"score < 4 · feedback appended"| generate
+    critic -->|"3 failed drafts"| reject
 
     %% Terminal
     respond --> END
+    reject --> END
 ```
 
 | Node | Type | Description |
 |------|------|-------------|
-| **Extract** | LLM Router | Uses `chrono-node` + LLM to parse destination, dates, duration, cabin, travelers, budget, and intent (`plan_trip`, `ask_question`, `refine`, `greeting`, `vague`). Enforces a 30-day duration cap. |
-| **Clarify** | LLM Agent | Asks follow-up questions for missing required fields (destination, dates). For vague messages, generates a warm, conversational follow-up with example ideas. |
-| **Gather** | Tool Integration | Fetches weather (Open-Meteo), news (Gemini web search), live deals (Seats.aero), destination image, generates the itinerary and packing list in parallel, then builds route links and the transport plan. |
-| **Guardrails** | Deterministic Code | Extracts every landmark from the itinerary and verifies each one exists on Wikipedia. Flags any unverified places as potential hallucinations. Auto-rejects if image placeholders are missing. |
-| **Critic** | LLM Evaluator | Strict QA reviewer that checks for hallucinated flights, fake attractions, invented transit lines, missing weather, inconsistent day counts, and unverified landmarks. Sends feedback back to Gather if the itinerary needs revision (up to 2 revisions, or 3 for missing image placeholders). |
+| **Extract** | LLM Router | Uses `chrono-node` + LLM to parse destination, dates, duration, cabin, travelers, budget, and intent. Yearless dates resolve to the next future occurrence; explicit past travel dates are rejected. Enforces a 30-day duration cap. |
+| **Clarify** | LLM Agent | Asks follow-up questions for missing fields and prompts users to replace invalid or past date ranges. |
+| **Gather** | Tool Integration | Fetches weather (Open-Meteo), news (Gemini web search), live deals (Seats.aero), and destination images once. Retrieved context is retained across revisions. |
+| **Generate** | LLM Generator | Creates the itinerary and packing list, then builds route links and transport guidance. Only this stage repeats when Critic requests self-correction. |
+| **Guardrails** | Deterministic Code | Verifies landmarks through Wikipedia, rejects past calendar dates, enforces the exact requested day count, and requires image placeholders. |
+| **Critic** | RAG Evaluator | Runs an LLM-as-a-judge evaluation over `userQuery`, `retrievedContext`, and `draftItinerary`. Scores Context Relevance, Groundedness, and Answer Relevance from 1–5. Groundedness and Answer Relevance must both be at least 4. |
 | **Answer** | Tool / DB | Handles deal-only lookups (e.g. *"find deals to Tokyo in December"*) with live Seats.aero search. |
-| **Respond** | LLM Generator | Hydrates image placeholders with real image URLs from 4 sources (deduplicated), assembles the final markdown response. All user-facing nodes (Clarify, Answer, Critic-approved, greeting) route through Respond before terminating. |
+| **Respond** | Response Formatter | Hydrates image placeholders with deduplicated real image URLs and assembles the final markdown response. |
 
 #### Routing logic
 
@@ -109,7 +115,8 @@ The Extract node is an **LLM router** — it classifies the user's intent and ch
 
 | User says | Intent | Missing fields? | Routes to |
 |-----------|--------|-----------------|-----------|
-| *"Plan a 5-day trip to Tokyo in October 2025"* | `plan_trip` | No | **Gather** (skip Clarify — all info present) |
+| *"Plan a 5-day trip to Tokyo in October"* | `plan_trip` | No | **Gather** (resolves to the next future October) |
+| *"Plan a trip to Tokyo in October 2025"* | `plan_trip` | Invalid past date | **Clarify** (no itinerary is generated) |
 | *"Plan a trip to Japan"* | `plan_trip` | Yes (no dates) | **Clarify** ("When are you thinking of visiting?") |
 | *"Find deals to Bangkok in January"* | `ask_question` | No | **Answer** (deal lookup only, no itinerary) |
 | *"What's the weather like in Bali?"* | `ask_question` | Yes (no dates) | **Clarify** ("When are you going?") |
@@ -119,7 +126,7 @@ The Extract node is an **LLM router** — it classifies the user's intent and ch
 
 **Clarify is a conditional detour, not a prerequisite.** If the user provides enough information upfront (destination + dates), the flow skips Clarify and goes directly to Gather. After Clarify asks for missing info and the user replies, the next turn re-routes through Extract — which then sends the complete request to Gather.
 
-The revision loop (Critic → Gather) runs up to 2 times (3 for missing image placeholders) before the Critic auto-approves to prevent infinite loops.
+The revision loop runs `Critic → Generate`, so weather, news, flight, and image retrieval are not repeated. Critic reasoning is appended to graph state as generation feedback. After three unsuccessful drafts, Jalan returns a safe rejection instead of exposing an itinerary below the quality threshold.
 
 ### Transport agent
 
@@ -167,11 +174,30 @@ When the agent needs flight deals:
    - Enriches the top 5 with trip details (duration, stops, layover, aircraft) from the Seats.aero `/trips/{id}` endpoint.
 3. Each deal includes a direct booking link to the airline's website (Delta, American, United, JAL, etc.) via `src/lib/airline-booking.ts`.
 
-### Hallucination guardrails
+### RAG Triad quality evaluation
+
+Before an itinerary reaches the user, `src/lib/ragEvaluator.ts` runs an LLM-as-a-judge evaluation using three retained LangGraph state values:
+
+- `userQuery` — the original request and constraints.
+- `retrievedContext` — stringified weather, news, deals, images, extracted entities, and transport tool output.
+- `draftItinerary` — the generated itinerary before response hydration.
+
+The evaluator uses a strict Zod schema and returns typed 1–5 scores with reasoning for:
+
+1. **Context Relevance** — whether retrieval was useful for the request.
+2. **Groundedness / Faithfulness** — whether itinerary claims are supported and free of hallucinated locations, events, transit, and schedules.
+3. **Answer Relevance** — whether the draft follows the requested destination, dates, interests, traveler count, cabin, and duration.
+
+Groundedness and Answer Relevance must both score **4 or 5**. Lower scores route back to Generate with the judge's reasoning appended as feedback. Gemini structured-output parsing is retried inside the evaluator without repeating external retrieval.
+
+### Hallucination and date guardrails
 
 - **Wikipedia landmark verification** — every `![IMAGE: ...]` placeholder in the itinerary is checked against Wikipedia's search API. Unverified landmarks are flagged. Includes retry logic with exponential backoff on HTTP 429 rate-limiting, and fails open (assumes landmark is real) after all retries are exhausted.
-- **Critic prompt** — explicitly checks for invented attractions, closed venues, fake transit lines, made-up schedules, and inconsistent day counts.
-- **Itinerary generator prompt** — instructed to only include real, well-known attractions and to use specific station names (e.g. "Tsim Sha Tsui MTR Station" not "MTR").
+- **RAG Critic** — compares the original request, raw tool context, and draft using strict structured output; low Groundedness or Answer Relevance triggers self-correction.
+- **Past-date rejection** — explicit past travel dates never enter Gather; yearless dates are normalized to the next future occurrence.
+- **Generated-date scan** — Guardrails reject past ISO or written calendar dates in drafts, preventing stale events from reaching users.
+- **Exact duration check** — inclusive date math uses `duration - 1`, and the number of day headings must match the requested trip length.
+- **Itinerary generator prompt** — instructed to only include real, well-known attractions, future events, and specific station names (e.g. "Tsim Sha Tsui MTR Station" not "MTR").
 - **Route link filtering** — the Google Maps route builder filters out generic words (morning, afternoon, hotel) and transit-mode names so only real places become waypoints.
 - **Image deduplication** — the image hydration agent tracks used URLs and tries alternatives before falling back to the destination image.
 - **30-day duration cap** — prevents absurd requests like "2 years" from generating 730+ day itineraries. The cap is enforced in extractNode, generateItinerary, and the prompt tells the LLM to mention it naturally in the intro.
@@ -260,10 +286,11 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 
 ### Guardrails
 - Wikipedia landmark verification.
-- Critic checks for hallucinations, fake transit, inconsistent days.
-- Route builder filters out non-place words.
-- Image deduplication prevents repeated images.
-- 30-day duration cap prevents absurd requests.
+- RAG Triad evaluation with a 4/5 Groundedness and Answer Relevance threshold.
+- Past-date rejection and generated-itinerary date scanning.
+- Exact requested-duration enforcement.
+- Route builder filtering and image deduplication.
+- 30-day maximum trip duration.
 
 ### One Stop panel
 - Sign-in-gated centered modal (95vw x 90vh).
@@ -320,7 +347,7 @@ A sign-in-gated, centered modal accessible from the left sidebar that lets users
 ```
 src/
   agents/
-    conversation-graph.ts    # LangGraph state machine (extract → clarify → gather → guardrails → critic → respond)
+    conversation-graph.ts    # LangGraph state machine (extract → gather → generate → guardrails → RAG critic → respond)
     itinerary-guardrails.ts  # Wikipedia landmark verification + Google Maps route link builder
     transport.ts             # Transport agent: OSRM routing + Nominatim geocoding + LLM transit tips
     destination-images.ts    # Image hydration: Wikimedia + Wikipedia + Openverse + Pexels (deduplicated)
@@ -334,6 +361,7 @@ src/
     chat-state.ts            # Shared types (ChatPayload, SavedTrip, RouteLink, TransportPlan, etc.)
     chat-db.ts               # Conversation persistence
     ai-provider.ts           # LLM model configuration (hybrid: speed + quality models)
+    ragEvaluator.ts          # Typed RAG Triad LLM-as-a-judge evaluation
     airports.ts              # Airport code/name mappings (70+ global destinations)
     city-map.ts              # IATA → city/country mappings (70+ entries for news search)
     airlines.ts              # Airline code → name/description mappings
@@ -357,7 +385,9 @@ src/
   db/
     schema.ts                # Drizzle schema: flights, deals, conversations, messages, shared_trips
 scripts/
-  smoke-test.ts              # Post-deploy smoke tests (38 tests: deals, logistics, itinerary, chat, landmarks, images)
+  smoke-test.ts              # Local/production smoke tests (46 assertions, including date safety and exact duration)
+  test-date-normalization.ts # Deterministic past-date and inclusive-duration regression tests
+  test-rag-evaluator.ts      # Structured RAG evaluator test with dummy retrieved context
   test-images.ts             # Local image testing without consuming Gemini tokens
 ```
 
@@ -401,13 +431,20 @@ scripts/
    npx vercel alias <deployment-url> flight-deals-dashboard.vercel.app
    ```
 
-7. **Run smoke tests** (post-deploy):
+7. **Run local and production smoke tests:**
    ```bash
-   SMOKE_TEST_URL=https://jalan-ai.vercel.app npx tsx scripts/smoke-test.ts
+   npx tsx scripts/smoke-test.ts --local
+   npx tsx scripts/smoke-test.ts
    ```
-   38 tests verifying: deals with real airline info, logistics check, itinerary with images + day headings, no duplicate deals section, no tweak prompt in markdown, chat route links, diversified deals by origin, transport plans, image uniqueness, destination images, and Wikipedia landmark verification (with retry logic for rate-limiting).
+   The suite verifies deals, logistics, images, routes, transport, Wikipedia landmarks, exact itinerary duration, absence of past dates, and rejection of explicit past-date requests. Add `--skip-chat` to avoid Gemini usage when testing non-chat APIs.
 
-8. **Run local image tests** (without consuming Gemini tokens):
+8. **Run focused date and RAG tests:**
+   ```bash
+   npx tsx scripts/test-date-normalization.ts
+   npx tsx scripts/test-rag-evaluator.ts
+   ```
+
+9. **Run local image tests** (without consuming Gemini tokens):
    ```bash
    npx tsx scripts/test-images.ts
    ```
@@ -417,12 +454,13 @@ scripts/
 
 ## Highlights
 
-- Built a **conversational travel planner** powered by a LangGraph multi-agent loop (extract → clarify → gather → guardrails → critic → respond) that turns natural-language requests into full itineraries.
+- Built a **conversational travel planner** powered by a LangGraph multi-agent loop (extract → gather → generate → guardrails → RAG critic → respond) that turns natural-language requests into full itineraries.
 - Configured a **hybrid Gemini model setup** — `gemini-3.5-flash` for quality-critical nodes (itinerary generation, critic) and `gemini-3.5-flash-lite` for speed-critical nodes (extraction, clarification, answers) — balancing quality and cost (~$15-20 per 1,000 trips).
 - Added a **refine/follow-up feature** — when a user asks to modify a previous plan, the agent uses the chat history as context and edits the existing itinerary instead of regenerating from scratch.
 - Added a **transport agent** that geocodes every itinerary stop via Nominatim (with retry logic for rate-limiting), gets real walking/driving times via OSRM, recommends the best transport mode per leg, handles generic transit terms (MTR, JR, Subway), and generates city-specific transit tips + cost estimates via LLM.
 - Integrated **live Seats.aero award deal search** with trip-detail enrichment (duration, stops, aircraft), direct airline booking links, **deal diversification by origin city** (round-robin selection across US gateways), and **country-level destination support** (e.g. "Japan" → NRT/HND/KIX) with broadened date ranges.
-- Added **hallucination guardrails** that verify every itinerary landmark against Wikipedia (with retry logic for rate-limiting) and flag unverified places for the critic to reject.
+- Added a typed **RAG Triad LLM-as-a-judge pipeline** that scores Context Relevance, Groundedness, and Answer Relevance, requires 4/5 on the two user-facing quality metrics, and regenerates drafts using evaluator reasoning without repeating external retrieval.
+- Added **hallucination and date guardrails** that verify landmarks against Wikipedia, reject past travel dates and stale calendar events, and enforce exact inclusive trip duration.
 - Implemented **daily Google Maps route links** with highlight summaries by extracting landmarks from the itinerary and building clickable directions URLs — no API key required.
 - Built a **4-source image hydration agent** (Wikimedia Commons, Wikipedia, Openverse, Pexels) with quality filtering (relevance score, dimensions, bad pattern detection), deduplication, and destination image fallback so every day always has a high-quality landscape image.
 - Added a **30-day duration guardrail** that caps absurd requests (e.g. "2 years") at 30 days, enforced in 3 places (extract, generate, prompt).
@@ -434,5 +472,5 @@ scripts/
 - Added **vague message handling** — when users send unclear messages, the agent asks warm, conversational follow-ups with example trip ideas.
 - Used **chrono-node** for flexible natural-language date parsing (e.g. *"in two weeks"*, *"next October"*, *"2 week trip"*).
 - Optimized **mobile experience** — no horizontal scroll, auto-scroll to top on itinerary completion, responsive layout with mobile sidebar drawer, floating section navigator button.
-- Implemented **post-deploy smoke tests** (38 tests) with randomized city selection, Wikipedia landmark verification (with retry logic for rate-limiting), and `--local`/`--skip-chat` flags for token-efficient testing.
+- Implemented **local and post-deploy smoke tests** with 46 assertions covering date safety, exact duration, explicit past-date rejection, RAG-sensitive chat quality, routes, transport, images, deals, and Wikipedia landmark verification.
 - Added **local image testing script** (`scripts/test-images.ts`) for testing image fetching without consuming Gemini tokens.

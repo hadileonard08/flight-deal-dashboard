@@ -36,6 +36,7 @@ const ConversationStateAnnotation = Annotation.Root({
   userQuery: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   retrievedContext: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   draftItinerary: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  dateValidationError: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   history: Annotation<PersistedMessage[]>({ reducer: (_curr, next) => next, default: () => [] }),
   entities: Annotation<ExtractedEntities>({ reducer: (_curr, next) => next, default: () => ({}) }),
   missingFields: Annotation<string[]>({ reducer: (_curr, next) => next, default: () => [] }),
@@ -110,7 +111,7 @@ Respond ONLY in JSON:
     "originCode": "IATA city code if known",
     "startDate": "YYYY-MM-DD or null",
     "endDate": "YYYY-MM-DD or null",
-    "datesGeneral": "e.g. November 2025, in two weeks, flexible, or null",
+    "datesGeneral": "e.g. November, in two weeks, flexible, or null",
     "durationDays": 14,
     "cabin": "ECONOMY or null",
     "travelers": 2,
@@ -161,7 +162,7 @@ User: ${state.userMessage}
   // If user mentioned duration (e.g. "2 week trip") but no endDate, compute it
   if (entities.durationDays && entities.startDate && !entities.endDate) {
     const start = new Date(entities.startDate);
-    const end = new Date(start.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + (entities.durationDays - 1) * 24 * 60 * 60 * 1000);
     entities.endDate = end.toISOString().split('T')[0];
   }
 
@@ -187,6 +188,8 @@ User: ${state.userMessage}
     }
   }
 
+  const dateValidationError = getTravelDateValidationError(entities.startDate, entities.endDate);
+
   // For trip planning requests, default to a flexible date soon if the user didn't specify one.
   // For question/deal lookups, leave the date missing so the agent asks for it.
   if (
@@ -199,7 +202,7 @@ User: ${state.userMessage}
     entities.startDate = fallback.toISOString().split('T')[0];
     entities.datesGeneral = entities.datesGeneral || 'flexible';
     if (entities.durationDays) {
-      const end = new Date(fallback.getTime() + entities.durationDays * 24 * 60 * 60 * 1000);
+      const end = new Date(fallback.getTime() + (entities.durationDays - 1) * 24 * 60 * 60 * 1000);
       entities.endDate = end.toISOString().split('T')[0];
     }
   }
@@ -211,6 +214,7 @@ User: ${state.userMessage}
   return {
     userQuery: state.userMessage,
     entities,
+    dateValidationError,
     missingFields: stillMissing.length ? stillMissing : missingFields,
   };
 }
@@ -221,7 +225,7 @@ function parseGeneralDate(general: string, durationDays?: number): { startDate?:
     const start = results[0].start.date();
     const duration = durationDays || inferDurationDays(general);
     const end = duration
-      ? new Date(start.getTime() + duration * 24 * 60 * 60 * 1000)
+      ? new Date(start.getTime() + (duration - 1) * 24 * 60 * 60 * 1000)
       : undefined;
     return {
       startDate: start.toISOString().split('T')[0],
@@ -243,7 +247,7 @@ function parseGeneralDate(general: string, durationDays?: number): { startDate?:
       const year = parseInt(match[2] || String(now.getFullYear()), 10);
       const start = new Date(year, month, 15);
       const duration = durationDays || inferDurationDays(general) || 7;
-      const end = new Date(start.getTime() + duration * 24 * 60 * 60 * 1000);
+      const end = new Date(start.getTime() + (duration - 1) * 24 * 60 * 60 * 1000);
       return {
         startDate: start.toISOString().split('T')[0],
         endDate: end.toISOString().split('T')[0],
@@ -285,6 +289,67 @@ export function normalizeImplicitPastDateRange(
   };
 }
 
+export function getTravelDateValidationError(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  referenceDate = new Date(),
+): string {
+  if (!startDate) return '';
+
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = endDate ? new Date(`${endDate}T00:00:00Z`) : undefined;
+  const today = new Date(Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  ));
+  if (Number.isNaN(start.getTime()) || (end && Number.isNaN(end.getTime()))) {
+    return 'The travel dates are invalid. Please provide valid future dates.';
+  }
+  if (start < today || (end && end < today)) {
+    return `Those travel dates are in the past. Please choose dates on or after ${today.toISOString().split('T')[0]}.`;
+  }
+  if (end && end < start) {
+    return 'The return date must be on or after the departure date. Please provide a valid future date range.';
+  }
+  return '';
+}
+
+export function getExpectedTripDays(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  durationDays: number | undefined,
+): number | undefined {
+  if (startDate && endDate) {
+    const start = new Date(`${startDate}T00:00:00Z`);
+    const end = new Date(`${endDate}T00:00:00Z`);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
+      return Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    }
+  }
+  return durationDays && durationDays > 0 ? durationDays : undefined;
+}
+
+export function findPastCalendarDates(text: string, referenceDate = new Date()): string[] {
+  const candidates = new Set<string>();
+  for (const match of text.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)) candidates.add(match[0]);
+  for (const match of text.matchAll(/\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b/gi)) {
+    candidates.add(match[0]);
+  }
+
+  const today = new Date(Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  ));
+  return [...candidates].filter((candidate) => {
+    const parsed = /^\d{4}-/.test(candidate)
+      ? new Date(`${candidate}T00:00:00Z`)
+      : new Date(candidate);
+    return !Number.isNaN(parsed.getTime()) && parsed < today;
+  });
+}
+
 function inferDurationDays(text: string): number | undefined {
   const match = text.match(/(\d+)\s*(week|day|month)s?\s*(trip|long|duration)?/i);
   if (!match) return undefined;
@@ -298,6 +363,9 @@ function inferDurationDays(text: string): number | undefined {
 
 async function clarifyNode(state: typeof ConversationStateAnnotation.State) {
   if (!llm) throw new Error('AI provider not configured');
+  if (state.dateValidationError) {
+    return { questions: [], finalResponse: state.dateValidationError };
+  }
 
   const isVague = state.entities.intent === 'vague';
   const missing = state.missingFields.slice(0, 3);
@@ -326,6 +394,7 @@ Respond ONLY in plain text (no JSON, no markdown headers).`;
 }
 
 function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {
+  if (state.dateValidationError) return 'clarify';
   if (state.entities.intent === 'greeting') return 'respond';
   if (state.entities.intent === 'vague') return 'clarify';
   if (state.entities.intent === 'ask_question') {
@@ -339,6 +408,8 @@ function routeAfterExtract(state: typeof ConversationStateAnnotation.State) {
 
 async function gatherNode(state: typeof ConversationStateAnnotation.State) {
   if (!llm) throw new Error('AI provider not configured');
+  const dateError = getTravelDateValidationError(state.entities.startDate, state.entities.endDate);
+  if (dateError) throw new Error(`Past or invalid travel date reached Gather: ${dateError}`);
 
   const destination = state.entities.destination || '';
   const destinationCode = state.entities.destinationCode || destination;
@@ -353,9 +424,6 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     endDate = new Date(startDate.getTime() + (tripDays - 1) * 24 * 60 * 60 * 1000);
     state.entities.endDate = endDate.toISOString().split('T')[0];
   }
-  const cabin = state.entities.cabin || 'ECONOMY';
-  const travelers = state.entities.travelers || 1;
-
   const [weatherResult, newsResult, imageResult, dealsResult] = await Promise.all([
     getWeatherData(destinationCode, startDate, endDate, destination),
     startDate
@@ -365,45 +433,49 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     getRelevantDeals(state.entities),
   ]);
 
-  const subState = {
-    ...state,
+  const images = { destination: imageResult || '' };
+  return {
+    entities: endDate
+      ? { ...state.entities, endDate: endDate.toISOString().split('T')[0] }
+      : state.entities,
     weather: weatherResult,
     news: newsResult,
     deals: dealsResult,
-    images: { destination: imageResult || '' },
+    images,
+    retrievedContext: JSON.stringify({
+      entities: state.entities,
+      weather: weatherResult,
+      news: newsResult,
+      deals: dealsResult,
+      images,
+    }),
   };
+}
 
-  const [itinerary, packingTips] = await Promise.all([
-    generateItinerary(subState),
-    generatePackingTips(subState),
-  ]);
-
+async function generateNode(state: typeof ConversationStateAnnotation.State) {
+  const destination = state.entities.destination || '';
+  const itineraryPromise = generateItinerary(state);
+  const packingTipsPromise = state.packingTips
+    ? Promise.resolve(state.packingTips)
+    : generatePackingTips(state);
+  const [itinerary, packingTips] = await Promise.all([itineraryPromise, packingTipsPromise]);
   const routeLinks = destination ? buildRouteLinks(itinerary, destination) : [];
-
-  // Build the transport plan from the extracted route links.
   const transportPlan = routeLinks.length > 0
     ? await buildTransportPlan(routeLinks, destination).catch(() => null)
     : null;
-
-  // Inject real transport times into each day's itinerary section.
   const itineraryWithTransport = transportPlan
     ? injectTransportNotes(itinerary, transportPlan)
     : itinerary;
 
-  const retrievedContext = JSON.stringify({
-    weather: weatherResult,
-    news: newsResult,
-    deals: dealsResult,
-    images: { destination: imageResult || '' },
-    transportPlan,
-  });
-
   return {
-    weather: weatherResult,
-    news: newsResult,
-    deals: dealsResult,
-    images: { destination: imageResult || '' },
-    retrievedContext,
+    retrievedContext: JSON.stringify({
+      entities: state.entities,
+      weather: state.weather,
+      news: state.news,
+      deals: state.deals,
+      images: state.images,
+      transportPlan,
+    }),
     draftItinerary: itineraryWithTransport,
     itinerary: itineraryWithTransport,
     routeLinks,
@@ -704,6 +776,7 @@ ${feedback.includes('image placeholder') ? '⚠️ CRITICAL: The previous versio
 Requirements:
 - Start with a brief, friendly intro sentence (1-2 lines) before the itinerary.
 - Plan EXACTLY ${numDays} days. Do not add or skip days.${numDays >= MAX_TRIP_DAYS ? ' (Note: the trip was capped at 30 days — mention this naturally in the intro if the user asked for longer.)' : ''}
+- Never schedule travel, reservations, performances, games, festivals, or other events on a date before today (${new Date().toISOString().split('T')[0]}). Exclude stale past events from retrieved context.
 - MANDATORY: For EACH day, you MUST include exactly one image placeholder immediately after the day heading, in this exact format: ![IMAGE: specific landmark name]. No URLs. This is required for every single day — do not skip any day. Pick iconic, specific places (e.g. "Notre-Dame Cathedral", "Sagrada Familia", "Senso-ji Temple"), not generic city names. Always use the ENGLISH name of the landmark (e.g. "Helsinki Cathedral" not "Helsingin Tuomiokirkko", "Church of the Rock" not "Temppeliaukio Kirkko").
 - Bold every landmark, neighborhood, or major stop you mention in the day plan (e.g. **Louvre Museum**, **Montmartre**, **Eiffel Tower**). This is used to generate walking/transit maps.
 - Do not claim upgrades, partner airlines, or premium in-flight services unless cabin is BUSINESS/FIRST.
@@ -818,8 +891,17 @@ async function guardrailsNode(state: typeof ConversationStateAnnotation.State) {
   // Check 2: Verify image placeholders are present for each day.
   const dayCount = (state.itinerary.match(/#{1,4}\s+Day\s+\d+/gi) || []).length;
   const placeholderCount = (state.itinerary.match(/!\[IMAGE:/gi) || []).length;
+  const expectedDays = getExpectedTripDays(state.entities.startDate, state.entities.endDate, state.entities.durationDays);
+  if (expectedDays && dayCount !== expectedDays) {
+    feedback.push(`The user requested ${expectedDays} travel days, but the itinerary contains ${dayCount} day headings. Regenerate it with exactly ${expectedDays} days.`);
+  }
   if (dayCount > 0 && placeholderCount < dayCount) {
     feedback.push(`The itinerary has ${dayCount} day(s) but only ${placeholderCount} image placeholder(s). Every day MUST have exactly one image placeholder in the format ![IMAGE: landmark name] immediately after the day heading. Add the missing placeholders.`);
+  }
+
+  const pastDates = findPastCalendarDates(state.itinerary);
+  if (pastDates.length > 0) {
+    feedback.push(`The itinerary contains past calendar dates: ${pastDates.join(', ')}. Remove past events and regenerate the plan using only current or future travel dates and events.`);
   }
 
   return { criticFeedback: feedback };
@@ -841,18 +923,18 @@ async function criticNode(state: typeof ConversationStateAnnotation.State) {
     }
 
     const evaluationFeedback = [
-      evaluation.groundedness.score < 3
+      evaluation.groundedness.score < 4
         ? `Groundedness (${evaluation.groundedness.score}/5): ${evaluation.groundedness.reasoning}`
         : '',
-      evaluation.answerRelevance.score < 3
+      evaluation.answerRelevance.score < 4
         ? `Answer relevance (${evaluation.answerRelevance.score}/5): ${evaluation.answerRelevance.reasoning}`
         : '',
     ].filter((feedback): feedback is string => feedback.length > 0);
     const feedback = [...guardrailsFeedback, ...evaluationFeedback];
     const isApproved =
       guardrailsFeedback.length === 0 &&
-      evaluation.groundedness.score >= 3 &&
-      evaluation.answerRelevance.score >= 3;
+      evaluation.groundedness.score >= 4 &&
+      evaluation.answerRelevance.score >= 4;
 
     return {
       isApproved,
@@ -877,8 +959,9 @@ async function criticNode(state: typeof ConversationStateAnnotation.State) {
 }
 
 function criticRouter(state: typeof ConversationStateAnnotation.State) {
-  if (state.isApproved || state.revisionCount >= 3) return 'respond';
-  return 'gather';
+  if (state.isApproved) return 'respond';
+  if (state.revisionCount >= 3) return 'reject';
+  return 'generate';
 }
 
 function rejectNode() {
@@ -954,6 +1037,7 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addNode('clarify', clarifyNode)
   .addNode('answer', answerNode)
   .addNode('gather', gatherNode)
+  .addNode('generate', generateNode)
   .addNode('guardrails', guardrailsNode)
   .addNode('critic', criticNode)
   .addNode('respond', respondNode)
@@ -962,7 +1046,8 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addConditionalEdges('extract', routeAfterExtract)
   .addEdge('clarify', END)
   .addEdge('answer', END)
-  .addEdge('gather', 'guardrails')
+  .addEdge('gather', 'generate')
+  .addEdge('generate', 'guardrails')
   .addEdge('guardrails', 'critic')
   .addConditionalEdges('critic', criticRouter)
   .addEdge('respond', END)
