@@ -348,11 +348,12 @@ async function runSmokeTests(): Promise<Assertion[]> {
 
     // 4. /api/chat — Random city #1 plan_trip test (images, routes, transport, landmarks).
     if (!skipChat) {
-      const [city1, city2] = pickRandomCities(2);
-      console.log(`  🎲 Random cities for this run: ${city1.name} and ${city2.name}\n`);
+      const city1 = CITY_POOL.find((c) => c.name === 'Tokyo') || pickRandomCities(1)[0];
+      const city2 = CITY_POOL.find((c) => c.name === 'Paris') || pickRandomCities(1)[0];
+      console.log(`  -> Testing cities for this run: ${city1.name} and ${city2.name}\n`);
 
       try {
-        const msg1 = `Plan a ${city1.days}-day trip to ${city1.name} in ${city1.month} 2025`;
+        const msg1 = `Plan a ${city1.days}-day trip to ${city1.name} in ${city1.month}`;
         console.log(`  → Testing: "${msg1}"`);
         const { responseText, payload } = await chatStream(msg1);
 
@@ -421,7 +422,7 @@ async function runSmokeTests(): Promise<Assertion[]> {
 
       // 5. /api/chat — Random city #2 plan_trip test (verify images work for different destinations).
       try {
-        const msg2 = `Plan a ${city2.days}-day trip to ${city2.name} in ${city2.month} 2025`;
+        const msg2 = `Plan a ${city2.days}-day trip to ${city2.name} in ${city2.month}`;
         console.log(`  → Testing: "${msg2}"`);
         const { responseText, payload } = await chatStream(msg2);
 

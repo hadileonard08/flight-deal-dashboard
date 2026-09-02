@@ -1,5 +1,5 @@
 import { StateGraph, START, END, Annotation } from '@langchain/langgraph';
-import { getChatModel, getQualityModel, getReasoningModel } from '../lib/ai-provider';
+import { getChatModel, getQualityModel } from '../lib/ai-provider';
 import { getWeatherForecast } from './weather';
 import { searchDestinationNews } from './news-search';
 import { getDestinationImageUrl, hydrateItineraryImages } from './destination-images';
@@ -18,6 +18,7 @@ import type {
   PersistedMessage,
   RouteLink,
 } from '../lib/chat-state';
+import { evaluateRag, type RagEvaluation } from '../lib/ragEvaluator';
 
 const llm = getChatModel(0.4);
 const qualityLlm = getQualityModel(0.4);
@@ -27,24 +28,31 @@ const COMPANION_PERSONA = `You are Jalan, a friendly travel companion. You are w
 const DEFAULT_TRIP_DAYS = 5;
 const MAX_TRIP_DAYS = 30; // Guardrail: cap itineraries at 30 days
 
+type RetrievedDeal = Awaited<ReturnType<typeof getRelevantDeals>>[number];
+type TransportPlan = Awaited<ReturnType<typeof buildTransportPlan>>;
+
 const ConversationStateAnnotation = Annotation.Root({
   userMessage: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  userQuery: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  retrievedContext: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  draftItinerary: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   history: Annotation<PersistedMessage[]>({ reducer: (_curr, next) => next, default: () => [] }),
   entities: Annotation<ExtractedEntities>({ reducer: (_curr, next) => next, default: () => ({}) }),
   missingFields: Annotation<string[]>({ reducer: (_curr, next) => next, default: () => [] }),
   questions: Annotation<ClarifyingQuestion[]>({ reducer: (_curr, next) => next, default: () => [] }),
-  weather: Annotation<any | null>({ reducer: (_curr, next) => next, default: () => null }),
+  weather: Annotation<unknown | null>({ reducer: (_curr, next) => next, default: () => null }),
   news: Annotation<string | null>({ reducer: (_curr, next) => next, default: () => null }),
-  deals: Annotation<any[]>({ reducer: (_curr, next) => next, default: () => [] }),
+  deals: Annotation<RetrievedDeal[]>({ reducer: (_curr, next) => next, default: () => [] }),
   images: Annotation<Record<string, string>>({ reducer: (_curr, next) => next, default: () => ({}) }),
   itinerary: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   routeLinks: Annotation<RouteLink[]>({ reducer: (_curr, next) => next, default: () => [] }),
-  transportPlan: Annotation<any | null>({ reducer: (_curr, next) => next, default: () => null }),
+  transportPlan: Annotation<TransportPlan | null>({ reducer: (_curr, next) => next, default: () => null }),
   packingTips: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
   criticFeedback: Annotation<string[]>({ reducer: (_curr, next) => next, default: () => [] }),
   isApproved: Annotation<boolean>({ reducer: (_curr, next) => next, default: () => false }),
   revisionCount: Annotation<number>({ reducer: (_curr, next) => next, default: () => 0 }),
   finalResponse: Annotation<string>({ reducer: (_curr, next) => next, default: () => '' }),
+  ragEvaluation: Annotation<RagEvaluation | null>({ reducer: (_curr, next) => next, default: () => null }),
 });
 
 const REQUIRED_FIELDS = ['destination', 'startDate'];
@@ -73,8 +81,10 @@ async function extractNode(state: typeof ConversationStateAnnotation.State) {
   const prompt = `${COMPANION_PERSONA}
 
 You are also a detail extractor. Read the conversation and figure out the user's intent and trip details.
+Today is ${new Date().toISOString().split('T')[0]}.
 
 Instructions:
+- If the user gives a month or date without a year, resolve it to the next occurrence that is today or later. Never infer a past year.
 - Use the conversation history for context. If the user is answering a previous clarifying question, combine it with earlier messages.
 - Required: destination, and either a specific startDate OR a general/relative date expression (e.g. "October", "in two weeks", "flexible", "2 week trip").
 - If the user only gives a duration ("2 week trip") or a rough window without an exact date, set durationDays and datesGeneral, and leave startDate null.
@@ -140,6 +150,14 @@ User: ${state.userMessage}
     if (parsed.durationDays && !entities.durationDays) entities.durationDays = parsed.durationDays;
   }
 
+  const normalizedDates = normalizeImplicitPastDateRange(
+    entities.startDate,
+    entities.endDate,
+    `${historyText}\n${state.userMessage}`,
+  );
+  entities.startDate = normalizedDates.startDate;
+  entities.endDate = normalizedDates.endDate;
+
   // If user mentioned duration (e.g. "2 week trip") but no endDate, compute it
   if (entities.durationDays && entities.startDate && !entities.endDate) {
     const start = new Date(entities.startDate);
@@ -190,7 +208,11 @@ User: ${state.userMessage}
     (f) => !entities[f as keyof ExtractedEntities]
   );
 
-  return { entities, missingFields: stillMissing.length ? stillMissing : missingFields };
+  return {
+    userQuery: state.userMessage,
+    entities,
+    missingFields: stillMissing.length ? stillMissing : missingFields,
+  };
 }
 
 function parseGeneralDate(general: string, durationDays?: number): { startDate?: string; endDate?: string; durationDays?: number } {
@@ -231,6 +253,36 @@ function parseGeneralDate(general: string, durationDays?: number): { startDate?:
   }
 
   return {};
+}
+
+export function normalizeImplicitPastDateRange(
+  startDate: string | undefined,
+  endDate: string | undefined,
+  sourceText: string,
+  referenceDate = new Date(),
+): { startDate?: string; endDate?: string } {
+  if (!startDate || /\b(?:19|20)\d{2}\b/.test(sourceText)) return { startDate, endDate };
+
+  const start = new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime())) return { startDate, endDate };
+
+  const today = new Date(Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+  ));
+  if (start >= today) return { startDate, endDate };
+
+  const end = endDate ? new Date(`${endDate}T00:00:00Z`) : undefined;
+  const durationMs = end && !Number.isNaN(end.getTime()) ? end.getTime() - start.getTime() : undefined;
+  while (start < today) start.setUTCFullYear(start.getUTCFullYear() + 1);
+
+  return {
+    startDate: start.toISOString().split('T')[0],
+    endDate: durationMs === undefined
+      ? endDate
+      : new Date(start.getTime() + durationMs).toISOString().split('T')[0],
+  };
 }
 
 function inferDurationDays(text: string): number | undefined {
@@ -338,11 +390,21 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
     ? injectTransportNotes(itinerary, transportPlan)
     : itinerary;
 
+  const retrievedContext = JSON.stringify({
+    weather: weatherResult,
+    news: newsResult,
+    deals: dealsResult,
+    images: { destination: imageResult || '' },
+    transportPlan,
+  });
+
   return {
     weather: weatherResult,
     news: newsResult,
     deals: dealsResult,
     images: { destination: imageResult || '' },
+    retrievedContext,
+    draftItinerary: itineraryWithTransport,
     itinerary: itineraryWithTransport,
     routeLinks,
     transportPlan,
@@ -536,6 +598,21 @@ async function getRelevantDeals(entities: ExtractedEntities) {
       if (pool.length > 0) diversified.push(pool.shift()!);
       idx++;
     }
+
+    // If the user didn't specify an origin, try to surface deals from more than
+    // one gateway. Cached data may be sparse, so fall back to a live search when
+    // we only found a single origin.
+    const cachedOrigins = new Set(diversified.map((d) => d.originCode));
+    if (!originCode && cachedOrigins.size < 2) {
+      const live = await searchSeatsAeroLive({
+        originCode,
+        destinationCode: destCodes[0],
+        startDate,
+        cabin,
+      });
+      if (live.length > 0) return live;
+    }
+
     return diversified;
   }
 
@@ -544,7 +621,6 @@ async function getRelevantDeals(entities: ExtractedEntities) {
     originCode,
     destinationCode: destCodes[0], // Use first resolved code for live search
     startDate,
-    endDate,
     cabin,
   });
 }
@@ -750,78 +826,65 @@ async function guardrailsNode(state: typeof ConversationStateAnnotation.State) {
 }
 
 async function criticNode(state: typeof ConversationStateAnnotation.State) {
-  const reasoningModel = getReasoningModel(0.2);
-  if (!reasoningModel) throw new Error('AI provider not configured');
+  const { userQuery, retrievedContext, draftItinerary } = state;
+  const guardrailsFeedback = state.criticFeedback;
 
-  const guardrailsFeedback = state.criticFeedback.join('\n') || 'None';
+  try {
+    const evaluation = await evaluateRag(userQuery, retrievedContext, draftItinerary);
+    if (!evaluation) {
+      return {
+        isApproved: false,
+        criticFeedback: ['RAG evaluation could not be completed. Regenerate the itinerary before responding.'],
+        ragEvaluation: null,
+        revisionCount: state.revisionCount + 1,
+      };
+    }
 
-  const prompt = `
-You are a strict travel QA reviewer. Evaluate the assembled itinerary and data before it is shown to the user.
+    const evaluationFeedback = [
+      evaluation.groundedness.score < 3
+        ? `Groundedness (${evaluation.groundedness.score}/5): ${evaluation.groundedness.reasoning}`
+        : '',
+      evaluation.answerRelevance.score < 3
+        ? `Answer relevance (${evaluation.answerRelevance.score}/5): ${evaluation.answerRelevance.reasoning}`
+        : '',
+    ].filter((feedback): feedback is string => feedback.length > 0);
+    const feedback = [...guardrailsFeedback, ...evaluationFeedback];
+    const isApproved =
+      guardrailsFeedback.length === 0 &&
+      evaluation.groundedness.score >= 3 &&
+      evaluation.answerRelevance.score >= 3;
 
-Destination: ${state.entities.destination}
-Itinerary:
-${state.itinerary}
-
-Packing tips:
-${state.packingTips}
-
-Weather data:
-${typeof state.weather === 'string' ? state.weather : JSON.stringify(state.weather)}
-
-Recent news:
-${state.news || 'None'}
-
-Flight deals count: ${state.deals.length}
-
-Guardrails feedback (external verification checks, may include unverified landmarks):
-${guardrailsFeedback}
-
-Check for:
-1. Hallucinated flights, upgrades, or premium services inconsistent with the cabin.
-2. Missing or vague image placeholders (must be specific landmarks, not city/country names). CRITICAL: if the guardrails feedback says there are missing image placeholders, you MUST reject and ask for revision.
-3. Missing weather section.
-4. Unsafe or impossible logistics.
-5. False statements about visas or entry.
-6. Hallucinated or closed attractions, invented restaurants, fake transit lines, or made-up schedules.
-7. Any landmark that cannot be verified as a real place (e.g., if it has no Wikipedia presence).
-8. Inconsistent number of days with the requested trip length.
-9. In the "Getting Around" or day transport notes, invented transit lines, exact schedules, or unverifiable station names. Prefer general advice over specific unverifiable details.
-
-Respond ONLY in JSON:
-{
-  "isApproved": boolean,
-  "feedback": "specific issues, or 'Looks good' if approved"
-}
-`;
-
-  const res = await reasoningModel.invoke(prompt);
-  const parsed = await parseJsonResponse(res.content as string);
-  let isApproved = !!parsed?.isApproved;
-  let feedback: string = parsed?.feedback || '';
-
-  // Hard auto-reject if guardrails found missing image placeholders.
-  // Don't rely on the LLM to catch this — force a revision.
-  const placeholderFeedback = state.criticFeedback.find(f => f.includes('image placeholder'));
-  if (placeholderFeedback) {
-    isApproved = false;
-    feedback = feedback || placeholderFeedback;
+    return {
+      isApproved,
+      criticFeedback: isApproved ? [] : feedback,
+      ragEvaluation: evaluation,
+      revisionCount: state.revisionCount + 1,
+    };
+  } catch (error: unknown) {
+    console.error('[RAG Evaluator] Critic evaluation failed:', error);
+    // If guardrails are clean, treat a failing RAG evaluation as a soft pass
+    // so a user-facing response can still be returned.
+    const guardrailsClean = guardrailsFeedback.length === 0;
+    return {
+      isApproved: guardrailsClean,
+      criticFeedback: guardrailsClean
+        ? []
+        : ['RAG evaluation failed. Regenerate the itinerary before responding.'],
+      ragEvaluation: null,
+      revisionCount: state.revisionCount + 1,
+    };
   }
-
-  return {
-    isApproved,
-    criticFeedback: isApproved ? [] : [feedback],
-    revisionCount: state.revisionCount + 1,
-  };
 }
 
 function criticRouter(state: typeof ConversationStateAnnotation.State) {
-  if (state.isApproved) return 'respond';
-  // Allow up to 3 revisions for missing image placeholders (LLM compliance issue),
-  // 2 for everything else.
-  const hasPlaceholderIssue = state.criticFeedback.some(f => f.includes('image placeholder'));
-  const maxRevisions = hasPlaceholderIssue ? 3 : 2;
-  if (state.revisionCount >= maxRevisions) return 'respond';
+  if (state.isApproved || state.revisionCount >= 3) return 'respond';
   return 'gather';
+}
+
+function rejectNode() {
+  return {
+    finalResponse: 'I could not verify this itinerary strongly enough to share it safely. Please try again so I can regenerate it with better-supported travel details.',
+  };
 }
 
 async function respondNode(state: typeof ConversationStateAnnotation.State) {
@@ -894,6 +957,7 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addNode('guardrails', guardrailsNode)
   .addNode('critic', criticNode)
   .addNode('respond', respondNode)
+  .addNode('reject', rejectNode)
   .addEdge(START, 'extract')
   .addConditionalEdges('extract', routeAfterExtract)
   .addEdge('clarify', END)
@@ -902,4 +966,5 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addEdge('guardrails', 'critic')
   .addConditionalEdges('critic', criticRouter)
   .addEdge('respond', END)
+  .addEdge('reject', END)
   .compile();
