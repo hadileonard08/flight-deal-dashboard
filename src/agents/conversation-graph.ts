@@ -453,19 +453,11 @@ async function gatherNode(state: typeof ConversationStateAnnotation.State) {
 }
 
 async function generateNode(state: typeof ConversationStateAnnotation.State) {
-  const destination = state.entities.destination || '';
   const itineraryPromise = generateItinerary(state);
   const packingTipsPromise = state.packingTips
     ? Promise.resolve(state.packingTips)
     : generatePackingTips(state);
   const [itinerary, packingTips] = await Promise.all([itineraryPromise, packingTipsPromise]);
-  const routeLinks = destination ? buildRouteLinks(itinerary, destination) : [];
-  const transportPlan = routeLinks.length > 0
-    ? await buildTransportPlan(routeLinks, destination).catch(() => null)
-    : null;
-  const itineraryWithTransport = transportPlan
-    ? injectTransportNotes(itinerary, transportPlan)
-    : itinerary;
 
   return {
     retrievedContext: JSON.stringify({
@@ -474,14 +466,24 @@ async function generateNode(state: typeof ConversationStateAnnotation.State) {
       news: state.news,
       deals: state.deals,
       images: state.images,
-      transportPlan,
     }),
-    draftItinerary: itineraryWithTransport,
-    itinerary: itineraryWithTransport,
-    routeLinks,
-    transportPlan,
+    draftItinerary: itinerary,
+    itinerary,
     packingTips,
   };
+}
+
+async function enrichNode(state: typeof ConversationStateAnnotation.State) {
+  const destination = state.entities.destination || '';
+  const routeLinks = destination ? buildRouteLinks(state.itinerary, destination) : [];
+  const transportPlan = routeLinks.length > 0
+    ? await buildTransportPlan(routeLinks, destination).catch(() => null)
+    : null;
+  const itinerary = transportPlan
+    ? injectTransportNotes(state.itinerary, transportPlan)
+    : state.itinerary;
+
+  return { itinerary, routeLinks, transportPlan };
 }
 
 async function getWeatherData(
@@ -738,11 +740,14 @@ async function generateItinerary(state: typeof ConversationStateAnnotation.State
     ? `Trip dates: ${startDate}${endDate ? ` to ${endDate}` : ''} (${numDays} days)`
     : `Trip window: ${state.entities.datesGeneral || 'upcoming'} (${numDays} days)`;
 
+  const requestedStyle = state.entities.budget
+    ? 'budget-conscious'
+    : cabin === 'BUSINESS' || cabin === 'FIRST'
+      ? 'luxury'
+      : 'comfortable';
   const prompt = `${COMPANION_PERSONA}
 
-You are helping plan a trip. Write an enthusiastic, practical ${
-    cabin === 'BUSINESS' || cabin === 'FIRST' ? 'luxury' : 'budget-friendly'
-  } itinerary for ${travelers} traveler(s) going to ${destination}.
+You are helping plan a trip. Write an enthusiastic, practical, ${requestedStyle} itinerary for ${travelers} traveler(s) going to ${destination}.
 ${dateContext}
 Flight cabin: ${cabin}
 
@@ -885,6 +890,7 @@ async function guardrailsNode(state: typeof ConversationStateAnnotation.State) {
   // Check 1: Verify landmarks exist on Wikipedia.
   const unverified = await verifyItineraryLandmarks(state.itinerary, state.entities.destination);
   if (unverified.length > 0) {
+    console.warn('[Guardrails] Unverified itinerary image landmarks:', unverified);
     feedback.push(`The following places or landmarks could not be verified and may be hallucinated or closed: ${unverified.join(', ')}. Replace them with real, well-known attractions or transit options that are clearly documented.`);
   }
 
@@ -959,7 +965,7 @@ async function criticNode(state: typeof ConversationStateAnnotation.State) {
 }
 
 function criticRouter(state: typeof ConversationStateAnnotation.State) {
-  if (state.isApproved) return 'respond';
+  if (state.isApproved) return 'enrich';
   if (state.revisionCount >= 3) return 'reject';
   return 'generate';
 }
@@ -1039,6 +1045,7 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addNode('gather', gatherNode)
   .addNode('generate', generateNode)
   .addNode('guardrails', guardrailsNode)
+  .addNode('enrich', enrichNode)
   .addNode('critic', criticNode)
   .addNode('respond', respondNode)
   .addNode('reject', rejectNode)
@@ -1050,6 +1057,7 @@ export const conversationGraph = new StateGraph(ConversationStateAnnotation)
   .addEdge('generate', 'guardrails')
   .addEdge('guardrails', 'critic')
   .addConditionalEdges('critic', criticRouter)
+  .addEdge('enrich', 'respond')
   .addEdge('respond', END)
   .addEdge('reject', END)
   .compile();

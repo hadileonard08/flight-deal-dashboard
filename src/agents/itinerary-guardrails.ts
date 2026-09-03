@@ -1,4 +1,5 @@
 const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
+const landmarkVerificationCache = new Map<string, boolean>();
 
 export interface RouteLink {
   day: string;
@@ -39,6 +40,22 @@ async function wikipediaSearchExists(term: string): Promise<boolean> {
   return true;
 }
 
+async function openStreetMapSearchExists(term: string, destination?: string): Promise<boolean> {
+  if (!destination) return false;
+  try {
+    const query = encodeURIComponent(`${term}, ${destination}`);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
+      { headers: { 'User-Agent': 'jalan/1.0 (itinerary guardrails)' } },
+    );
+    if (res.status === 429 || !res.ok) return true;
+    const results = (await res.json()) as unknown[];
+    return results.length > 0;
+  } catch {
+    return true;
+  }
+}
+
 export async function verifyItineraryLandmarks(itinerary: string, destination?: string): Promise<string[]> {
   const landmarks = extractLandmarkNames(itinerary);
   if (landmarks.length === 0) return [];
@@ -46,7 +63,10 @@ export async function verifyItineraryLandmarks(itinerary: string, destination?: 
   const unverified: string[] = [];
   await Promise.all(
     landmarks.map(async (name) => {
-      const exists = await wikipediaSearchExists(name);
+      const cacheKey = `${name.toLowerCase()}|${destination?.toLowerCase() || ''}`;
+      const cached = landmarkVerificationCache.get(cacheKey);
+      const exists = cached ?? (await wikipediaSearchExists(name) || await openStreetMapSearchExists(name, destination));
+      landmarkVerificationCache.set(cacheKey, exists);
       if (!exists) unverified.push(name);
     })
   );

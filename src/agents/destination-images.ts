@@ -73,48 +73,47 @@ const WIKIPEDIA_CITIES: Record<string, string> = {
 };
 
 const FLAG_PATTERNS = [
-  /flag_of/gi,
-  /\/flag\//gi,
-  /_flag\./gi,
-  /emblem_of/gi,
-  /coat_of_arms/gi,
-  /_emblem\./gi
+  /flag_of/i,
+  /\/flag\//i,
+  /_flag\./i,
+  /emblem_of/i,
+  /coat_of_arms/i,
+  /_emblem\./i
 ];
 
 // Patterns for images that are NOT photos of the landmark — maps, diagrams,
 // logos, icons, seals, signs, etc. These pollute search results.
 const BAD_IMAGE_PATTERNS = [
-  /flag_of/gi,
-  /\/flag\//gi,
-  /_flag\./gi,
-  /emblem_of/gi,
-  /coat_of_arms/gi,
-  /_emblem\./gi,
-  /_logo/gi,
-  /logo_/gi,
-  /\/logo\//gi,
-  /_icon/gi,
-  /icon_/gi,
-  /_seal/gi,
-  /seal_of/gi,
-  /_map\./gi,
-  /\/map\//gi,
-  /_map_/gi,
-  /location_map/gi,
-  /relief_map/gi,
-  /topographic/gi,
-  /_diagram/gi,
-  /diagram_/gi,
-  /_chart/gi,
-  /_graph/gi,
-  /_infographic/gi,
-  /_skyline\./gi,  // skyline diagrams are often low quality
-  /_sign\./gi,
-  /_plaque/gi,
-  /_statue_of/gi,  // often returns a statue OF someone, not the landmark
-  /text_document/gi,
-  /_blank\./gi,
-  /placeholder/gi,
+  /flag_of/i,
+  /\/flag\//i,
+  /_flag\./i,
+  /emblem_of/i,
+  /coat_of_arms/i,
+  /_emblem\./i,
+  /_logo/i,
+  /logo_/i,
+  /\/logo\//i,
+  /_icon/i,
+  /icon_/i,
+  /_seal/i,
+  /seal_of/i,
+  /_map\./i,
+  /\/map\//i,
+  /_map_/i,
+  /location_map/i,
+  /relief_map/i,
+  /topographic/i,
+  /_diagram/i,
+  /diagram_/i,
+  /_chart/i,
+  /_graph/i,
+  /_infographic/i,
+  /_sign\./i,
+  /_plaque/i,
+  /_statue_of/i,  // often returns a statue OF someone, not the landmark
+  /text_document/i,
+  /_blank\./i,
+  /placeholder/i,
   /\.pdf(?:\.|$)/i,
   /\.svg$/i,  // SVGs are usually icons/diagrams, not photos
 ];
@@ -122,6 +121,7 @@ const BAD_IMAGE_PATTERNS = [
 // Minimum relevance score (0-1) for accepting an image. Images below this
 // threshold are likely not photos of the searched landmark.
 const MIN_RELEVANCE_SCORE = 0.5;
+const imageSearchCache = new Map<string, Promise<string | null>>();
 
 function isBadImageUrl(url: string | null | undefined): boolean {
   if (!url) return true;
@@ -134,7 +134,7 @@ function isFlagUrl(url: string | null | undefined): boolean {
 }
 
 export async function getDestinationImageUrl(destinationCode: string, destinationName?: string): Promise<string | null> {
-  const city = WIKIPEDIA_CITIES[destinationCode] || AIRPORT_NAMES[destinationCode] || destinationName || destinationCode;
+  const city = WIKIPEDIA_CITIES[destinationCode] || destinationName || AIRPORT_NAMES[destinationCode] || destinationCode;
   if (!city) return null;
 
   // Prefer a cityscape / skyline image over a flag or coat of arms.
@@ -159,15 +159,21 @@ export function scoreImageRelevance(title: string, term: string): number {
   const titleWords = normalize(title).split(/\s+/).filter(Boolean);
   const termWords = normalize(term).split(/\s+/).filter(w => w.length > 2);
   if (termWords.length === 0) return 0;
-  let matches = 0;
-  for (const word of termWords) {
+  const genericWords = new Set([
+    'building', 'city', 'cityscape', 'district', 'garden', 'landmark', 'market',
+    'museum', 'night', 'palace', 'park', 'photo', 'shopping', 'skyline', 'station',
+    'street', 'temple', 'tower',
+  ]);
+  const matchedWords = termWords.filter((word) => {
     const singularWord = word.replace(/s$/, '');
-    if (titleWords.some((titleWord) => {
+    return titleWords.some((titleWord) => {
       const singularTitle = titleWord.replace(/s$/, '');
       return singularTitle === singularWord || (word.length >= 5 && titleWord.includes(word));
-    })) matches++;
-  }
-  return matches / termWords.length;
+    });
+  });
+  const distinctiveWords = termWords.filter((word) => !genericWords.has(word));
+  if (distinctiveWords.length > 0 && !matchedWords.some((word) => distinctiveWords.includes(word))) return 0;
+  return matchedWords.length / termWords.length;
 }
 
 // Check if an image URL looks like a real photo based on its dimensions
@@ -302,6 +308,15 @@ async function fetchWikipediaArticleImage(term: string): Promise<string | null> 
 }
 
 export async function getImageForTerm(term: string, fallbackTerms: string[] = []): Promise<string | null> {
+  const cacheKey = JSON.stringify([term.toLowerCase(), fallbackTerms.map((item) => item.toLowerCase())]);
+  const cached = imageSearchCache.get(cacheKey);
+  if (cached) return cached;
+  const lookup = findImageForTerm(term, fallbackTerms);
+  imageSearchCache.set(cacheKey, lookup);
+  return lookup;
+}
+
+async function findImageForTerm(term: string, fallbackTerms: string[] = []): Promise<string | null> {
   if (!term) return null;
 
   const cleaned = cleanTerm(term);

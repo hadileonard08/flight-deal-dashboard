@@ -127,6 +127,8 @@ async function chatStream(message: string, timeoutMs = 180000): Promise<{ respon
           if (!line.startsWith('data: ')) continue;
           try {
             const evt = JSON.parse(line.slice(6));
+            if (evt.type === 'preview' && evt.content) responseText = evt.content;
+            if (evt.type === 'final_content' && evt.content) responseText = evt.content;
             if (evt.type === 'content' && evt.chunk) responseText += evt.chunk;
             if (evt.type === 'done') payload = evt.payload;
           } catch {}
@@ -140,6 +142,9 @@ async function chatStream(message: string, timeoutMs = 180000): Promise<{ respon
         if (!line.startsWith('data: ')) continue;
         try {
           const evt = JSON.parse(line.slice(6));
+          if (evt.type === 'preview' && evt.content) responseText = evt.content;
+          if (evt.type === 'final_content' && evt.content) responseText = evt.content;
+          if (evt.type === 'content' && evt.chunk) responseText += evt.chunk;
           if (evt.type === 'done') payload = evt.payload;
         } catch {}
       }

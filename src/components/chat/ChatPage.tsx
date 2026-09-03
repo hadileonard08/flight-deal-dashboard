@@ -730,6 +730,22 @@ export default function ChatPage() {
                 }
                 return prev;
               });
+            } else if (data.type === 'preview') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant' && last.isStreaming) {
+                  return [...prev.slice(0, -1), { ...last, content: data.content, status: 'Adding maps, transport, and images...' }];
+                }
+                return prev;
+              });
+            } else if (data.type === 'final_content') {
+              setMessages((prev) => {
+                const last = prev[prev.length - 1];
+                if (last?.role === 'assistant' && last.isStreaming) {
+                  return [...prev.slice(0, -1), { ...last, content: data.content, status: undefined }];
+                }
+                return prev;
+              });
             } else if (data.type === 'content') {
               setMessages((prev) => {
                 const last = prev[prev.length - 1];

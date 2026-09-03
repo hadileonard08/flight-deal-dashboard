@@ -73,11 +73,13 @@ export async function POST(req: Request) {
         answer: 'Looking that up...',
         gather: 'Planning your trip...',
         critic: 'Double-checking...',
+        enrich: 'Adding maps, transport, and images...',
         respond: 'Putting it all together...',
       };
 
       try {
         let result: any = {};
+        let previewSent = false;
 
         const graphStream = await conversationGraph.stream(
           { userMessage: message, history },
@@ -91,14 +93,30 @@ export async function POST(req: Request) {
             }
             if (typeof update === 'object' && update !== null) {
               result = { ...result, ...update };
+              const nodeUpdate = update as Record<string, unknown>;
+              if (nodeName === 'critic' && nodeUpdate.isApproved === true && result.itinerary) {
+                const destination = result.entities?.destination || 'Your Trip';
+                const startDate = result.entities?.startDate;
+                const endDate = result.entities?.endDate;
+                const dateStr = startDate
+                  ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
+                  : result.entities?.datesGeneral || 'upcoming dates';
+                const previewResponse = `# ${destination} Itinerary — ${dateStr}\n\n${result.itinerary}\n\n${result.packingTips || ''}`;
+                emit({ type: 'preview', content: previewResponse });
+                previewSent = true;
+              }
             }
           }
         }
 
         const finalResponse = (result.finalResponse || result.itinerary || 'Here is what I found.') as string;
-        const words = finalResponse.split(/(\s+)/);
-        for (const word of words) {
-          emit({ type: 'content', chunk: word });
+        if (previewSent) {
+          emit({ type: 'final_content', content: finalResponse });
+        } else {
+          const words = finalResponse.split(/(\s+)/);
+          for (const word of words) {
+            emit({ type: 'content', chunk: word });
+          }
         }
 
         const payload: ChatPayload = {

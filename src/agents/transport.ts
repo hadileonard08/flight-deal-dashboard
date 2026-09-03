@@ -176,14 +176,14 @@ function recommendMode(walkMin: number | null, driveMin: number | null, distance
     return { mode: '🚇 Subway/🚕 Taxi', note: `~${driveMin || 15} min by transit or taxi (${distanceKm}km)` };
   }
 
-  // Long distance — train or ride-share
+  // Long distance — use locally available road or public transport
   if (distanceKm !== null && distanceKm > 5 && distanceKm <= 15) {
-    return { mode: '🚆 Train/🚕 Taxi', note: `~${driveMin || 20} min by train or taxi (${distanceKm}km)` };
+    return { mode: '� Transit/🚕 Taxi', note: `~${driveMin || 20} min by local transit or taxi (${distanceKm}km)` };
   }
 
-  // Very long distance — train or bus
+  // Very long distance — avoid assuming a rail network exists
   if (distanceKm !== null && distanceKm > 15) {
-    return { mode: '🚆 Train/🚌 Bus', note: `~${driveMin || 30} min by train or bus (${distanceKm}km)` };
+    return { mode: '� Transit/� Taxi', note: `~${driveMin || 30} min by local transit or taxi (${distanceKm}km)` };
   }
 
   // Fallback
@@ -250,15 +250,31 @@ async function buildDayTransport(
       continue;
     }
 
-    const [walk, drive] = await Promise.all([
+    const [walkResult, drive] = await Promise.all([
       getOSRMRoute(from, to, 'walking').catch(() => null),
       getOSRMRoute(from, to, 'driving').catch(() => null),
     ]);
+    const routeDistance = walkResult?.distanceKm ?? drive?.distanceKm ?? null;
+    if (routeDistance !== null && routeDistance > 100) {
+      legs.push({
+        from: fromName,
+        to: toName,
+        walkMinutes: null,
+        driveMinutes: null,
+        distanceKm: null,
+        recommendedMode: '🚌 Transit/🚕 Taxi',
+        note: `Check a local route from ${fromName} to ${toName}; automated routing returned an invalid result`,
+      });
+      continue;
+    }
+    const walk = walkResult && routeDistance !== null && walkResult.durationMin < routeDistance * 6
+      ? null
+      : walkResult;
 
     const { mode, note } = recommendMode(
       walk?.durationMin ?? null,
       drive?.durationMin ?? null,
-      walk?.distanceKm ?? drive?.distanceKm ?? null
+      routeDistance
     );
 
     legs.push({
@@ -266,7 +282,7 @@ async function buildDayTransport(
       to: toName,
       walkMinutes: walk?.durationMin ?? null,
       driveMinutes: drive?.durationMin ?? null,
-      distanceKm: walk?.distanceKm ?? drive?.distanceKm ?? null,
+      distanceKm: routeDistance,
       recommendedMode: mode,
       note,
     });
