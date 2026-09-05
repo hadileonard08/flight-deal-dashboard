@@ -60,3 +60,65 @@ npx tsx scripts/smoke-test.ts
 - Cities are randomized from a pool of 15 destinations each run (Tokyo, Paris, London, Bangkok, Seoul, Barcelona, Rome, Istanbul, Singapore, Amsterdam, Dubai, Hong Kong, Madrid, Sydney, Lisbon)
 - The football trip test always uses London (to verify stadium landmarks)
 
+## Production Alias
+
+- The primary production URL is `jalan-ai.vercel.app` (not `flight-deals-dashboard.vercel.app`).
+- After `npx vercel --prod`, always run `npx vercel alias <deployment-url> jalan-ai.vercel.app`.
+- Vercel auth token lives at `~/Library/Application Support/com.vercel.cli/auth.json`.
+
+## Known Bugs & Fixes (lessons learned)
+
+### Date handling
+- **Yearless dates resolve to past.** "October" without a year gets parsed as October of the current year, which may be in the past. Fixed with `normalizeImplicitPastDateRange()` in `conversation-graph.ts` — bumps the year forward until the date is >= today when no explicit year appears in the user's message.
+- **Inclusive trip duration.** End date must be `start + (durationDays - 1)`, not `start + durationDays`. A 5-day trip starting June 1 ends June 5, not June 6.
+
+### Images
+- **Openverse API moved.** The old URL `api.openverse.engineering` returns a 301 redirect that hangs. The correct URL is `api.openverse.org`. Always check if external API endpoints have changed when requests start timing out.
+- **Stateful regex flags cause wrong matches.** Using `/pattern/gi` (with the `g` flag) in a loop retains `lastIndex` state across calls, causing the same regex to skip valid matches on subsequent uses. This caused Santorini images to resolve to Ponta Delgada. Fix: create a new regex each time, or use `match()` instead of `test()` with global regexes.
+- **Transliterations break relevance scoring.** "Colosseum" didn't match "Colosseo" (Italian name on Wikimedia). Fixed with fuzzy prefix matching in `scoreImageRelevance()` — if two words share the same first 5 characters and are both >= 5 chars, they count as a match.
+- **Portrait images are rejected.** `hasGoodDimensions()` rejects images where height > width * 2. This is correct for display layout, but it means some landmarks (e.g. Ubud Monkey Forest) have no landscape photo available. The system now removes the placeholder cleanly instead of showing broken italic text.
+- **Failed image placeholders look broken.** When no image is found, the old code rendered `*landmark name*` as italic text. This looks like a formatting error. Now the placeholder is removed entirely — a missing image is cleaner than confusing italic text.
+- **Too many image term variants = slow.** `expandImageTerm()` used to generate ~12 variants per term (landmark, city, station, street, district, market, park, temple, photo, building...). Most never match. Reduced to 3 (base, stripped suffix, photo) — cuts API calls by ~75% with negligible quality loss.
+- **Sequential image providers are slow.** Trying Wikimedia -> Wikipedia -> Openverse -> Pexels one at a time means waiting for each provider before trying the next. Now all 4 are raced in parallel with `Promise.allSettled()`, returning the first good result. ~4x faster per term.
+
+### Transport
+- **Nominatim rate limiting.** Batching days 2 at a time with hard 1-second delays was too conservative. Geocode results are now cached in-memory per place+city, and all days are processed in parallel. The 5s fetch timeout handles any 429 responses gracefully.
+- **Invalid transport routes on islands.** OSRM returns mainland driving routes for island destinations (e.g. 100km+ driving routes on Santorini). Routes over 100km are now discarded with a fallback message.
+- **Non-existent train routes.** OSRM sometimes suggests train/walking routes that don't exist on small islands. Walking speeds are validated (impossible speeds are rejected).
+
+### Itinerary format
+- **Packing tips merge into last day.** The packing list was appended with only a blank line after the itinerary, making it look like part of the last day's content. Fixed by adding a `---` horizontal rule and a `## Packing Tips` heading as a clear separator.
+- **Economy cabin forced "budget-friendly" language.** The itinerary prompt used to inject "budget-friendly" style for all ECONOMY cabin requests, even luxury honeymoons. Now the style is based on the budget field, not the cabin class.
+
+### RAG Evaluation
+- **Zod `$ref` breaks Gemini structured output.** The RAG evaluator's zod schema used shared sub-schemas that generated `$ref` in the JSON schema. Gemini's API doesn't support `$ref`. Fixed by inlining each metric (contextRelevance, groundedness, answerRelevance) with explicit score/reasoning fields.
+
+### Performance
+- **No fetch timeouts anywhere.** All external API calls (Nominatim, OSRM, Wikimedia, Wikipedia, Openverse, Pexels) had no timeout. A single slow or unresponsive provider could block the entire request indefinitely. All fetches now use `AbortSignal.timeout(5000)`.
+- **Transport and images ran sequentially.** Transport was computed in `enrichNode`, then images in `respondNode` — back to back. Now both run concurrently via `Promise.all()` in `enrichNode`.
+- **Gather node repeated on retries.** When the Critic rejected an itinerary, the graph re-ran `Gather` (weather, news, deals, images) on every retry. Fixed by separating `Gather` (one-time) from `Generate` (retryable).
+- **Progressive streaming.** The core itinerary is now streamed as a `preview` event as soon as the Critic approves it (~26s), before enrichment starts. The enriched version replaces it via `final_content` (~48s). Users see useful content much sooner.
+
+## Architecture Overview
+
+```
+User message
+  -> Extract (entity extraction, date normalization)
+  -> Clarify (if missing fields) | Answer (if question) | Gather (if trip plan)
+
+Gather (one-time: weather, news, deals, destination image)
+  -> Generate (itinerary + packing tips, retryable)
+  -> Guardrails (landmark verification, day count, image placeholders, past dates)
+  -> Critic (RAG evaluation: groundedness + answer relevance >= 4/5)
+     -> if approved: Enrich (transport + images in parallel)
+     -> if rejected (up to 3 retries): back to Generate
+     -> if 3 failures: Reject
+  -> Respond (final assembly, SSE streaming)
+```
+
+### Enrichment pipeline (post-approval)
+- **Transport:** Geocode stops via Nominatim (cached), route via OSRM (walking + driving in parallel), LLM transit tips.
+- **Images:** Race 4 providers in parallel (Wikimedia Commons, Wikipedia, Openverse, Pexels) per term. 3 term variants per landmark. In-memory cache.
+- Transport and images run concurrently via `Promise.all()`.
+- All external fetches have 5s timeout (`AbortSignal.timeout`).
+
