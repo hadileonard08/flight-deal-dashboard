@@ -129,6 +129,29 @@ function isBadImageUrl(url: string | null | undefined): boolean {
   return BAD_IMAGE_PATTERNS.some(pattern => pattern.test(url));
 }
 
+/**
+ * Check whether the image URL/filename plausibly relates to the search term.
+ * If the URL path contains none of the distinctive words from the term,
+ * the image is likely a mismatch (e.g. a Tamsui harbor photo for a
+ * Bali monkey forest search).
+ */
+function urlMatchesTerm(url: string, term: string): boolean {
+  // Normalize both URL and term: strip punctuation to plain words
+  const normalize = (s: string) => decodeURIComponent(s).toLowerCase().replace(/[^a-z0-9]/g, ' ');
+  const decoded = normalize(url);
+  const termWords = normalize(term)
+    .split(/\s+/)
+    .filter(w => w.length >= 4)
+    // Skip generic words that appear in many unrelated URLs
+    .filter(w => !['beach', 'temple', 'forest', 'park', 'museum', 'market',
+                    'photo', 'image', 'file', 'thumb', 'landmark', 'city',
+                    'night', 'street', 'garden', 'sacred', 'national'].includes(w));
+  // If there are no distinctive words, can't filter — accept
+  if (termWords.length === 0) return true;
+  // At least one distinctive word must appear in the URL
+  return termWords.some(w => decoded.includes(w));
+}
+
 // Keep the old function name for backward compatibility.
 function isFlagUrl(url: string | null | undefined): boolean {
   return isBadImageUrl(url);
@@ -313,8 +336,10 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
 
 /**
  * Race all 4 image providers in parallel for a single search term.
- * Returns the first good result (preferring Wikimedia > Wikipedia > Openverse > Pexels
- * by scoring, but all fire simultaneously).
+ * All fire simultaneously, but results are evaluated in ranked order:
+ * Wikimedia > Wikipedia > Openverse > Pexels.
+ * This prevents a fast but wrong Pexels result from beating a slow but
+ * correct Wikimedia result.
  */
 async function raceImageProviders(searchTerm: string): Promise<string | null> {
   const results = await Promise.allSettled([
@@ -324,10 +349,14 @@ async function raceImageProviders(searchTerm: string): Promise<string | null> {
     fetchPexelsImage(searchTerm),
   ]);
 
-  // Prefer sources in order: Wikimedia > Wikipedia > Openverse > Pexels
+  // Evaluate in source-priority order. Each provider already applies its
+  // own relevance threshold, but we also cross-check that the URL itself
+  // plausibly relates to the search term (catches wrong-location images).
   for (const result of results) {
     if (result.status === 'fulfilled' && result.value && !isBadImageUrl(result.value)) {
-      return result.value;
+      if (urlMatchesTerm(result.value, searchTerm)) {
+        return result.value;
+      }
     }
   }
   return null;
@@ -443,9 +472,10 @@ async function fetchPexelsImage(term: string): Promise<string | null> {
 
     candidates.sort((a, b) => b.score - a.score);
 
-    // Pexels stock photos are generally high quality, so accept even low
-    // relevance scores (the search itself is fairly accurate). But still
-    // prefer the most relevant result.
+    // Require a minimum relevance score even for Pexels — stock photo
+    // search can return completely unrelated images for niche landmarks.
+    if (candidates[0].score < MIN_RELEVANCE_SCORE) return null;
+
     return candidates[0].url;
   } catch (error) {
     console.log('Pexels image lookup failed for', term, ':', (error as Error).message);
