@@ -121,6 +121,7 @@ const BAD_IMAGE_PATTERNS = [
 // Minimum relevance score (0-1) for accepting an image. Images below this
 // threshold are likely not photos of the searched landmark.
 const MIN_RELEVANCE_SCORE = 0.5;
+const FETCH_TIMEOUT_MS = 5000;
 const imageSearchCache = new Map<string, Promise<string | null>>();
 
 function isBadImageUrl(url: string | null | undefined): boolean {
@@ -168,7 +169,11 @@ export function scoreImageRelevance(title: string, term: string): number {
     const singularWord = word.replace(/s$/, '');
     return titleWords.some((titleWord) => {
       const singularTitle = titleWord.replace(/s$/, '');
-      return singularTitle === singularWord || (word.length >= 5 && titleWord.includes(word));
+      return singularTitle === singularWord
+        || (word.length >= 5 && titleWord.includes(word))
+        || (word.length >= 5 && word.includes(titleWord) && titleWord.length >= 5)
+        // Fuzzy prefix match for transliterations (Colosseum/Colosseo, etc.)
+        || (word.length >= 5 && singularTitle.length >= 5 && singularTitle.slice(0, 5) === singularWord.slice(0, 5));
     });
   });
   const distinctiveWords = termWords.filter((word) => !genericWords.has(word));
@@ -191,18 +196,9 @@ function expandImageTerm(term: string): string[] {
   const base = term.trim();
   if (!base) return variants;
 
+  // Keep it lean: the base term, a stripped version, and a photo variant.
+  // More variants = more API calls with diminishing returns.
   variants.push(base);
-
-  if (!base.toLowerCase().includes('landmark')) variants.push(`${base} landmark`);
-  if (!base.toLowerCase().includes('city')) variants.push(`${base} city`);
-
-  // Add variations for places that may be called different things
-  if (!base.toLowerCase().endsWith('station')) variants.push(`${base} station`);
-  if (!base.toLowerCase().endsWith('street')) variants.push(`${base} street`);
-  if (!base.toLowerCase().endsWith('district')) variants.push(`${base} district`);
-  if (!base.toLowerCase().endsWith('market')) variants.push(`${base} market`);
-  if (!base.toLowerCase().endsWith('park')) variants.push(`${base} park`);
-  if (!base.toLowerCase().endsWith('temple')) variants.push(`${base} temple`);
 
   // Strip generic suffixes and try the shorter name (e.g. "Senso-ji Temple" -> "Senso-ji").
   const stripped = base.replace(/\s+(Temple|Palace|Garden|Park|Castle|National Garden|National Park|Shrine|Building)$/i, '').trim();
@@ -210,9 +206,8 @@ function expandImageTerm(term: string): string[] {
     variants.push(stripped);
   }
 
-  // Also add photo/building variants
+  // One photo variant as a fallback — usually finds stock-like images
   variants.push(`${base} photo`);
-  variants.push(`${base} building`);
 
   return [...new Set(variants)];
 }
@@ -222,7 +217,7 @@ async function fetchWikimediaCommonsImage(term: string): Promise<string | null> 
     const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' };
     const searchRes = await fetch(
       `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrnamespace=6&gsrlimit=8&prop=imageinfo&iiprop=url|thumb|size&iiurlwidth=800&format=json&origin=*`,
-      { headers }
+      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!searchRes.ok) return null;
     const data = (await searchRes.json()) as any;
@@ -276,7 +271,7 @@ async function fetchWikipediaArticleImage(term: string): Promise<string | null> 
     // Search for the Wikipedia article
     const searchRes = await fetch(
       `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=3&prop=pageimages|pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`,
-      { headers }
+      { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
     );
     if (!searchRes.ok) return null;
     const data = (await searchRes.json()) as any;
@@ -316,6 +311,28 @@ export async function getImageForTerm(term: string, fallbackTerms: string[] = []
   return lookup;
 }
 
+/**
+ * Race all 4 image providers in parallel for a single search term.
+ * Returns the first good result (preferring Wikimedia > Wikipedia > Openverse > Pexels
+ * by scoring, but all fire simultaneously).
+ */
+async function raceImageProviders(searchTerm: string): Promise<string | null> {
+  const results = await Promise.allSettled([
+    fetchWikimediaCommonsImage(searchTerm),
+    fetchWikipediaArticleImage(searchTerm),
+    fetchOpenverseImage(searchTerm),
+    fetchPexelsImage(searchTerm),
+  ]);
+
+  // Prefer sources in order: Wikimedia > Wikipedia > Openverse > Pexels
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value && !isBadImageUrl(result.value)) {
+      return result.value;
+    }
+  }
+  return null;
+}
+
 async function findImageForTerm(term: string, fallbackTerms: string[] = []): Promise<string | null> {
   if (!term) return null;
 
@@ -328,25 +345,13 @@ async function findImageForTerm(term: string, fallbackTerms: string[] = []): Pro
   const termsToTry = expandImageTerm(cleaned);
   const aliases = knownAliases[cleaned.toLowerCase()] || [];
 
+  // Try each term variant, but race all 4 providers in parallel per term.
   for (const t of [...termsToTry, ...aliases, ...fallbackTerms]) {
     const cleanedT = cleanTerm(t);
     if (!cleanedT) continue;
 
-    // Source 1: Wikimedia Commons (public domain, high quality).
-    const commonsUrl = await fetchWikimediaCommonsImage(cleanedT);
-    if (commonsUrl && !isBadImageUrl(commonsUrl)) return commonsUrl;
-
-    // Source 2: Wikipedia article lead image (better for non-English landmark names).
-    const wikiUrl = await fetchWikipediaArticleImage(cleanedT);
-    if (wikiUrl && !isBadImageUrl(wikiUrl)) return wikiUrl;
-
-    // Source 3: Openverse (Creative Commons images from Flickr, Wikimedia, etc.).
-    const openverseUrl = await fetchOpenverseImage(cleanedT);
-    if (openverseUrl && !isBadImageUrl(openverseUrl)) return openverseUrl;
-
-    // Source 4: Pexels (free stock photos, requires PEXELS_API_KEY).
-    const pexelsUrl = await fetchPexelsImage(cleanedT);
-    if (pexelsUrl && !isBadImageUrl(pexelsUrl)) return pexelsUrl;
+    const url = await raceImageProviders(cleanedT);
+    if (url) return url;
   }
 
   return null;
@@ -357,9 +362,10 @@ async function findImageForTerm(term: string, fallbackTerms: string[] = []): Pro
 async function fetchOpenverseImage(term: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://api.openverse.engineering/v1/images/?q=${encodeURIComponent(term)}&page_size=10`,
+      `https://api.openverse.org/v1/images/?q=${encodeURIComponent(term)}&page_size=10`,
       {
         headers: { 'User-Agent': 'flight-deal-dashboard/1.0 (image lookup)' },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       }
     );
     if (!res.ok) return null;
@@ -414,6 +420,7 @@ async function fetchPexelsImage(term: string): Promise<string | null> {
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&per_page=10&orientation=landscape`,
       {
         headers: { Authorization: apiKey },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       }
     );
     if (!res.ok) return null;
@@ -494,12 +501,11 @@ export async function hydrateItineraryImages(
   // Track used URLs to prevent duplicate images across days.
   const usedUrls = new Set<string>();
 
-  // Pre-fetch a destination image as final fallback for any day whose
-  // landmark image can't be found. Every day must have an image.
-  let destinationImageUrl: string | null = null;
-  if (destinationName) {
-    destinationImageUrl = await getDestinationImageUrl(destinationName);
-  }
+  // Kick off the destination fallback image fetch early — it runs in
+  // parallel with all the per-day image lookups below.
+  const destinationImagePromise = destinationName
+    ? getDestinationImageUrl(destinationName).catch(() => null)
+    : Promise.resolve(null);
 
   const imageResults = await Promise.all(
     matches.map(async (match) => {
@@ -513,19 +519,14 @@ export async function hydrateItineraryImages(
         const termLower = cleanedTerm.toLowerCase();
 
         // Don't add destination as fallback if the term IS the destination.
+        // Keep fallbacks lean — each one triggers 4 parallel provider calls.
         if (destLower !== termLower) {
           if (/\bmarket\b/i.test(cleanedTerm)) {
-            fallbackTerms.push(`${dest} night market street food`, `${dest} traditional food market`);
+            fallbackTerms.push(`${dest} night market street food`);
           }
           fallbackTerms.push(
             `${dest} ${term}`,
             `${term} ${dest}`,
-            `${dest} ${term} landmark`,
-            `${dest} ${term} photo`,
-            `${term} building ${dest}`,
-            `${term} ${dest} night`,
-            `${term} ${dest} skyline`,
-            `${dest} ${term} street`,
           );
         }
       }
@@ -535,13 +536,8 @@ export async function hydrateItineraryImages(
       // If this URL was already used for another landmark, try to find an alternative.
       if (url && usedUrls.has(url)) {
         const altTerms = [
-          destinationName ? `${destinationName} ${term} photo` : '',
-          destinationName ? `${destinationName} ${term} night` : '',
-          `${term} building`,
           `${term} photo`,
-          `${term} landmark`,
-          destinationName ? `${destinationName} ${term} street` : '',
-          destinationName ? `${destinationName} ${term} district` : '',
+          destinationName ? `${destinationName} ${term} photo` : '',
         ].filter((t): t is string => Boolean(t));
         const uniqueAltTerms = altTerms.filter(t => !fallbackTerms.includes(t));
         const altUrl = await getImageForTerm(term, [...fallbackTerms, ...uniqueAltTerms]);
@@ -553,8 +549,11 @@ export async function hydrateItineraryImages(
       // Last resort: use the destination image if we couldn't find a landmark image,
       // but only if it hasn't been used yet. Better to show the destination image
       // than no image at all.
-      if (!url && destinationImageUrl && !usedUrls.has(destinationImageUrl)) {
-        url = destinationImageUrl;
+      if (!url) {
+        const destinationImageUrl = await destinationImagePromise;
+        if (destinationImageUrl && !usedUrls.has(destinationImageUrl)) {
+          url = destinationImageUrl;
+        }
       }
 
       if (url) usedUrls.add(url);

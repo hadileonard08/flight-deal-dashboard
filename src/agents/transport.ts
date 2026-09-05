@@ -76,19 +76,31 @@ interface GeocodeResult {
   displayName: string;
 }
 
+const FETCH_TIMEOUT_MS = 5000;
+
+const geocodeCache = new Map<string, Promise<GeocodeResult | null>>();
+
 async function geocode(place: string, city: string): Promise<GeocodeResult | null> {
+  const cacheKey = `${place.toLowerCase()}|${city.toLowerCase()}`;
+  const cached = geocodeCache.get(cacheKey);
+  if (cached) return cached;
+  const lookup = geocodeUncached(place, city);
+  geocodeCache.set(cacheKey, lookup);
+  return lookup;
+}
+
+async function geocodeUncached(place: string, city: string): Promise<GeocodeResult | null> {
   const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (transport agent)' };
-  // Try up to 3 times — Nominatim rate-limits and returns 429 or empty results.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Try up to 2 times — Nominatim rate-limits and returns 429 or empty results.
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const query = encodeURIComponent(`${place}, ${city}`);
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-        { headers }
+        { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
       );
       if (res.status === 429) {
-        // Rate-limited — wait with exponential backoff.
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
         continue;
       }
       if (!res.ok) return null;
@@ -99,7 +111,7 @@ async function geocode(place: string, city: string): Promise<GeocodeResult | nul
           const fallbackQuery = encodeURIComponent(place);
           const fallbackRes = await fetch(
             `https://nominatim.openstreetmap.org/search?q=${fallbackQuery}&format=json&limit=1`,
-            { headers }
+            { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
           );
           if (fallbackRes.ok) {
             const fallbackData = (await fallbackRes.json()) as any[];
@@ -133,7 +145,7 @@ async function getOSRMRoute(
 ): Promise<{ durationMin: number; distanceKm: number } | null> {
   try {
     const url = `https://router.project-osrm.org/route/v1/${profile}/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
-    const res = await fetch(url, { headers: { 'User-Agent': 'flight-deal-dashboard/1.0' } });
+    const res = await fetch(url, { headers: { 'User-Agent': 'flight-deal-dashboard/1.0' }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!res.ok) return null;
     const data = (await res.json()) as any;
     if (!data.routes || data.routes.length === 0) return null;
@@ -358,25 +370,15 @@ export async function buildTransportPlan(
 ): Promise<TransportPlan | null> {
   if (!routeLinks || routeLinks.length === 0 || !destination) return null;
 
-  // Process all days, but batch them (2 at a time) to respect Nominatim's
-  // rate limit (~1 req/sec). Each day geocodes ~5 stops + routes them.
-  // Add a delay between batches to avoid 429 rate-limiting.
-  const BATCH_SIZE = 2;
-  const dayTransports: DayTransport[] = [];
+  // Process all days concurrently. Geocode results are cached so repeated
+  // place names across days don't trigger extra Nominatim calls. Each fetch
+  // has AbortSignal.timeout so a slow response won't block everything.
+  const dayTransports = await Promise.all(
+    routeLinks.map((rl) => buildDayTransport(rl, destination))
+  );
 
-  for (let i = 0; i < routeLinks.length; i += BATCH_SIZE) {
-    const batch = routeLinks.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map((rl) => buildDayTransport(rl, destination))
-    );
-    dayTransports.push(...batchResults);
-    // 1 second delay between batches to respect Nominatim rate limits.
-    if (i + BATCH_SIZE < routeLinks.length) {
-      await new Promise(r => setTimeout(r, 1000));
-    }
-  }
-
-  // Generate city-level transit tips and cost estimates.
+  // Generate city-level transit tips concurrently — no need to wait since
+  // the day transports are already resolved.
   const { tips, costs } = await generateCityTransitTips(destination, dayTransports);
 
   return {

@@ -73,8 +73,8 @@ export async function POST(req: Request) {
         answer: 'Looking that up...',
         gather: 'Planning your trip...',
         critic: 'Double-checking...',
-        enrich: 'Adding maps, transport, and images...',
-        respond: 'Putting it all together...',
+        enrich: 'Adding maps, transport & images...',
+        respond: 'Finalizing...',
       };
 
       try {

@@ -1,4 +1,5 @@
 const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
+const FETCH_TIMEOUT_MS = 5000;
 const landmarkVerificationCache = new Map<string, boolean>();
 
 export interface RouteLink {
@@ -16,11 +17,11 @@ function extractLandmarkNames(itinerary: string): string[] {
 
 async function wikipediaSearchExists(term: string): Promise<boolean> {
   const headers = { 'User-Agent': 'flight-deal-dashboard/1.0 (itinerary guardrails)' };
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(
         `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(term)}&limit=1&namespace=0&format=json&origin=*`,
-        { headers }
+        { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }
       );
       if (res.status === 429) {
         // Rate-limited — wait and retry with exponential backoff.
@@ -46,7 +47,7 @@ async function openStreetMapSearchExists(term: string, destination?: string): Pr
     const query = encodeURIComponent(`${term}, ${destination}`);
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'jalan/1.0 (itinerary guardrails)' } },
+      { headers: { 'User-Agent': 'jalan/1.0 (itinerary guardrails)' }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
     );
     if (res.status === 429 || !res.ok) return true;
     const results = (await res.json()) as unknown[];
@@ -65,7 +66,17 @@ export async function verifyItineraryLandmarks(itinerary: string, destination?: 
     landmarks.map(async (name) => {
       const cacheKey = `${name.toLowerCase()}|${destination?.toLowerCase() || ''}`;
       const cached = landmarkVerificationCache.get(cacheKey);
-      const exists = cached ?? (await wikipediaSearchExists(name) || await openStreetMapSearchExists(name, destination));
+      let exists: boolean;
+      if (cached !== undefined) {
+        exists = cached;
+      } else {
+        // Race both verification sources in parallel.
+        const [wikiResult, osmResult] = await Promise.all([
+          wikipediaSearchExists(name),
+          openStreetMapSearchExists(name, destination),
+        ]);
+        exists = wikiResult || osmResult;
+      }
       landmarkVerificationCache.set(cacheKey, exists);
       if (!exists) unverified.push(name);
     })

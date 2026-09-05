@@ -476,12 +476,19 @@ async function generateNode(state: typeof ConversationStateAnnotation.State) {
 async function enrichNode(state: typeof ConversationStateAnnotation.State) {
   const destination = state.entities.destination || '';
   const routeLinks = destination ? buildRouteLinks(state.itinerary, destination) : [];
-  const transportPlan = routeLinks.length > 0
-    ? await buildTransportPlan(routeLinks, destination).catch(() => null)
-    : null;
+
+  // Run transport and images concurrently — they are independent.
+  const [transportPlan, itineraryWithImages] = await Promise.all([
+    routeLinks.length > 0
+      ? buildTransportPlan(routeLinks, destination).catch(() => null)
+      : Promise.resolve(null),
+    hydrateItineraryImages(state.itinerary, destination).catch(() => state.itinerary),
+  ]);
+
+  // Inject transport notes into the already-image-hydrated itinerary.
   const itinerary = transportPlan
-    ? injectTransportNotes(state.itinerary, transportPlan)
-    : state.itinerary;
+    ? injectTransportNotes(itineraryWithImages, transportPlan)
+    : itineraryWithImages;
 
   return { itinerary, routeLinks, transportPlan };
 }
@@ -990,14 +997,11 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
     ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
     : state.entities.datesGeneral || 'upcoming dates';
 
-  const itineraryWithImages = state.itinerary
-    ? await hydrateItineraryImages(state.itinerary, destination)
-    : state.itinerary;
-
+  // Images are already hydrated in enrichNode (runs concurrently with transport).
   // Deals are rendered as rich cards in the payload, not in the markdown.
   const finalResponse = `# ${destination} Itinerary — ${dateStr}
 
-${itineraryWithImages}
+${state.itinerary}
 
 ${state.packingTips}
 
