@@ -565,8 +565,8 @@ export async function hydrateItineraryImages(
     if (url) {
       return acc.replace(match, `![${term}](${url})`);
     }
-    // Keep a visible placeholder text if absolutely no image can be found.
-    // Better than a blank gap.
-    return acc.replace(match, `*${term}*`);
+    // Remove the placeholder entirely if no image can be found.
+    // A missing image is cleaner than italic text that looks broken.
+    return acc.replace(match, '');
   }, itinerary);
 }

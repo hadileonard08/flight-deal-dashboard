@@ -999,11 +999,13 @@ async function respondNode(state: typeof ConversationStateAnnotation.State) {
 
   // Images are already hydrated in enrichNode (runs concurrently with transport).
   // Deals are rendered as rich cards in the payload, not in the markdown.
+  const packingSection = state.packingTips
+    ? `\n---\n\n## 🧳 Packing Tips\n\n${state.packingTips}`
+    : '';
   const finalResponse = `# ${destination} Itinerary — ${dateStr}
 
 ${state.itinerary}
-
-${state.packingTips}
+${packingSection}
 
 ${state.criticFeedback.length > 0 && !state.isApproved ? '\n_Note: Some details were adjusted after review._' : ''}
 `;

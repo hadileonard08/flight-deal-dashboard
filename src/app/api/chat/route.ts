@@ -101,7 +101,8 @@ export async function POST(req: Request) {
                 const dateStr = startDate
                   ? `${startDate}${endDate ? ` - ${endDate}` : ''}`
                   : result.entities?.datesGeneral || 'upcoming dates';
-                const previewResponse = `# ${destination} Itinerary — ${dateStr}\n\n${result.itinerary}\n\n${result.packingTips || ''}`;
+                const packingSection = result.packingTips ? `\n---\n\n## 🧳 Packing Tips\n\n${result.packingTips}` : '';
+                const previewResponse = `# ${destination} Itinerary — ${dateStr}\n\n${result.itinerary}${packingSection}`;
                 emit({ type: 'preview', content: previewResponse });
                 previewSent = true;
               }
